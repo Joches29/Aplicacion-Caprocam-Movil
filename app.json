@@ -40,7 +40,8 @@
       "@react-native-community/datetimepicker",
       "expo-sharing",
       "expo-image",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
