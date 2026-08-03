@@ -71,7 +71,7 @@ export default function SessionMonitor({ children }) {
   const handleLogin = () => {
     clearSession();
     setShowModal(false);
-    router.replace('/loginWeb');
+    router.replace('/login');
   };
 
   return (

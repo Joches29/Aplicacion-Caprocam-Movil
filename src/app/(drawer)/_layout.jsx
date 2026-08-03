@@ -126,17 +126,6 @@ export default function DrawerLayout() {
         }}
       />
 
-      <Drawer.Screen
-        name="linksPrueba"
-        options={{
-          drawerLabel: "Links de Prueba",
-          title: "Links de Prueba",
-          drawerIcon: ({ color, size }) => (
-            <Icon icon={ICONS.link} size={24} />
-          )
-        }}
-      />
-
 
       <Drawer.Screen name="inicio" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="registros" options={{ drawerItemStyle: { display: "none" } }} />
