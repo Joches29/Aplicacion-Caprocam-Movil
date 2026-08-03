@@ -22,11 +22,8 @@ export default function RootLayout() {
 
       <SessionMonitor>
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="loginWeb" />
 
           <Stack.Screen name="login" />
-
-          <Stack.Screen name="colaboradores" />
 
           <Stack.Screen name="index" />
         </Stack>

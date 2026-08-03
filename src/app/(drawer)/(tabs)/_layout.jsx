@@ -17,6 +17,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Icon icon={ICONS.dashboard} color={color} size={20} />
           ),
+          tabBarActiveTintColor: COLORS.primary,
           tabBarLabel: "Inicio",
           title: "Home",
         }}
@@ -26,9 +27,9 @@ export default function TabsLayout() {
         name="finca"
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Icon icon={ICONS.location} size={17} color={color} />
+            <Icon icon={ICONS.location} size={20} color={color} />
           ),
-          tabBarActiveTintColor: "teal",
+          tabBarActiveTintColor: COLORS.primary,
           tabBarLabel: "Finca",
           title: "Finca",
         }}
@@ -40,7 +41,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Icon icon={ICONS.document} color={color} size={20} />
           ),
-          tabBarActiveTintColor: "teal",
+          tabBarActiveTintColor: COLORS.primary,
           tabBarLabel: "Registros",
           title: "Registros",
         }}
@@ -53,6 +54,7 @@ export default function TabsLayout() {
             <Icon icon={ICONS.shrimp} color={color} size={20}
             />
           ),
+          tabBarActiveTintColor: COLORS.primary,
           tabBarLabel: "Siembra",
           title: "Siembra",
         }}

@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useRouter } from "expo-router";
 
-export default function Placeholder() {
+export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/landing");
+    router.replace("/login");
   }, []);
 
   return null;
