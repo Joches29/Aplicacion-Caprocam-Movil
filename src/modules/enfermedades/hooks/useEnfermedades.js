@@ -3,14 +3,22 @@
  * HOOK DE ENFERMEDADES
  * ============================================================
  *
- * Centraliza el estado y las operaciones del backend
+ * Centraliza el estado y las operaciones locales
  * correspondientes al modulo de enfermedades.
+ *
+ * Trabaja contra SQLite usando EnfermedadesLocalService.
  */
 
 import { useEffect, useState } from "react";
 
 import { useError } from "../../../shared/context/ErrorContext";
-import enfermedadesService from "../services/EnfermedadesService";
+import EnfermedadesLocalService from "../services/EnfermedadesLocal.service";
+
+/*
+============================================================
+CONSTANTES
+============================================================
+*/
 
 const RESUMEN_INICIAL = {
   totalCasos: 0,
@@ -18,6 +26,23 @@ const RESUMEN_INICIAL = {
   enfermedadesFrecuentes: [],
   severidadesFrecuentes: [],
 };
+
+/*
+============================================================
+HELPERS
+============================================================
+*/
+
+const obtenerArraySeguro = (valor) => Array.isArray(valor) ? valor : [];
+
+const obtenerResumenSeguro = (valor) =>
+  valor && typeof valor === "object" ? valor : RESUMEN_INICIAL;
+
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
 
 export default function useEnfermedades() {
   const { mostrarError } = useError();
@@ -32,19 +57,24 @@ export default function useEnfermedades() {
     try {
       setLoading(true);
 
-      const [registros, resumenBackend, enfermedadesCatalogo, severidadesCatalogo] = await Promise.all([
-        enfermedadesService.getAll(),
-        enfermedadesService.getResumenDashboard(),
-        enfermedadesService.getCatalogo(),
-        enfermedadesService.getCatalogoSeveridades(),
+      const [
+        registros,
+        resumenLocal,
+        enfermedadesCatalogo,
+        severidadesCatalogo,
+      ] = await Promise.all([
+        EnfermedadesLocalService.getAll(),
+        EnfermedadesLocalService.getResumenDashboard(),
+        EnfermedadesLocalService.getCatalogo(),
+        EnfermedadesLocalService.getCatalogoSeveridades(),
       ]);
 
-      setEnfermedades(Array.isArray(registros) ? registros : []);
-      setResumen(resumenBackend && typeof resumenBackend === "object" ? resumenBackend : RESUMEN_INICIAL);
-      setCatalogoEnfermedades(Array.isArray(enfermedadesCatalogo) ? enfermedadesCatalogo : []);
-      setCatalogoSeveridades(Array.isArray(severidadesCatalogo) ? severidadesCatalogo : []);
+      setEnfermedades(obtenerArraySeguro(registros));
+      setResumen(obtenerResumenSeguro(resumenLocal));
+      setCatalogoEnfermedades(obtenerArraySeguro(enfermedadesCatalogo));
+      setCatalogoSeveridades(obtenerArraySeguro(severidadesCatalogo));
     } catch (error) {
-      console.error("Error al cargar enfermedades", error);
+      console.error("Error al cargar enfermedades locales", error);
       mostrarError(error);
     } finally {
       setLoading(false);
@@ -54,9 +84,10 @@ export default function useEnfermedades() {
   async function buscarEnfermedad(id) {
     try {
       setLoading(true);
-      return await enfermedadesService.getById(id);
+
+      return await EnfermedadesLocalService.getById(id);
     } catch (error) {
-      console.error("Error al buscar la enfermedad", error);
+      console.error("Error al buscar la enfermedad local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -68,12 +99,13 @@ export default function useEnfermedades() {
     try {
       setLoading(true);
 
-      const nuevaEnfermedad = await enfermedadesService.create(registro);
+      const nuevaEnfermedad = await EnfermedadesLocalService.create(registro);
+
       await cargarDatos();
 
       return nuevaEnfermedad;
     } catch (error) {
-      console.error("Error al guardar la enfermedad", error);
+      console.error("Error al guardar la enfermedad local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -85,12 +117,16 @@ export default function useEnfermedades() {
     try {
       setLoading(true);
 
-      const enfermedadActualizada = await enfermedadesService.update(id, registro);
+      const enfermedadActualizada = await EnfermedadesLocalService.update(
+        id,
+        registro
+      );
+
       await cargarDatos();
 
       return enfermedadActualizada;
     } catch (error) {
-      console.error("Error al actualizar la enfermedad", error);
+      console.error("Error al actualizar la enfermedad local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -102,12 +138,13 @@ export default function useEnfermedades() {
     try {
       setLoading(true);
 
-      const enfermedadEliminada = await enfermedadesService.deleteById(id);
+      const enfermedadEliminada = await EnfermedadesLocalService.deleteById(id);
+
       await cargarDatos();
 
       return enfermedadEliminada;
     } catch (error) {
-      console.error("Error al eliminar la enfermedad", error);
+      console.error("Error al eliminar la enfermedad local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -115,7 +152,7 @@ export default function useEnfermedades() {
     }
   }
 
-  useEffect(() => {
+  useEffect(function () {
     cargarDatos();
   }, []);
 

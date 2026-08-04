@@ -652,6 +652,53 @@ export const marcarSincronizadoLocal = async (tabla, id, servidorId = null) => {
 };
 
 /**
+ * Elimina fisicamente un registro local despues de confirmar
+ * que fue sincronizado correctamente con el backend.
+ *
+ * @param {string} tabla - Nombre de la tabla local.
+ * @param {number} id - ID local del registro.
+ * @returns {Promise<object>} Respuesta local estandar.
+ */
+export const eliminarRegistroLocalDespuesSync = async (tabla, id) => {
+    try {
+        validarTabla(tabla);
+
+        const db = await obtenerBaseLocal();
+
+        const registro = await db.getFirstAsync(
+            `SELECT * FROM ${tabla} WHERE id = ?`,
+            [id]
+        );
+
+        if (!registro) {
+            return exitoLocal("El registro local ya no existe.", {
+                tabla: tabla,
+                id: id
+            });
+        }
+
+        if (Number(registro.pendiente_sync) !== 1) {
+            return exitoLocal("El registro local no esta pendiente de sincronizacion.", {
+                tabla: tabla,
+                id: id
+            });
+        }
+
+        await db.runAsync(
+            `DELETE FROM ${tabla} WHERE id = ?`,
+            [id]
+        );
+
+        return exitoLocal("Registro local eliminado despues de sincronizar correctamente.", {
+            tabla: tabla,
+            id: id
+        });
+    } catch (error) {
+        return errorLocal("Error al eliminar el registro local despues de sincronizar.", error);
+    }
+};
+
+/**
  * Cuenta registros por tabla.
  * @param {string} tabla - Nombre de tabla.
  * @returns {Promise<object>} Respuesta local.
