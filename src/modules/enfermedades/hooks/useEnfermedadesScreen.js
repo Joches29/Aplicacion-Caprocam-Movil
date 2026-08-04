@@ -4,99 +4,237 @@
  * ============================================================
  *
  * Centraliza la logica del formulario, carga de opciones,
- * validaciones y registro de enfermedades.
+ * validaciones y registro local de enfermedades.
+ *
+ * Trabaja con SQLite para fincas, estanques y enfermedades.
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useMemo, useState } from "react";
 import { useWindowDimensions } from "react-native";
 
 import { useError } from "../../../shared/context/ErrorContext";
-import { fincaService } from "../../finca/services/finca.service";
-import { estanqueService } from "../../estanques/services/estanque.service";
+import { localApi } from "../../../database/local/localApi.service";
 
 import useEnfermedades from "./useEnfermedades";
 
-function obtenerFechaActual() {
+/*
+============================================================
+CONSTANTES
+============================================================
+*/
+
+const STORAGE_COLABORADOR_ACTUAL = "caprocam_colaborador_actual";
+
+const METODOS_LOCAL_API = {
+  obtenerTodos: ["obtenerTodos", "getAll", "listar"],
+};
+
+/*
+============================================================
+HELPERS DE FECHA
+============================================================
+*/
+
+const obtenerFechaActual = () => {
   const fecha = new Date();
   const dia = String(fecha.getDate()).padStart(2, "0");
   const mes = String(fecha.getMonth() + 1).padStart(2, "0");
 
   return `${dia}/${mes}/${fecha.getFullYear()}`;
-}
+};
 
-function convertirFechaParaBackend(fecha) {
-  if (!fecha || fecha.includes("-")) return fecha || "";
+const convertirFechaParaBackend = (fecha) => {
+  if (!fecha) return "";
+  if (fecha.includes("-")) return fecha.slice(0, 10);
 
   const [dia, mes, anio] = fecha.split("/");
+
   return dia && mes && anio ? `${anio}-${mes}-${dia}` : fecha;
+};
+
+/*
+============================================================
+HELPERS GENERALES
+============================================================
+*/
+
+const primeraMayuscula = (texto) =>
+  texto ? texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase() : "";
+
+const convertirNumero = (valor, valorDefecto = 0) => {
+  const numero = Number(valor);
+
+  return Number.isNaN(numero) ? valorDefecto : numero;
+};
+
+const obtenerDataRespuesta = (respuesta) =>
+  respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
+    ? respuesta.data
+    : respuesta;
+
+function obtenerValor(objeto, llaves, valorDefecto = null) {
+  if (!objeto) return valorDefecto;
+
+  for (let i = 0; i < llaves.length; i += 1) {
+    const llave = llaves[i];
+
+    if (
+      Object.prototype.hasOwnProperty.call(objeto, llave) &&
+      objeto[llave] !== undefined &&
+      objeto[llave] !== null
+    ) {
+      return objeto[llave];
+    }
+  }
+
+  return valorDefecto;
 }
 
-function primeraMayuscula(texto) {
-  return texto
-    ? texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase()
-    : "";
+async function obtenerColaboradorActual() {
+  try {
+    const valor = await AsyncStorage.getItem(STORAGE_COLABORADOR_ACTUAL);
+
+    return valor ? JSON.parse(valor) : null;
+  } catch (error) {
+    console.error("Error al obtener colaborador actual", error);
+    return null;
+  }
 }
 
-function obtenerIdFinca(finca) {
-  return Number(
-    finca.id ??
-    finca.fincaId ??
-    finca.idFinca ??
-    finca.finca_id
+const obtenerNombreResponsable = (colaborador) => {
+  const nombre = obtenerValor(colaborador, ["nombre"], "");
+  const apellidos = obtenerValor(colaborador, ["apellidos"], "");
+
+  return `${nombre} ${apellidos}`.trim();
+};
+
+/*
+============================================================
+HELPERS DE LOCAL API
+============================================================
+*/
+
+async function ejecutarMetodoLocal(seccion, tipoMetodo, argumentos = []) {
+  const apiSeccion = localApi[seccion];
+
+  if (!apiSeccion) {
+    throw new Error(`localApi.${seccion} no esta disponible.`);
+  }
+
+  const nombres = METODOS_LOCAL_API[tipoMetodo] || [];
+
+  for (let i = 0; i < nombres.length; i += 1) {
+    const nombreMetodo = nombres[i];
+
+    if (typeof apiSeccion[nombreMetodo] === "function") {
+      return await apiSeccion[nombreMetodo](...argumentos);
+    }
+  }
+
+  throw new Error(`No existe metodo local ${tipoMetodo} para ${seccion}.`);
+}
+
+async function obtenerRegistrosLocales(seccion) {
+  const respuesta = await ejecutarMetodoLocal(seccion, "obtenerTodos");
+  const data = obtenerDataRespuesta(respuesta);
+
+  return Array.isArray(data) ? data : [];
+}
+
+/*
+============================================================
+HELPERS DE FINCAS Y ESTANQUES
+============================================================
+*/
+
+const obtenerIdFinca = (finca) =>
+  Number(
+    obtenerValor(
+      finca,
+      ["id", "fincaId", "idFinca", "finca_id", "servidor_id", "servidorId"],
+      0
+    )
   );
-}
 
-function obtenerIdEstanque(estanque) {
-  return Number(
-    estanque.id ??
-    estanque.estanqueId ??
-    estanque.idEstanque ??
-    estanque.estanque_id
+const obtenerIdEstanque = (estanque) =>
+  Number(
+    obtenerValor(
+      estanque,
+      [
+        "id",
+        "estanqueId",
+        "idEstanque",
+        "estanque_id",
+        "servidor_id",
+        "servidorId",
+      ],
+      0
+    )
   );
-}
 
-function obtenerFincaIdEstanque(estanque) {
-  return Number(
-    estanque.idFinca ??
-    estanque.fincaId ??
-    estanque.finca_id ??
-    estanque.finca?.id
+const obtenerFincaIdEstanque = (estanque) =>
+  Number(
+    obtenerValor(
+      estanque,
+      ["finca_id", "fincaId", "idFinca"],
+      0
+    )
   );
-}
+
+const obtenerNombreFinca = (item, id) =>
+  obtenerValor(
+    item,
+    ["nombreFinca", "nombre_finca", "nombre", "codigoCBO", "codigo_cbo"],
+    ""
+  ) || `Finca ${id}`;
+
+const obtenerNombreEstanque = (item, id) =>
+  obtenerValor(item, ["codigo", "nombre"], "") || `Estanque ${id}`;
+
+/*
+============================================================
+HELPERS DE CATALOGOS
+============================================================
+*/
 
 function normalizarCatalogo(catalogo) {
-  if (!Array.isArray(catalogo)) return [];
+  return Array.isArray(catalogo)
+    ? catalogo
+      .map((item) => {
+        if (typeof item === "string") {
+          return {
+            label: primeraMayuscula(item),
+            value: item,
+          };
+        }
 
-  return catalogo
-    .map(function (item) {
-      if (typeof item === "string") {
+        const value = obtenerValor(
+          item,
+          ["value", "valor", "codigo", "nombre"],
+          ""
+        );
+
+        const label = obtenerValor(
+          item,
+          ["label", "nombre"],
+          primeraMayuscula(String(value))
+        );
+
         return {
-          label: primeraMayuscula(item),
-          value: item,
+          label: String(label),
+          value: String(value),
         };
-      }
-
-      const value =
-        item.value ??
-        item.valor ??
-        item.codigo ??
-        item.nombre ??
-        "";
-
-      const label =
-        item.label ??
-        item.nombre ??
-        primeraMayuscula(String(value));
-
-      return {
-        label: String(label),
-        value: String(value),
-      };
-    })
-    .filter(function (item) {
-      return item.value !== "";
-    });
+      })
+      .filter((item) => item.value !== "")
+    : [];
 }
+
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
 
 export default function useEnfermedadesScreen() {
   const { width } = useWindowDimensions();
@@ -106,7 +244,7 @@ export default function useEnfermedadesScreen() {
     catalogoEnfermedades,
     catalogoSeveridades,
     loading: loadingEnfermedades,
-    guardarEnfermedad: guardarEnfermedadBackend,
+    guardarEnfermedad: guardarEnfermedadLocal,
   } = useEnfermedades();
 
   const [fincas, setFincas] = useState([]);
@@ -115,6 +253,7 @@ export default function useEnfermedadesScreen() {
   const [finca, setFinca] = useState("");
   const [estanque, setEstanque] = useState("");
   const [fechaReporte, setFechaReporte] = useState(obtenerFechaActual());
+  const [responsable, setResponsable] = useState("");
   const [enfermedad, setEnfermedad] = useState("");
   const [severidad, setSeveridad] = useState("");
   const [mortalidad, setMortalidad] = useState("");
@@ -125,101 +264,109 @@ export default function useEnfermedadesScreen() {
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("info");
 
-  useEffect(function () {
+  useEffect(() => {
+    let activo = true;
+
     async function cargarOpciones() {
       try {
         setCargandoOpciones(true);
 
-        const [fincasData, estanquesData] = await Promise.all([
-          fincaService.getFincas(),
-          estanqueService.getEstanques(),
+        await localApi.inicializar();
+
+        const [colaborador, fincasData, estanquesData] = await Promise.all([
+          obtenerColaboradorActual(),
+          obtenerRegistrosLocales("fincas"),
+          obtenerRegistrosLocales("estanques"),
         ]);
 
-        setFincas(Array.isArray(fincasData) ? fincasData : []);
-        setEstanques(Array.isArray(estanquesData) ? estanquesData : []);
+        if (!activo) return;
+
+        setResponsable(obtenerNombreResponsable(colaborador));
+        setFincas(fincasData);
+        setEstanques(estanquesData);
       } catch (error) {
-        console.error("Error al cargar fincas y estanques", error);
+        console.error("Error al cargar opciones locales", error);
         mostrarError(error);
       } finally {
-        setCargandoOpciones(false);
+        if (activo) setCargandoOpciones(false);
       }
     }
 
     cargarOpciones();
+
+    return () => {
+      activo = false;
+    };
   }, []);
 
-  const opcionesFincas = useMemo(function () {
-    return fincas
-      .map(function (item) {
-        const id = obtenerIdFinca(item);
-        const label =
-          item.nombreFinca ??
-          item.nombre_finca ??
-          item.nombre ??
-          item.codigoCBO ??
-          `Finca ${id}`;
+  const opcionesFincas = useMemo(
+    () =>
+      fincas
+        .map((item) => {
+          const id = obtenerIdFinca(item);
 
-        return {
-          label,
-          value: String(id),
-        };
-      })
-      .filter(function (item) {
-        return Number(item.value) > 0;
-      });
-  }, [fincas]);
+          return {
+            label: obtenerNombreFinca(item, id),
+            value: String(id),
+          };
+        })
+        .filter((item) => Number(item.value) > 0),
+    [fincas]
+  );
 
-  const opcionesEstanques = useMemo(function () {
-    if (!finca) return [];
+  const opcionesEstanques = useMemo(
+    () =>
+      finca
+        ? estanques
+          .filter((item) => obtenerFincaIdEstanque(item) === Number(finca))
+          .map((item) => {
+            const id = obtenerIdEstanque(item);
 
-    return estanques
-      .filter(function (item) {
-        return obtenerFincaIdEstanque(item) === Number(finca);
-      })
-      .map(function (item) {
-        const id = obtenerIdEstanque(item);
-        const label = item.codigo ?? item.nombre ?? `Estanque ${id}`;
+            return {
+              label: obtenerNombreEstanque(item, id),
+              value: String(id),
+            };
+          })
+          .filter((item) => Number(item.value) > 0)
+        : [],
+    [finca, estanques]
+  );
 
-        return {
-          label,
-          value: String(id),
-        };
-      })
-      .filter(function (item) {
-        return Number(item.value) > 0;
-      });
-  }, [finca, estanques]);
+  const opcionesEnfermedades = useMemo(
+    () => normalizarCatalogo(catalogoEnfermedades),
+    [catalogoEnfermedades]
+  );
 
-  const opcionesEnfermedades = useMemo(function () {
-    return normalizarCatalogo(catalogoEnfermedades);
-  }, [catalogoEnfermedades]);
-
-  const opcionesSeveridades = useMemo(function () {
-    return normalizarCatalogo(catalogoSeveridades);
-  }, [catalogoSeveridades]);
+  const opcionesSeveridades = useMemo(
+    () => normalizarCatalogo(catalogoSeveridades),
+    [catalogoSeveridades]
+  );
 
   const esTablet = width >= 768;
 
-  const gridStyle = useMemo(function () {
-    return {
+  const gridStyle = useMemo(
+    () => ({
       width: "100%",
       flexDirection: esTablet ? "row" : "column",
       flexWrap: esTablet ? "wrap" : "nowrap",
       gap: 12,
-    };
-  }, [esTablet]);
+    }),
+    [esTablet]
+  );
 
-  const itemStyle = useMemo(function () {
-    return {
+  const itemStyle = useMemo(
+    () => ({
       width: esTablet ? "48.5%" : "100%",
-    };
-  }, [esTablet]);
+    }),
+    [esTablet]
+  );
 
-  const itemFullStyle = useMemo(function () {
-    return {
+  const itemFullStyle = useMemo(
+    () => ({
       width: "100%",
-    };
-  }, []);
+    }),
+    []
+  );
 
   const placeholderFinca = cargandoOpciones
     ? "Cargando fincas..."
@@ -253,44 +400,44 @@ export default function useEnfermedadesScreen() {
     setTipoMensaje("info");
   }
 
-  function cambiarFinca(value) {
+  const cambiarFinca = (value) => {
     setFinca(String(value));
     setEstanque("");
     limpiarMensaje();
-  }
+  };
 
-  function cambiarEstanque(value) {
+  const cambiarEstanque = (value) => {
     setEstanque(String(value));
     limpiarMensaje();
-  }
+  };
 
-  function cambiarFechaReporte(value) {
+  const cambiarFechaReporte = (value) => {
     setFechaReporte(value);
     limpiarMensaje();
-  }
+  };
 
-  function cambiarEnfermedad(value) {
+  const cambiarEnfermedad = (value) => {
     setEnfermedad(String(value));
     limpiarMensaje();
-  }
+  };
 
-  function cambiarSeveridad(value) {
+  const cambiarSeveridad = (value) => {
     setSeveridad(String(value));
     limpiarMensaje();
-  }
+  };
 
-  function cambiarMortalidad(value) {
+  const cambiarMortalidad = (value) => {
     setMortalidad(String(value));
     limpiarMensaje();
-  }
+  };
 
-  function cambiarReporte(value) {
+  const cambiarReporte = (value) => {
     setReporte(value);
     limpiarMensaje();
-  }
+  };
 
-  function validarFormulario() {
-    const mortalidadNumero = Number(mortalidad);
+  const validarFormulario = () => {
+    const mortalidadNumero = convertirNumero(mortalidad, 0);
 
     return Boolean(
       finca &&
@@ -299,10 +446,9 @@ export default function useEnfermedadesScreen() {
       enfermedad &&
       severidad &&
       reporte.trim() &&
-      !Number.isNaN(mortalidadNumero) &&
       mortalidadNumero >= 0
     );
-  }
+  };
 
   function limpiarFormulario() {
     setFinca("");
@@ -329,19 +475,19 @@ export default function useEnfermedadesScreen() {
       fincaId: Number(finca),
       estanqueId: Number(estanque),
       fechaReporte: convertirFechaParaBackend(fechaReporte),
-      enfermedad,
-      severidad,
-      mortalidadRegistrada: Number(mortalidad),
+      enfermedad: enfermedad,
+      severidad: severidad,
+      mortalidadRegistrada: convertirNumero(mortalidad, 0),
+      responsable: responsable,
       reporte: reporte.trim(),
     };
 
-    const nuevaEnfermedad =
-      await guardarEnfermedadBackend(enfermedadDTO);
+    const nuevaEnfermedad = await guardarEnfermedadLocal(enfermedadDTO);
 
     if (!nuevaEnfermedad) return;
 
     setTipoMensaje("success");
-    setMensaje("Enfermedad registrada correctamente.");
+    setMensaje("Enfermedad registrada localmente.");
     limpiarFormulario();
   }
 
@@ -349,7 +495,7 @@ export default function useEnfermedadesScreen() {
     finca,
     estanque,
     fechaReporte,
-    responsable: "",
+    responsable,
     enfermedad,
     severidad,
     mortalidad,
