@@ -1,16 +1,13 @@
 /**
  * ============================================================
- * UTIL: enriquecerRegistros
+ * UTIL: enriquecerRegistros (LOCAL / SQLite)
  * ============================================================
  * Resuelve nombres de finca, estanque, colaborador asignado
- * y "creado por" (colaborador o usuario admin).
+ * y "creado por" (colaborador o usuario admin) desde localApi.
+ *
  */
 
-import { colaboradorService } from "../../colaboradores/services/colaborador.service.js";
-import { fincaService } from "../../finca/services/finca.service.js";
-import { estanqueService } from "../../estanques/services/estanque.service.js";
-import { getUsuarioById } from "../../login/services/usuarioService.js";
-import { productoService } from "../../productos/services/producto.service.js";
+import { obtenerCatalogosLocales } from "../services/ReporteriaLocal.service";
 
 export function nombreCompletoPersona(persona) {
   if (!persona || typeof persona !== "object") return null;
@@ -50,66 +47,62 @@ function pickId(registro, keys) {
   return null;
 }
 
+function nombreFincaDeRegistro(finca) {
+  if (!finca) return null;
+  return (
+    finca.nombre_finca ??
+    finca.nombreFinca ??
+    finca.nombre ??
+    null
+  );
+}
+
+function codigoEstanqueDeRegistro(estanque) {
+  if (!estanque) return null;
+  return estanque.codigo ?? estanque.codigoEstanque ?? estanque.nombre ?? null;
+}
+
+function nombreProductoDeRegistro(producto) {
+  if (!producto) return null;
+  return producto.nombre ?? producto.nombreProducto ?? producto.name ?? null;
+}
+
 /**
- * Carga catálogos + resuelve usuarios creadores y enriquece registros.
+ * Carga catálogos locales + enriquece registros con nombres legibles.
  */
 export async function cargarYEnriquecerRegistros(registros = []) {
   const data = Array.isArray(registros) ? registros : [];
 
-  const [fincasData, estanquesData, colaboradoresData, productosData] = await Promise.all([
-    fincaService.getFincas(),
-    estanqueService.getEstanques(),
-    colaboradorService.getColaboradores(),
-    productoService.getProductos(),
-  ]);
+  const { fincas, estanques, colaboradores, productos, usuarios } =
+    await obtenerCatalogosLocales();
 
   const fincasMap = Object.fromEntries(
-    (fincasData || []).map((f) => [Number(f.id), f.nombreFinca]),
+    (fincas || []).map((f) => [Number(f.id), nombreFincaDeRegistro(f)])
   );
 
   const estanquesMap = Object.fromEntries(
-    (estanquesData || []).map((e) => [Number(e.id), e.codigo]),
+    (estanques || []).map((e) => [Number(e.id), codigoEstanqueDeRegistro(e)])
   );
 
   const colaboradoresMap = Object.fromEntries(
-    (colaboradoresData || []).map((c) => [
+    (colaboradores || []).map((c) => [
       Number(c.id),
-      `${c.nombre ?? ""} ${c.apellidos ?? ""}`.trim() ||
-        c.nombre ||
-        "Sin nombre",
-    ]),
+      nombreCompletoPersona(c) || c.nombre || `Colaborador #${c.id}`,
+    ])
   );
 
   const productosMap = Object.fromEntries(
-    (productosData || []).map((p) => [Number(p.id), p.nombre]),
+    (productos || []).map((p) => [Number(p.id), nombreProductoDeRegistro(p)])
   );
 
-  const idsUsuario = [
-    ...new Set(
-      data
-        .map((r) =>
-          pickId(r, [
-            "creadoPorUsuarioId",
-            "creado_por_usuario_id",
-            "creadoPorUsuario",
-          ]),
-        )
-        .filter(Boolean),
-    ),
-  ];
-
-  const usuariosMap = {};
-  await Promise.all(
-    idsUsuario.map(async (id) => {
-      try {
-        const usuario = await getUsuarioById(id);
-        usuariosMap[id] =
-          nombreCompletoPersona(usuario) || `Usuario #${id}`;
-      } catch (e) {
-        console.warn(`No se pudo obtener usuario ${id}`, e);
-        usuariosMap[id] = `Usuario #${id}`;
-      }
-    }),
+  const usuariosMap = Object.fromEntries(
+    (usuarios || []).map((u) => [
+      Number(u.id),
+      nombreCompletoPersona(u) ||
+        u.nombre_usuario ||
+        u.nombreUsuario ||
+        `Usuario #${u.id}`,
+    ])
   );
 
   return data.map((registro) => {
