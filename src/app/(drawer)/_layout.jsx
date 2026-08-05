@@ -83,17 +83,6 @@ export default function DrawerLayout() {
       />
 
        <Drawer.Screen
-        name="colaboradores"
-        options={{
-          drawerLabel: "Colaboradores",
-          title: "Colaboradores",
-          drawerIcon: ({ color, size }) => (
-            <Icon icon={ICONS.people} size={22}/>
-          )
-        }}
-      />
-
-       <Drawer.Screen
         name="equipos"
         options={{
           drawerLabel: "Equipos",
