@@ -9,7 +9,7 @@
  * @navigation - Navega a la pantalla principal si el login es exitoso.
  */
 
-import { useState, useEffect } from 'react';   // ← agregar useEffect aquí
+import { useState } from 'react';
 import { View, ScrollView } from 'react-native';
 
 import Alert from '../../../shared/components/Alert';
@@ -30,20 +30,31 @@ import SearchBar from '../../../shared/components/SearchBar';
 import styles from '../styles/loginStyles';
 import { STYLE } from '../../../theme/style';
 
-import { sembrarColaboradorPrueba } from '../../../database/local/devSeed'; // ← import temporal, SOLO PRUEBAS
+// ⚠️ TEMPORAL — import solo para pruebas locales, borrar antes de mergear
+import { probarBaseLocal } from '../../../database/local/testLocalDb.service';
 
 /**
  * LoginScreen
  *
  * Composición principal de la pantalla.
  */
-export default function LoginScreen({ onLoginSuccess = () => {} }) {
+export default function LoginScreen({ onLoginSuccess = () => { } }) {
   const loginFlow = useLoginFlow({ onLoginSuccess });
 
-  // ⚠️ TEMPORAL — solo para pruebas locales, borrar junto con el import de arriba
-  useEffect(() => {
-    sembrarColaboradorPrueba();
-  }, []);
+  // ⚠️ TEMPORAL — solo para pruebas locales
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const handleSeedTest = async () => {
+    setIsSeeding(true);
+    try {
+      await probarBaseLocal();   // crea a "Gerald Alfaro" (PIN 1234) + finca/estanque/alimentación
+      await loginFlow.refetch();
+    } catch (err) {
+      console.log('Error sembrando datos de prueba:', err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   return (
     <View style={STYLE.container}>
@@ -61,6 +72,8 @@ export default function LoginScreen({ onLoginSuccess = () => {} }) {
           onSearchTextChange={loginFlow.setWorkerSearchText}
           isFormValid={loginFlow.isFormValid}
           onContinue={loginFlow.openPinModal}
+          onSeedTest={handleSeedTest}
+          isSeeding={isSeeding}
         />
       </ScrollView>
 
@@ -116,6 +129,8 @@ function WorkerSection({
   onSearchTextChange,
   isFormValid,
   onContinue,
+  onSeedTest,
+  isSeeding,
 }) {
   // Estado de sincronización basado en el resultado real de onSyncData()
   const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'danger'
@@ -161,6 +176,15 @@ function WorkerSection({
           <Text style={styles.buttonText}>{LOGIN_MESSAGES.SYNC_BUTTON_TEXT}</Text>
         </View>
       </Button>
+
+      {/* ⚠️ TEMPORAL — borrar este botón antes de mergear */}
+      <Button onPress={onSeedTest} variant="outline" disabled={isSeeding} style={styles.syncButton}>
+        <View style={styles.buttonContent}>
+          <Icon icon={ICONS.document || ICONS.info} size={18} color={COLORS.primary} />
+          <Text style={styles.buttonText}>{isSeeding ? 'SQLiteando...' : 'SQLite'}</Text>
+        </View>
+      </Button>
+
       <SearchBar
         value={searchText}
         onChangeText={onSearchTextChange}
