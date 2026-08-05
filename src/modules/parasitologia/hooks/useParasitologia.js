@@ -3,14 +3,22 @@
  * HOOK DE PARASITOLOGIA
  * ============================================================
  *
- * Centraliza el estado y las operaciones del backend
+ * Centraliza el estado y las operaciones locales
  * correspondientes al modulo de parasitologia.
+ *
+ * Trabaja contra SQLite usando ParasitologiaLocalService.
  */
 
 import { useEffect, useState } from "react";
 
 import { useError } from "../../../shared/context/ErrorContext";
-import parasitologiaService from "../services/ParasitologiaService";
+import ParasitologiaLocalService from "../services/ParasitologiaLocal.service";
+
+/*
+============================================================
+CONSTANTES
+============================================================
+*/
 
 const RESUMEN_INICIAL = {
   totalRegistros: 0,
@@ -25,6 +33,23 @@ const RESUMEN_INICIAL = {
   gradosFrecuentes: [],
 };
 
+/*
+============================================================
+HELPERS
+============================================================
+*/
+
+const obtenerArraySeguro = (valor) => Array.isArray(valor) ? valor : [];
+
+const obtenerResumenSeguro = (valor) =>
+  valor && typeof valor === "object" ? valor : RESUMEN_INICIAL;
+
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
+
 export default function useParasitologia() {
   const { mostrarError } = useError();
 
@@ -37,17 +62,17 @@ export default function useParasitologia() {
     try {
       setLoading(true);
 
-      const [registros, resumenBackend, catalogo] = await Promise.all([
-        parasitologiaService.getAll(),
-        parasitologiaService.getResumenDashboard(),
-        parasitologiaService.getCatalogo(),
+      const [registros, resumenLocal, catalogo] = await Promise.all([
+        ParasitologiaLocalService.getAll(),
+        ParasitologiaLocalService.getResumenDashboard(),
+        ParasitologiaLocalService.getCatalogo(),
       ]);
 
-      setRegistrosParasitologia(Array.isArray(registros) ? registros : []);
-      setResumen(resumenBackend && typeof resumenBackend === "object" ? resumenBackend : RESUMEN_INICIAL);
-      setCatalogoParasitos(Array.isArray(catalogo) ? catalogo : []);
+      setRegistrosParasitologia(obtenerArraySeguro(registros));
+      setResumen(obtenerResumenSeguro(resumenLocal));
+      setCatalogoParasitos(obtenerArraySeguro(catalogo));
     } catch (error) {
-      console.error("Error al cargar parasitologias", error);
+      console.error("Error al cargar parasitologias locales", error);
       mostrarError(error);
     } finally {
       setLoading(false);
@@ -57,9 +82,10 @@ export default function useParasitologia() {
   async function buscarRegistro(id) {
     try {
       setLoading(true);
-      return await parasitologiaService.getById(id);
+
+      return await ParasitologiaLocalService.getById(id);
     } catch (error) {
-      console.error("Error al buscar parasitologia", error);
+      console.error("Error al buscar parasitologia local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -71,12 +97,13 @@ export default function useParasitologia() {
     try {
       setLoading(true);
 
-      const nuevoRegistro = await parasitologiaService.create(registro);
+      const nuevoRegistro = await ParasitologiaLocalService.create(registro);
+
       await cargarDatos();
 
       return nuevoRegistro;
     } catch (error) {
-      console.error("Error al guardar parasitologia", error);
+      console.error("Error al guardar parasitologia local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -88,12 +115,16 @@ export default function useParasitologia() {
     try {
       setLoading(true);
 
-      const registroActualizado = await parasitologiaService.update(id, registro);
+      const registroActualizado = await ParasitologiaLocalService.update(
+        id,
+        registro
+      );
+
       await cargarDatos();
 
       return registroActualizado;
     } catch (error) {
-      console.error("Error al actualizar parasitologia", error);
+      console.error("Error al actualizar parasitologia local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -105,12 +136,13 @@ export default function useParasitologia() {
     try {
       setLoading(true);
 
-      const registroEliminado = await parasitologiaService.deleteById(id);
+      const registroEliminado = await ParasitologiaLocalService.deleteById(id);
+
       await cargarDatos();
 
       return registroEliminado;
     } catch (error) {
-      console.error("Error al eliminar parasitologia", error);
+      console.error("Error al eliminar parasitologia local", error);
       mostrarError(error);
       return null;
     } finally {
@@ -118,7 +150,7 @@ export default function useParasitologia() {
     }
   }
 
-  useEffect(() => {
+  useEffect(function () {
     cargarDatos();
   }, []);
 

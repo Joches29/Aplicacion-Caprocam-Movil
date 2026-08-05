@@ -172,7 +172,7 @@ function mapearEnfermedadDesdeLocal(registro) {
 
             mortalidadRegistrada: obtenerValor(
                 registro,
-                ["mortalidad", "mortalidad_registrada", "mortalidadRegistrada"],
+                ["mortalidad_registrada", "mortalidad", "mortalidadRegistrada"],
                 0
             ),
 
@@ -248,11 +248,12 @@ async function mapearEnfermedadParaLocal(enfermedadDTO) {
         grupo_datos: convertirNumero(grupoDatos, contexto.grupoDatos),
         finca_id: convertirNumero(fincaId, null),
         estanque_id: convertirNumero(estanqueId, null),
+        tipo_registro: convertirTexto(enfermedadDTO.tipoRegistro, "enfermedad"),
         fecha_reporte: convertirTexto(fechaReporte),
+        responsable: convertirTexto(enfermedadDTO.responsable),
         enfermedad: convertirTexto(enfermedadDTO.enfermedad),
         severidad: convertirTexto(enfermedadDTO.severidad),
-        responsable: convertirTexto(enfermedadDTO.responsable),
-        mortalidad: convertirNumero(mortalidad, 0),
+        mortalidad_registrada: convertirNumero(mortalidad, 0),
         reporte: convertirTexto(enfermedadDTO.reporte).trim(),
         creado_por_usuario_id: creadoPorUsuarioId,
         creado_por_colaborador_id: creadoPorColaboradorId,
