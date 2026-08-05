@@ -31,8 +31,6 @@ import SearchBar from "../../../shared/components/SearchBar";
 import styles from "../styles/loginStyles";
 import { STYLE } from "../../../theme/style";
 
-// ⚠️ TEMPORAL — import solo para pruebas locales, borrar antes de mergear
-import { probarBaseLocal } from '../../../database/local/testLocalDb.service';
 
 /**
  * LoginScreen
