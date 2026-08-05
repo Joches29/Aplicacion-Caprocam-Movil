@@ -1,16 +1,16 @@
 /**
  * ============================================================
- * SERVICE DE SINCRONIZACION DE ENFERMEDADES
+ * SERVICE DE SINCRONIZACION DE PARASITOLOGIA
  * ============================================================
  *
- * Sincroniza los registros locales de enfermedades con el
+ * Sincroniza los registros locales de parasitologia con el
  * backend.
  *
  * Cuando el backend confirma que el registro fue recibido
  * correctamente, el registro se elimina fisicamente de SQLite.
  */
 
-import EnfermedadesService from "./EnfermedadesService";
+import parasitologiaService from "./ParasitologiaService";
 import { localApi } from "../../../database/local/localApi.service";
 import { eliminarRegistroLocalDespuesSync } from "../../../database/local/localCrud.service";
 
@@ -20,7 +20,7 @@ CONSTANTES
 ============================================================
 */
 
-const TABLA_ENFERMEDADES = "enfermedades";
+const TABLA_PARASITOLOGIAS = "parasitologias";
 
 /*
 ============================================================
@@ -57,15 +57,21 @@ const obtenerValor = (objeto, llaves, valorDefecto = null) => {
   return valorDefecto;
 };
 
-const obtenerPendientesEnfermedades = async () => {
+const obtenerPendientesParasitologias = async () => {
   const respuesta = await localApi.sync.obtenerPendientes();
   const data = obtenerDataRespuesta(respuesta);
   const pendientes = Array.isArray(data) ? data : [];
 
-  return pendientes.filter((item) => item.tabla === TABLA_ENFERMEDADES);
+  return pendientes.filter((item) => item.tabla === TABLA_PARASITOLOGIAS);
 };
 
-const mapearEnfermedadParaBackend = (registro) => ({
+/*
+============================================================
+MAPEO LOCAL A BACKEND
+============================================================
+*/
+
+const mapearParasitologiaParaBackend = (registro) => ({
   fincaId: convertirNumero(
     obtenerValor(registro, ["finca_id", "fincaId"], null),
     null
@@ -79,17 +85,24 @@ const mapearEnfermedadParaBackend = (registro) => ({
     ["fecha_reporte", "fechaReporte", "fecha"],
     ""
   ),
-  enfermedad: obtenerValor(registro, ["enfermedad"], ""),
-  severidad: obtenerValor(registro, ["severidad"], ""),
-  mortalidadRegistrada: convertirNumero(
+  parasito: obtenerValor(registro, ["parasito"], ""),
+  camaronesMuestreados: convertirNumero(
     obtenerValor(
       registro,
-      ["mortalidad_registrada", "mortalidad", "mortalidadRegistrada"],
+      ["camarones_muestreados", "camaronesMuestreados"],
       0
     ),
     0
   ),
-  reporte: obtenerValor(registro, ["reporte"], ""),
+  camaronesInfectados: convertirNumero(
+    obtenerValor(
+      registro,
+      ["camarones_infectados", "camaronesInfectados"],
+      0
+    ),
+    0
+  ),
+  observaciones: obtenerValor(registro, ["observaciones"], null),
 });
 
 /*
@@ -99,25 +112,25 @@ SINCRONIZACION POR ACCION
 */
 
 const sincronizarCreate = async (registro) => {
-  const payload = mapearEnfermedadParaBackend(registro);
+  const payload = mapearParasitologiaParaBackend(registro);
 
-  return await EnfermedadesService.create(payload);
+  return await parasitologiaService.create(payload);
 };
 
 const sincronizarUpdate = async (registro) => {
   const servidorId = obtenerValor(registro, ["servidor_id", "servidorId"], null);
-  const payload = mapearEnfermedadParaBackend(registro);
+  const payload = mapearParasitologiaParaBackend(registro);
 
   return servidorId
-    ? await EnfermedadesService.update(servidorId, payload)
-    : await EnfermedadesService.create(payload);
+    ? await parasitologiaService.update(servidorId, payload)
+    : await parasitologiaService.create(payload);
 };
 
 const sincronizarDelete = async (registro) => {
   const servidorId = obtenerValor(registro, ["servidor_id", "servidorId"], null);
 
   return servidorId
-    ? await EnfermedadesService.deleteById(servidorId)
+    ? await parasitologiaService.deleteById(servidorId)
     : { eliminadoSoloLocal: true };
 };
 
@@ -142,7 +155,7 @@ FUNCION PRINCIPAL
 ============================================================
 */
 
-async function sincronizarEnfermedadesPendientes() {
+async function sincronizarParasitologiasPendientes() {
   const resultado = {
     total: 0,
     sincronizados: 0,
@@ -151,7 +164,7 @@ async function sincronizarEnfermedadesPendientes() {
 
   await localApi.inicializar();
 
-  const pendientes = await obtenerPendientesEnfermedades();
+  const pendientes = await obtenerPendientesParasitologias();
 
   resultado.total = pendientes.length;
 
@@ -163,7 +176,7 @@ async function sincronizarEnfermedadesPendientes() {
       await sincronizarRegistro(pendiente);
 
       await eliminarRegistroLocalDespuesSync(
-        TABLA_ENFERMEDADES,
+        TABLA_PARASITOLOGIAS,
         registro.id
       );
 
@@ -172,7 +185,10 @@ async function sincronizarEnfermedadesPendientes() {
       resultado.errores.push({
         id: registro?.id ?? null,
         accion: pendiente.accion,
-        mensaje: error?.response?.data?.message || error?.message || "Error al sincronizar enfermedad.",
+        mensaje:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Error al sincronizar parasitologia.",
       });
     }
   }
@@ -186,8 +202,8 @@ EXPORT
 ============================================================
 */
 
-const EnfermedadesSyncService = {
-  sincronizarEnfermedadesPendientes,
+const ParasitologiaSyncService = {
+  sincronizarParasitologiasPendientes,
 };
 
-export default EnfermedadesSyncService;
+export default ParasitologiaSyncService;
