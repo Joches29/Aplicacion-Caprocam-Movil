@@ -20,6 +20,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -27,6 +28,9 @@ import { COLORS } from "../../theme/colors";
 import { TYPOGRAPHY } from "../../theme/typography";
 
 const EMPTY_OPTIONS_MESSAGE = "No se encuentran opciones o valores";
+const DROPDOWN_MAX_HEIGHT = 140;
+const DROPDOWN_GAP = 6;
+const SCREEN_MARGIN = 12;
 
 function getSafeOptions(options) {
   let safeOptions = [];
@@ -90,10 +94,12 @@ export default function Select({
     top: 0,
     left: 0,
     width: 0,
+    openUpward: false,
   });
 
   const selectRef = useRef(null);
   const finalOptions = getSafeOptions(options);
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
 
   let showError = false;
 
@@ -110,16 +116,49 @@ export default function Select({
       return;
     }
 
+    // Si ya esta abierto, tocar el select de nuevo lo cierra (toggle).
+    if (open === true) {
+      closeOptions();
+      return;
+    }
+
     if (selectRef.current === null) {
       setOpen(true);
       return;
     }
 
-    selectRef.current.measure(function (x, y, width, height, pageX, pageY) {
+    // measureInWindow da coordenadas relativas a la ventana, mas confiables
+    // que measure() dentro de un Modal (que tiene su propio root),
+    // evitando el salto/espacio raro que se veia en Android.
+    selectRef.current.measureInWindow(function (x, y, width, height) {
+      const spaceBelow = windowHeight - (y + height);
+      const dropdownHeight = Math.min(
+        DROPDOWN_MAX_HEIGHT,
+        Math.max(spaceBelow, y) - SCREEN_MARGIN
+      );
+
+      const openUpward = spaceBelow < DROPDOWN_MAX_HEIGHT + SCREEN_MARGIN && y > spaceBelow;
+
+      let top = y + height + DROPDOWN_GAP;
+
+      if (openUpward === true) {
+        top = y - DROPDOWN_GAP - Math.min(DROPDOWN_MAX_HEIGHT, y - SCREEN_MARGIN);
+      }
+
+      // Nunca dejar que el dropdown se salga de los bordes laterales.
+      let left = x;
+      if (left + width > windowWidth - SCREEN_MARGIN) {
+        left = windowWidth - SCREEN_MARGIN - width;
+      }
+      if (left < SCREEN_MARGIN) {
+        left = SCREEN_MARGIN;
+      }
+
       setPosition({
-        top: pageY + height,
-        left: pageX,
+        top: top,
+        left: left,
         width: width,
+        openUpward: openUpward,
       });
 
       setOpen(true);
@@ -185,18 +224,17 @@ export default function Select({
           {getSelectedLabel(finalOptions, value, placeholder)}
         </Text>
 
-        <Text style={styles.arrow}>▾</Text>
+        <Text style={styles.arrow}>{open === true ? "▴" : "▾"}</Text>
       </Pressable>
 
       <Modal
         transparent={true}
         visible={open}
-        animationType="none"
+        animationType="fade"
         onRequestClose={closeOptions}
+        statusBarTranslucent={true}
       >
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.modalBackground} onPress={closeOptions} />
-
+        <Pressable style={styles.modalBackground} onPress={closeOptions}>
           <View
             style={[
               styles.optionsContainer,
@@ -206,11 +244,21 @@ export default function Select({
                 width: position.width,
               },
             ]}
+            // Evita que el toque dentro del dropdown se propague
+            // al fondo y lo cierre por accidente.
+            onStartShouldSetResponder={function () {
+              return true;
+            }}
           >
+            <Pressable style={styles.closeRow} onPress={closeOptions}>
+              <Text style={styles.closeRowText}>Cerrar ✕</Text>
+            </Pressable>
+
             <ScrollView
               style={styles.optionsScroll}
               nestedScrollEnabled={true}
               showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
             >
               {finalOptions.length === 0 && (
                 <View style={styles.emptyOption}>
@@ -247,8 +295,16 @@ export default function Select({
               })}
             </ScrollView>
           </View>
-        </View>
+        </Pressable>
       </Modal>
+
+      {showError === true && error !== "" && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
+
+      {showError === false && helperText !== "" && (
+        <Text style={styles.helperTextStyle}>{helperText}</Text>
+      )}
     </View>
   );
 }
@@ -312,18 +368,14 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
   },
 
-  modalRoot: {
-    flex: 1,
-  },
-
   modalBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "transparent",
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.15)",
   },
 
   optionsContainer: {
     position: "absolute",
-    maxHeight: 140,
+    maxHeight: DROPDOWN_MAX_HEIGHT + 40,
     borderWidth: 1,
     borderColor: COLORS.inputBorder || COLORS.secondary,
     borderRadius: 8,
@@ -339,8 +391,23 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
 
+  closeRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border || COLORS.secondary,
+    backgroundColor: COLORS.surface || COLORS.white,
+    alignItems: "flex-end",
+  },
+
+  closeRowText: {
+    fontSize: 13,
+    color: COLORS.textTertiary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+
   optionsScroll: {
-    maxHeight: 140,
+    maxHeight: DROPDOWN_MAX_HEIGHT,
   },
 
   option: {
@@ -368,6 +435,20 @@ const styles = StyleSheet.create({
 
   emptyOptionText: {
     fontSize: 15,
+    color: COLORS.textTertiary,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
+
+  errorText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: COLORS.error,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
+
+  helperTextStyle: {
+    marginTop: 4,
+    fontSize: 12,
     color: COLORS.textTertiary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
