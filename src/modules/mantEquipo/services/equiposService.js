@@ -1,360 +1,395 @@
-/**
- * ============================================================
- * SERVICIO: equiposService
- * ============================================================
- *
- * Servicio con operaciones CRUD para equipos.
- * CONECTADO al backend real (API REST /api/v0/equipos).
- *
- * Funciones:
- * - getEquipos(filtros) -> Promise<Array>
- * - getEquipoById(id) -> Promise<Object>
- * - createEquipo(data) -> Promise<Object>
- * - updateEquipo(id, data) -> Promise<Object>
- * - deleteEquipo(id) -> Promise<boolean>
- * - toggleEquipoEstado(id, equipoActual) -> Promise<Object>
- * - getEquiposProximosMantenimiento() -> Promise<Array>
- * - getEstadisticasEquipos() -> Promise<Object>
- *
- * Ejemplo:
- * const equipos = await equiposService.getEquipos({ tipo: 'aireacion' });
- * ============================================================
- */
+/*
+//////////////////////////////////////////////////////////
+CABEZA DE ARCHIVO
+//////////////////////////////////////////////////////////
+Archivo: equiposService.js
+Autor: Rodolfo
+Fecha: 04/08/2026
+Modulo: Mantenimiento de Equipos
+Descripcion:
+Servicio CRUD para equipos operando sobre SQLite local.
+Convierte entre el formato snake_case de la BD local y el
+shape camelCase que usa el frontend. Marca registros como
+pendiente_sync para sincronizacion futura con el backend.
+//////////////////////////////////////////////////////////
+*/
 
-// ============================================================
-// IMPORTS
-// ============================================================
-import api from "../../../api/api";
+/*
+//////////////////////////////////////////////////////////
+IMPORTS
+//////////////////////////////////////////////////////////
+*/
 
-// ============================================================
-// CONSTANTES
-// ============================================================
+import { localApi } from "../../../database/local/localApi.service";
+import { obtenerCamposAuditoria } from "../../../shared/utils/sessionUtils";
 
-// Tipos de equipo con sus códigos de prefijo (usado en la UI)
+/*
+//////////////////////////////////////////////////////////
+CONSTANTES
+//////////////////////////////////////////////////////////
+*/
+
 export const TIPOS_EQUIPO = [
-  { label: "Aireación", value: "aireacion", prefijo: "20" },
-  { label: "Bombeo", value: "bombeo", prefijo: "10" },
-  { label: "Alimentación", value: "alimentacion", prefijo: "30" },
-  { label: "Monitoreo", value: "monitoreo", prefijo: "40" },
-  { label: "Mantenimiento", value: "mantenimiento", prefijo: "50" },
-  { label: "Otro", value: "otro", prefijo: "99" },
+    { label: "Aireación", value: "aireacion", prefijo: "20" },
+    { label: "Bombeo", value: "bombeo", prefijo: "10" },
+    { label: "Alimentación", value: "alimentacion", prefijo: "30" },
+    { label: "Monitoreo", value: "monitoreo", prefijo: "40" },
+    { label: "Mantenimiento", value: "mantenimiento", prefijo: "50" },
+    { label: "Otro", value: "otro", prefijo: "99" },
 ];
 
-// ============================================================
-// MAPEOS DE ENUMS (frontend en minúsculas <-> backend en español capitalizado)
-// ============================================================
-
-// tipoEquipo: TipoEquipo enum del backend (equipo.dto.js)
-const TIPO_BACKEND_A_FRONTEND = {
-  Aireacion: "aireacion",
-  Bombeo: "bombeo",
-  Alimentacion: "alimentacion",
-  Monitoreo: "monitoreo",
-  Mantenimiento: "mantenimiento",
-  Otro: "otro",
+// Mapeo de tipo_equipo: SQLite/backend capitalizado → frontend minúscula
+const TIPO_LOCAL_A_FRONTEND = {
+    Aireacion: "aireacion",
+    Bombeo: "bombeo",
+    Alimentacion: "alimentacion",
+    Monitoreo: "monitoreo",
+    Mantenimiento: "mantenimiento",
+    Otro: "otro",
 };
 
-const TIPO_FRONTEND_A_BACKEND = {
-  aireacion: "Aireacion",
-  bombeo: "Bombeo",
-  alimentacion: "Alimentacion",
-  monitoreo: "Monitoreo",
-  mantenimiento: "Mantenimiento",
-  otro: "Otro",
+// Mapeo de tipo: frontend minúscula → SQLite/backend capitalizado
+const TIPO_FRONTEND_A_LOCAL = {
+    aireacion: "Aireacion",
+    bombeo: "Bombeo",
+    alimentacion: "Alimentacion",
+    monitoreo: "Monitoreo",
+    mantenimiento: "Mantenimiento",
+    otro: "Otro",
 };
 
-// estadoOperativo: EstadoOperativoEquipo enum del backend
-// (esto reemplaza el antiguo campo "estado" del mock: activo/inactivo/mantenimiento)
-const ESTADO_OPERATIVO_BACKEND_A_FRONTEND = {
-  Activo: "activo",
-  Inactivo: "inactivo",
-  Mantenimiento: "mantenimiento",
+// Mapeo de estado_operativo: SQLite → frontend
+const ESTADO_OPERATIVO_LOCAL_A_FRONTEND = {
+    Activo: "activo",
+    Inactivo: "inactivo",
+    Mantenimiento: "mantenimiento",
 };
 
-const ESTADO_OPERATIVO_FRONTEND_A_BACKEND = {
-  activo: "Activo",
-  inactivo: "Inactivo",
-  mantenimiento: "Mantenimiento",
+// Mapeo de estado_operativo: frontend → SQLite
+const ESTADO_OPERATIVO_FRONTEND_A_LOCAL = {
+    activo: "Activo",
+    inactivo: "Inactivo",
+    mantenimiento: "Mantenimiento",
 };
 
-// estado: EstadoEquipo enum del backend (Encendido/Apagado)
-// En el frontend se maneja como booleano "encendido"
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES DE MAPEO
+//////////////////////////////////////////////////////////
+*/
 
-// ============================================================
-// FUNCIONES AUXILIARES DE MAPEO
-// ============================================================
+/**
+ * Convierte un registro local SQLite (snake_case) al shape frontend (camelCase).
+ * @param {object} equipo - Registro SQLite.
+ * @returns {object} Equipo en formato frontend.
+ */
+function mapEquipoLocal(equipo) {
+    return {
+        id: equipo.id,
+        servidorId: equipo.servidor_id,
+        uuid: equipo.uuid,
 
-// Convierte YYYY-MM-DD (formato que devuelve el backend) a dd/mm/aaaa (formato del formulario)
-function fechaBackendAFormulario(fecha) {
-  if (!fecha) return "";
-  const [anio, mes, dia] = String(fecha).split("-");
-  if (!anio || !mes || !dia) return "";
-  return `${dia}/${mes}/${anio}`;
+        // Identificacion
+        codigo: equipo.identificador,
+        codigoInterno: equipo.identificador,
+
+        nombre: equipo.nombre_equipo,
+        descripcion: equipo.descripcion,
+
+        // Tipo
+        tipo: TIPO_LOCAL_A_FRONTEND[equipo.tipo_equipo] || "otro",
+
+        fechaInstalacion: equipo.fecha_instalacion || "",
+        funcionEquipo: equipo.funcion_equipo,
+
+        // Ubicacion
+        estanqueId: equipo.estanque_id,
+        ubicacion: equipo.estanque_id,
+
+        // Horas
+        horasMantenimiento: equipo.horas_mantenimiento,
+        horasUso: Number(equipo.horas_actuales || 0),
+
+        // Estado operativo
+        estado: ESTADO_OPERATIVO_LOCAL_A_FRONTEND[equipo.estado_operativo] || "activo",
+
+        // Encendido / Apagado
+        encendido: equipo.estado === "Encendido",
+
+        activo: Boolean(equipo.activo),
+
+        // Campos sync
+        sincronizado: Boolean(equipo.sincronizado),
+        pendienteSync: Boolean(equipo.pendiente_sync),
+    };
 }
 
 /**
- * Mapea la respuesta del backend (camelCase, enums capitalizados)
- * al shape que espera el frontend (lista, formulario, detalle).
+ * Convierte el shape frontend al formato snake_case para SQLite.
+ * @param {object} data - Datos del formulario frontend.
+ * @returns {object} Datos para SQLite.
  */
-function mapEquipoBackend(equipo) {
-  return {
-    id: equipo.id,
-    uuid: equipo.uuid,
+function mapEquipoALocal(data) {
+    const today = new Date();
+    const defaultDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
 
-    // Identificación
-    codigo: equipo.identificador,
-    codigoInterno: equipo.identificador, // alias usado por el formulario de registro
+    const payload = {
+        identificador: (data.codigo || data.codigoInterno || "").trim(),
+        nombre_equipo: (data.nombre || "").trim(),
+        descripcion: (data.descripcion || "").trim(),
+        tipo_equipo: TIPO_FRONTEND_A_LOCAL[data.tipo] || data.tipoEquipo || "Otro",
+        fecha_instalacion: data.fechaInstalacion || defaultDate,
+        funcion_equipo: (data.funcionEquipo || "").trim(),
+        estado_operativo: ESTADO_OPERATIVO_FRONTEND_A_LOCAL[data.estado] || data.estadoOperativo || "Activo",
+    };
 
-    nombre: equipo.nombreEquipo,
-    descripcion: equipo.descripcion,
+    if (data.estanqueId !== undefined || data.ubicacion !== undefined) {
+        const estId = data.estanqueId || data.ubicacion;
+        payload.estanque_id = estId ? Number(estId) : null;
+    }
 
-    // Tipo (antes tipo + subcategoria, ahora un solo campo)
-    tipo: TIPO_BACKEND_A_FRONTEND[equipo.tipoEquipo] || "otro",
+    if (data.horasMantenimiento !== undefined) {
+        payload.horas_mantenimiento = data.horasMantenimiento
+            ? Number(data.horasMantenimiento)
+            : null;
+    }
 
-    fechaInstalacion: fechaBackendAFormulario(equipo.fechaInstalacion),
-    funcionEquipo: equipo.funcionEquipo,
+    if (data.estadoEncendido !== undefined) {
+        payload.estado = data.estadoEncendido ? "Encendido" : "Apagado";
+    }
 
-    // Ubicación (antes texto libre, ahora es el estanque asociado)
-    estanqueId: equipo.estanqueId,
-    ubicacion: equipo.estanqueId,
+    if (data.horasActuales !== undefined || data.horasUso !== undefined) {
+        payload.horas_actuales = Number(data.horasActuales ?? data.horasUso ?? 0);
+    }
 
-    // Horas
-    horasMantenimiento: equipo.horasMantenimiento,
-    horasUso: Number(equipo.horasActuales || 0),
-
-    // Estado operativo: activo / inactivo / mantenimiento
-    estado: ESTADO_OPERATIVO_BACKEND_A_FRONTEND[equipo.estadoOperativo] || "activo",
-
-    // Encendido / Apagado
-    encendido: equipo.estado === "Encendido",
-
-    activo: Boolean(equipo.activo),
-  };
-}
-
-function mapEquiposBackend(lista) {
-  return (lista || []).map(mapEquipoBackend);
+    return payload;
 }
 
 /**
- * Mapea los datos del formulario del frontend al shape que
- * espera el backend para crear/actualizar un equipo.
+ * Determina si el equipo necesita mantenimiento proximo.
+ * @param {object} equipo - Equipo en formato frontend.
+ * @param {number} umbral - Horas de anticipacion.
+ * @returns {boolean}
  */
-function mapEquipoFrontendABackend(data) {
-  const payload = {
-    identificador: data.codigo || data.codigoInterno,
-    nombreEquipo: data.nombre,
-    descripcion: data.descripcion,
-    tipoEquipo: TIPO_FRONTEND_A_BACKEND[data.tipo] || "Otro",
-    fechaInstalacion: data.fechaInstalacion,
-    funcionEquipo: data.funcionEquipo,
-    estadoOperativo: ESTADO_OPERATIVO_FRONTEND_A_BACKEND[data.estado] || "Activo",
-  };
-
-  // Campos opcionales: solo se envían si tienen valor
-  if (data.estanqueId || data.ubicacion) {
-    payload.estanqueId = data.estanqueId || data.ubicacion;
-  }
-  if (data.horasMantenimiento) {
-    payload.horasMantenimiento = data.horasMantenimiento;
-  }
-  if (data.estadoEncendido !== undefined) {
-    payload.estado = data.estadoEncendido ? "Encendido" : "Apagado";
-  }
-
-  return payload;
-}
-
 function necesitaMantenimientoProximo(equipo, umbral = 100) {
-  if (!equipo.horasMantenimiento) return false;
-  const restantes = equipo.horasMantenimiento - equipo.horasUso;
-  return restantes > 0 && restantes <= umbral;
+    if (!equipo.horasMantenimiento) return false;
+    const restantes = equipo.horasMantenimiento - equipo.horasUso;
+    return restantes > 0 && restantes <= umbral;
 }
 
-// ============================================================
-// EXPORTACIÓN DE FUNCIONES
-// ============================================================
+/*
+//////////////////////////////////////////////////////////
+SERVICIO PRINCIPAL
+//////////////////////////////////////////////////////////
+*/
 
 export const equiposService = {
-  /**
-   * Obtiene todos los equipos con filtros opcionales — CONECTADO a la API real.
-   * El backend solo filtra por estanqueId; el resto de filtros
-   * (tipo, estado, encendido, búsqueda) se aplican en el cliente
-   * porque el endpoint actual no los soporta.
-   */
-  async getEquipos(filtros = {}) {
-    try {
-      const params = {};
-      if (filtros.estanqueId) params.estanqueId = filtros.estanqueId;
+    /**
+     * Obtiene todos los equipos con filtros opcionales desde SQLite.
+     */
+    async getEquipos(filtros = {}) {
+        try {
+            const dbFiltros = {};
+            if (filtros.estanqueId) dbFiltros.estanque_id = filtros.estanqueId;
 
-      const response = await api.get("/equipos", { params });
-      let resultados = mapEquiposBackend(response.data.data);
+            const respuesta = await localApi.equipos.obtenerTodos(dbFiltros);
 
-      if (filtros.tipo) {
-        resultados = resultados.filter((e) => e.tipo === filtros.tipo);
-      }
-      if (filtros.estado) {
-        resultados = resultados.filter((e) => e.estado === filtros.estado);
-      }
-      if (filtros.encendido !== undefined) {
-        resultados = resultados.filter((e) => e.encendido === filtros.encendido);
-      }
-      if (filtros.busqueda) {
-        const q = filtros.busqueda.toLowerCase();
-        resultados = resultados.filter(
-          (e) =>
-            e.nombre.toLowerCase().includes(q) ||
-            e.descripcion.toLowerCase().includes(q) ||
-            e.codigo.toLowerCase().includes(q)
+            if (!respuesta.success) {
+                throw new Error(respuesta.message || "Error al obtener equipos.");
+            }
+
+            let resultados = (respuesta.data || []).map(mapEquipoLocal);
+
+            if (filtros.tipo) {
+                resultados = resultados.filter((e) => e.tipo === filtros.tipo);
+            }
+            if (filtros.estado) {
+                resultados = resultados.filter((e) => e.estado === filtros.estado);
+            }
+            if (filtros.encendido !== undefined) {
+                resultados = resultados.filter((e) => e.encendido === filtros.encendido);
+            }
+            if (filtros.busqueda) {
+                const q = filtros.busqueda.toLowerCase();
+                resultados = resultados.filter(
+                    (e) =>
+                        (e.nombre || "").toLowerCase().includes(q) ||
+                        (e.descripcion || "").toLowerCase().includes(q) ||
+                        (e.codigo || "").toLowerCase().includes(q)
+                );
+            }
+
+            resultados.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+            return resultados;
+        } catch (err) {
+            throw new Error(err.message || "No se pudieron obtener los equipos.");
+        }
+    },
+
+    /**
+     * Obtiene un equipo por su ID local.
+     */
+    async getEquipoById(id) {
+        try {
+            const respuesta = await localApi.equipos.obtenerPorId(Number(id));
+
+            if (!respuesta.success || !respuesta.data) {
+                throw new Error("Equipo no encontrado.");
+            }
+
+            return mapEquipoLocal(respuesta.data);
+        } catch (err) {
+            throw new Error(err.message || "Equipo no encontrado.");
+        }
+    },
+
+    /**
+     * Crea un nuevo equipo en SQLite local.
+     */
+    async createEquipo(data) {
+        try {
+            const auditoria = await obtenerCamposAuditoria();
+            const payload = {
+                ...mapEquipoALocal(data),
+                ...auditoria,
+                horas_actuales: Number(data.horasActuales ?? data.horasUso ?? 0),
+                estado: data.estadoEncendido ? "Encendido" : "Apagado",
+            };
+
+            const respuesta = await localApi.equipos.crear(payload);
+
+            if (!respuesta.success) {
+                const detalleMsg = respuesta.error ? `${respuesta.message} (${respuesta.error})` : respuesta.message;
+                throw new Error(detalleMsg || "No se pudo crear el equipo.");
+            }
+
+            return mapEquipoLocal(respuesta.data);
+        } catch (err) {
+            throw new Error(err.message || "No se pudo crear el equipo.");
+        }
+    },
+
+    /**
+     * Actualiza un equipo existente en SQLite local.
+     */
+    async updateEquipo(id, data) {
+        try {
+            const payload = mapEquipoALocal(data);
+
+            const respuesta = await localApi.equipos.actualizar(Number(id), payload);
+
+            if (!respuesta.success) {
+                throw new Error(respuesta.message || "No se pudo actualizar el equipo.");
+            }
+
+            return mapEquipoLocal(respuesta.data);
+        } catch (err) {
+            throw new Error(err.message || "No se pudo actualizar el equipo.");
+        }
+    },
+
+    /**
+     * Elimina logicamente un equipo en SQLite local (soft delete).
+     */
+    async deleteEquipo(id) {
+        try {
+            const respuesta = await localApi.equipos.eliminar(Number(id));
+
+            if (!respuesta.success) {
+                throw new Error(respuesta.message || "No se pudo eliminar el equipo.");
+            }
+
+            return true;
+        } catch (err) {
+            throw new Error(err.message || "No se pudo eliminar el equipo.");
+        }
+    },
+
+    /**
+     * Cambia el estado de encendido/apagado de un equipo en SQLite local.
+     */
+    async toggleEquipoEstado(id, equipoActual) {
+        try {
+            const nuevoEstado = equipoActual.encendido ? "Apagado" : "Encendido";
+
+            const respuesta = await localApi.equipos.actualizar(Number(id), {
+                estado: nuevoEstado,
+            });
+
+            if (!respuesta.success) {
+                throw new Error(respuesta.message || "No se pudo cambiar el estado del equipo.");
+            }
+
+            return mapEquipoLocal(respuesta.data);
+        } catch (err) {
+            throw new Error(err.message || "No se pudo cambiar el estado del equipo.");
+        }
+    },
+
+    /**
+     * Obtiene equipos proximos a mantenimiento — calculado en cliente.
+     */
+    async getEquiposProximosMantenimiento(umbral = 100) {
+        const equipos = await this.getEquipos();
+        const activos = equipos.filter((e) => e.estado === "activo");
+        const proximos = activos.filter((e) => necesitaMantenimientoProximo(e, umbral));
+
+        proximos.sort(
+            (a, b) =>
+                (a.horasMantenimiento - a.horasUso) -
+                (b.horasMantenimiento - b.horasUso)
         );
-      }
+        return proximos;
+    },
 
-      resultados.sort((a, b) => a.nombre.localeCompare(b.nombre));
-      return resultados;
-    } catch (err) {
-      throw new Error(err.response?.data?.message || "No se pudieron obtener los equipos.");
-    }
-  },
+    /**
+     * Obtiene estadisticas generales de equipos — calculado en cliente.
+     */
+    async getEstadisticasEquipos() {
+        const equipos = await this.getEquipos();
+        const total = equipos.length;
+        const activos = equipos.filter((e) => e.estado === "activo").length;
+        const mantenimiento = equipos.filter((e) => e.estado === "mantenimiento").length;
+        const encendidos = equipos.filter((e) => e.encendido).length;
+        const proximosMantenimiento = equipos.filter(
+            (e) => e.estado === "activo" && necesitaMantenimientoProximo(e)
+        ).length;
 
-  /**
-   * Obtiene un equipo por su ID — CONECTADO a la API real
-   */
-  async getEquipoById(id) {
-    try {
-      const response = await api.get(`/equipos/${id}`);
-      return mapEquipoBackend(response.data.data);
-    } catch (err) {
-      throw new Error(err.response?.data?.message || "Equipo no encontrado");
-    }
-  },
+        return { total, activos, mantenimiento, encendidos, proximosMantenimiento };
+    },
 
-  /**
-   * Crea un nuevo equipo — CONECTADO a la API real
-   */
-  async createEquipo(data) {
-    try {
-      const payload = mapEquipoFrontendABackend(data);
-      const response = await api.post("/equipos", payload);
-      return mapEquipoBackend(response.data.data);
-    } catch (err) {
-      throw new Error(err.response?.data?.message || "No se pudo crear el equipo.");
-    }
-  },
+    /**
+     * Obtiene los tipos de equipo disponibles.
+     */
+    getTiposEquipo() {
+        return TIPOS_EQUIPO;
+    },
 
-  /**
-   * Actualiza un equipo existente — CONECTADO a la API real
-   */
-  async updateEquipo(id, data) {
-    try {
-      const payload = mapEquipoFrontendABackend(data);
-      const response = await api.put(`/equipos/${id}`, payload);
-      return mapEquipoBackend(response.data.data);
-    } catch (err) {
-      throw new Error(err.response?.data?.message || "No se pudo actualizar el equipo.");
-    }
-  },
+    /**
+     * Obtiene estanques disponibles para asociar desde SQLite local.
+     */
+    async getEstanquesDisponibles() {
+        try {
+            const respuesta = await localApi.estanques.obtenerTodos();
 
-  /**
-   * Elimina (lógicamente) un equipo — CONECTADO a la API real
-   */
-  async deleteEquipo(id) {
-    try {
-      await api.delete(`/equipos/${id}`);
-      return true;
-    } catch (err) {
-      throw new Error(err.response?.data?.message || "No se pudo eliminar el equipo.");
-    }
-  },
+            if (!respuesta.success) return [];
 
-  /**
-   * Cambia el estado de encendido/apagado de un equipo — CONECTADO a la API real.
-   *
-   * IMPORTANTE: el backend actual no registra la fecha/hora en que
-   * el equipo se encendió, por lo que este toggle NO puede calcular
-   * automáticamente las horas a sumar a horasActuales. Solo actualiza
-   * el campo "estado" (Encendido/Apagado). Si se necesita el conteo
-   * automático de horas, el backend debe agregar un campo tipo
-   * "fecha_ultimo_encendido" y sumar el delta al apagar.
-   *
-   * Requiere el objeto del equipo actual (tal como viene de la lista)
-   * porque el backend exige el body completo en el PUT.
-   */
-  async toggleEquipoEstado(id, equipoActual) {
-    try {
-      const payload = mapEquipoFrontendABackend(equipoActual);
-      payload.estado = equipoActual.encendido ? "Apagado" : "Encendido";
+            return (respuesta.data || []).map((estanque) => ({
+                label: `${estanque.codigo} (${estanque.tipo_estanque})`,
+                value: String(estanque.id),
+            }));
+        } catch {
+            return [];
+        }
+    },
 
-      const response = await api.put(`/equipos/${id}`, payload);
-      return mapEquipoBackend(response.data.data);
-    } catch (err) {
-      throw new Error(err.response?.data?.message || "No se pudo cambiar el estado del equipo.");
-    }
-  },
-
-  /**
-   * Obtiene los equipos que están próximos a necesitar mantenimiento.
-   * Calculado en el cliente a partir de getEquipos(), ya que el
-   * backend no expone un endpoint dedicado.
-   */
-  async getEquiposProximosMantenimiento(umbral = 100) {
-    const equipos = await this.getEquipos();
-    const activos = equipos.filter((e) => e.estado === "activo");
-    const proximos = activos.filter((e) => necesitaMantenimientoProximo(e, umbral));
-
-    proximos.sort(
-      (a, b) =>
-        (a.horasMantenimiento - a.horasUso) - (b.horasMantenimiento - b.horasUso)
-    );
-    return proximos;
-  },
-
-  /**
-   * Obtiene estadísticas generales de equipos.
-   * Calculado en el cliente a partir de getEquipos(), ya que el
-   * backend no expone un endpoint dedicado.
-   */
-  async getEstadisticasEquipos() {
-    const equipos = await this.getEquipos();
-    const total = equipos.length;
-    const activos = equipos.filter((e) => e.estado === "activo").length;
-    const mantenimiento = equipos.filter((e) => e.estado === "mantenimiento").length;
-    const encendidos = equipos.filter((e) => e.encendido).length;
-    const proximosMantenimiento = equipos.filter(
-      (e) => e.estado === "activo" && necesitaMantenimientoProximo(e)
-    ).length;
-
-    return { total, activos, mantenimiento, encendidos, proximosMantenimiento };
-  },
-
-  /**
-   * Obtiene los tipos de equipo disponibles
-   */
-  getTiposEquipo() {
-    return TIPOS_EQUIPO;
-  },
-
-  /**
-   * Obtiene la lista de estanques disponibles para asociar — CONECTADO a la API real
-   */
-  async getEstanquesDisponibles() {
-    try {
-      const response = await api.get("/estanques");
-      return response.data.data.map((estanque) => ({
-        label: `${estanque.codigo} (${estanque.tipoEstanque})`,
-        value: String(estanque.id),
-      }));
-    } catch (err) {
-      return [];
-    }
-  },
-
-  /**
-   * Formatea las horas de uso para mostrar
-   */
-  formatearHoras(horas) {
-    if (horas < 1) {
-      return `${Math.round(horas * 60)} min`;
-    }
-    return `${Math.round(horas)} h`;
-  },
+    /**
+     * Formatea las horas de uso para mostrar.
+     */
+    formatearHoras(horas) {
+        if (horas < 1) {
+            return `${Math.round(horas * 60)} min`;
+        }
+        return `${Math.round(horas)} h`;
+    },
 };

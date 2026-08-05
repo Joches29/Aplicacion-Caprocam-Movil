@@ -1,236 +1,273 @@
-/**
- * ============================================================
- * SERVICIO: tareasService
- * ============================================================
- * Módulo: Mantenimiento de Equipos - Tareas
- *
- * Servicio que conecta con el backend real mediante la API.
- * Todas las funciones son asíncronas y devuelven los datos
- * mapeados al formato usado por el frontend.
- *
- * Dependencias:
- * - api (axios) desde src/api/api.js (ya incluye interceptor de tokens)
- * ============================================================
- */
+/*
+//////////////////////////////////////////////////////////
+CABEZA DE ARCHIVO
+//////////////////////////////////////////////////////////
+Archivo: tareasService.js
+Autor: Rodolfo
+Fecha: 04/08/2026
+Modulo: Mantenimiento de Equipos - Tareas
+Descripcion:
+Servicio CRUD para tareas operando sobre SQLite local.
+Convierte entre el formato snake_case de la BD local y el
+shape camelCase del frontend. Incluye mapeos de estado y
+categoria para mantener compatibilidad con las pantallas.
+//////////////////////////////////////////////////////////
+*/
 
-import api from "../../../api/api";
+/*
+//////////////////////////////////////////////////////////
+IMPORTS
+//////////////////////////////////////////////////////////
+*/
 
-// ─── MAPEO DE DATOS ─────────────────────────────────────────────
+import { localApi } from "../../../database/local/localApi.service";
+import { obtenerCamposAuditoria } from "../../../shared/utils/sessionUtils";
 
-function mapBackendToFrontend(data) {
-  if (!data) return {};
+/*
+//////////////////////////////////////////////////////////
+MAPEOS
+//////////////////////////////////////////////////////////
+*/
 
-  const estadoMapInverso = {
-    'Pendiente': 'no_iniciada',
-    'En proceso': 'en_ejecucion',
-    'Finalizada': 'finalizada',
-    'Cancelada': 'cancelada',
-  };
-
-  const estadoFrontend = estadoMapInverso[data.estado] || data.estado || 'no_iniciada';
-  const idVal = data.id ?? data.tarea_id ?? data.tareaId ?? data.codigo_tarea ?? data.codigoTarea;
-  const nombreVal = data.nombre ?? data.nombre_tarea ?? data.nombreTarea ?? data.label ?? (idVal ? `Tarea ${idVal}` : 'Tarea');
-
-  return {
-    id: idVal,
-    nombre: nombreVal,
-    descripcion: data.descripcion || '',
-    categoria: data.categoria || '',
-    duracionEstimada: Number(data.horas) || Number(data.duracion_estimada) || 0,
-    estado: estadoFrontend,
-    colaboradorId: data.colaborador_id || data.colaboradorId,
-    equipoId: data.equipo_id || data.equipoId,
-    productos: data.productos || [],
-    createdAt: data.fecha_creacion || data.createdAt,
-    updatedAt: data.fecha_actualizacion || data.updatedAt,
-  };
-}
-
-function prepareForBackend(data) {
-  // Mapeo de estados del frontend al backend
-  const estadoMap = {
-    'no_iniciada': 'Pendiente',
-    'pendiente': 'Pendiente',
-    'en_ejecucion': 'En proceso',
-    'en_proceso': 'En proceso',
-    'finalizada': 'Finalizada',
-    'cancelada': 'Cancelada',
-  };
-
-  // Mapeo de categorías: backend requiere capitalizada
-  const categoriaMap = {
-    'preventivo':  'Preventivo',
-    'correctivo':  'Correctivo',
-    'predictivo':  'Predictivo',
-    'emergencia':  'Emergencia',
-    'Preventivo':  'Preventivo',
-    'Correctivo':  'Correctivo',
-    'Predictivo':  'Predictivo',
-    'Emergencia':  'Emergencia',
-  };
-
-  const codigoTarea = data.codigo || data.codigoTarea || `TAR-${String(Date.now()).slice(-6)}`;
-  
-  const estadoFrontend = data.estado || 'no_iniciada';
-  const estadoBackend  = estadoMap[estadoFrontend.toLowerCase()] || 'Pendiente';
-  const categoriaBack  = categoriaMap[data.categoria] || data.categoria || 'Preventivo';
-  
-  return {
-    nombre:       data.nombre?.trim() || "",
-    descripcion:  data.descripcion?.trim() || "",
-    categoria:    categoriaBack,
-    horas:        Number(data.horas) || Number(data.duracionEstimada) || 0,
-    estado:       estadoBackend,
-    codigo_tarea: codigoTarea,
-  };
-}
-
-
-// ─── FUNCIONES PRINCIPALES ──────────────────────────────────────
-
-/**
- * Obtiene todas las tareas activas del backend.
- * Permite filtrar por categoría y estado.
- */
-async function getTareas(filtros = {}) {
-  try {
-    const response = await api.get("/tareas");
-    const raw = response.data;
-    let data = [];
-    if (Array.isArray(raw)) {
-      data = raw;
-    } else if (Array.isArray(raw?.data)) {
-      data = raw.data;
-    } else if (Array.isArray(raw?.datos)) {
-      data = raw.datos;
-    }
-    
-    if (filtros && filtros.categoria) {
-      data = data.filter((t) => t.categoria === filtros.categoria);
-    }
-    if (filtros && filtros.estado) {
-      data = data.filter((t) => t.estado === filtros.estado);
-    }
-    
-    return data.map(mapBackendToFrontend);
-  } catch (error) {
-    if (error.response && error.response.status === 404) {
-      return [];
-    }
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Error al obtener tareas";
-    throw new Error(message);
-  }
-}
-
-/**
- * Obtiene una tarea por su ID.
- * Ruta corregida: /tareas/${id}
- */
-async function getTareaById(id) {
-  try {
-    const response = await api.get(`/tareas/${id}`);
-    const data = response.data.data;
-    if (!data) throw new Error("Tarea no encontrada");
-    return mapBackendToFrontend(data);
-  } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Error al obtener tarea";
-    throw new Error(message);
-  }
-}
-
-/**
- * Crea una nueva tarea.
- * Ruta corregida: /tareas
- */
-async function createTarea(data) {
-  try {
-    const payload = prepareForBackend(data);
-    const response = await api.post("/tareas", payload);
-    return mapBackendToFrontend(response.data.data);
-  } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Error al crear tarea";
-    throw new Error(message);
-  }
-}
-
-/**
- * Actualiza una tarea existente.
- * Ruta corregida: /tareas/${id}
- */
-async function updateTarea(id, data) {
-  try {
-    const payload = prepareForBackend(data);
-    const response = await api.put(`/tareas/${id}`, payload);
-    return mapBackendToFrontend(response.data.data);
-  } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Error al actualizar tarea";
-    throw new Error(message);
-  }
-}
-
-/**
- * Elimina (borrado lógico) una tarea.
- * Ruta corregida: /tareas/${id}
- */
-async function deleteTarea(id) {
-  try {
-    const response = await api.delete(`/tareas/${id}`);
-    return response.data.data ? true : false;
-  } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Error al eliminar tarea";
-    throw new Error(message);
-  }
-}
-
-/**
- * Obtiene catálogo de tareas para selects.
- * Ruta corregida: /tareas/catalogo
- */
-async function getCatalogoTareas() {
-  try {
-    const response = await api.get("/tareas/catalogo");
-    const data = response.data.data || [];
-    return data.map((t) => ({
-      id: t.id,
-      nombre: t.nombre,
-      value: t.id,
-      label: t.nombre,
-    }));
-  } catch (error) {
-    if (error.response && error.response.status === 404) {
-      return [];
-    }
-    throw error;
-  }
-}
-
-// ─── EXPORTACIÓN ────────────────────────────────────────────────
-
-export const tareasService = {
-  getTareas,
-  getTareaById,
-  createTarea,
-  updateTarea,
-  deleteTarea,
-  getCatalogoTareas,
+// Estado: SQLite/backend capitalizado → frontend snake_case
+const ESTADO_LOCAL_A_FRONTEND = {
+    Pendiente: "no_iniciada",
+    "En proceso": "en_ejecucion",
+    Finalizada: "finalizada",
+    Cancelada: "cancelada",
 };
 
-// Alias para compatibilidad con código existente
+// Estado: frontend snake_case → SQLite/backend capitalizado
+const ESTADO_FRONTEND_A_LOCAL = {
+    no_iniciada: "Pendiente",
+    pendiente: "Pendiente",
+    en_ejecucion: "En proceso",
+    en_proceso: "En proceso",
+    finalizada: "Finalizada",
+    cancelada: "Cancelada",
+};
+
+// Categoria: normalizar a capitalizada
+const CATEGORIA_A_LOCAL = {
+    preventivo: "Preventivo",
+    correctivo: "Correctivo",
+    predictivo: "Predictivo",
+    emergencia: "Emergencia",
+    Preventivo: "Preventivo",
+    Correctivo: "Correctivo",
+    Predictivo: "Predictivo",
+    Emergencia: "Emergencia",
+};
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES DE MAPEO
+//////////////////////////////////////////////////////////
+*/
+
+/**
+ * Mapea un registro SQLite de tarea al shape del frontend.
+ * @param {object} data - Registro SQLite.
+ * @returns {object} Tarea en formato frontend.
+ */
+function mapTareaLocal(data) {
+    if (!data) return {};
+
+    return {
+        id: data.id,
+        servidorId: data.servidor_id,
+        uuid: data.uuid,
+        nombre: data.nombre || "",
+        descripcion: data.descripcion || "",
+        categoria: data.categoria || "",
+        duracionEstimada: Number(data.horas) || 0,
+        estado: ESTADO_LOCAL_A_FRONTEND[data.estado] || "no_iniciada",
+        codigoTarea: data.codigo_tarea || "",
+        // Aliases para compatibilidad con selects de mantEquipoService
+        value: String(data.id),
+        label: data.nombre || "",
+        createdAt: data.fecha_creacion,
+        updatedAt: data.fecha_actualizacion,
+        sincronizado: Boolean(data.sincronizado),
+        pendienteSync: Boolean(data.pendiente_sync),
+    };
+}
+
+/**
+ * Mapea los datos del formulario frontend al formato SQLite.
+ * @param {object} data - Datos del formulario.
+ * @returns {object} Datos para SQLite.
+ */
+function mapTareaALocal(data) {
+    const estadoFrontend = data.estado || "no_iniciada";
+
+    return {
+        nombre: (data.nombre || "").trim(),
+        descripcion: (data.descripcion || "").trim(),
+        categoria: CATEGORIA_A_LOCAL[data.categoria] || data.categoria || "Preventivo",
+        horas: Number(data.horas ?? data.duracionEstimada) || 0,
+        estado: ESTADO_FRONTEND_A_LOCAL[estadoFrontend.toLowerCase()] || "Pendiente",
+        codigo_tarea: data.codigo || data.codigoTarea || `TAR-${String(Date.now()).slice(-6)}`,
+    };
+}
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES
+//////////////////////////////////////////////////////////
+*/
+
+/**
+ * Obtiene todas las tareas activas desde SQLite.
+ * @param {object} filtros - Filtros opcionales (categoria, estado).
+ * @returns {Promise<Array>} Lista de tareas mapeadas.
+ */
+async function getTareas(filtros = {}) {
+    try {
+        const respuesta = await localApi.tareas.obtenerTodos();
+
+        if (!respuesta.success) {
+            return [];
+        }
+
+        let data = (respuesta.data || []).map(mapTareaLocal);
+
+        if (filtros.categoria) {
+            data = data.filter((t) => t.categoria === filtros.categoria);
+        }
+        if (filtros.estado) {
+            data = data.filter((t) => t.estado === filtros.estado);
+        }
+
+        return data;
+    } catch (error) {
+        throw new Error(error.message || "Error al obtener tareas.");
+    }
+}
+
+/**
+ * Obtiene una tarea por su ID local.
+ * @param {number|string} id - ID local de la tarea.
+ * @returns {Promise<object>} Tarea mapeada.
+ */
+async function getTareaById(id) {
+    try {
+        const respuesta = await localApi.tareas.obtenerPorId(Number(id));
+
+        if (!respuesta.success || !respuesta.data) {
+            throw new Error("Tarea no encontrada.");
+        }
+
+        return mapTareaLocal(respuesta.data);
+    } catch (error) {
+        throw new Error(error.message || "Error al obtener tarea.");
+    }
+}
+
+/**
+ * Crea una nueva tarea en SQLite local.
+ * @param {object} data - Datos de la tarea del formulario.
+ * @returns {Promise<object>} Tarea creada mapeada.
+ */
+async function createTarea(data) {
+    try {
+        const auditoria = await obtenerCamposAuditoria();
+        const payload = {
+            ...mapTareaALocal(data),
+            ...auditoria,
+        };
+
+        const respuesta = await localApi.tareas.crear(payload);
+
+        if (!respuesta.success) {
+            const msg = respuesta.error ? `${respuesta.message} (${respuesta.error})` : respuesta.message;
+            throw new Error(msg || "Error al crear tarea.");
+        }
+
+        return mapTareaLocal(respuesta.data);
+    } catch (error) {
+        throw new Error(error.message || "Error al crear tarea.");
+    }
+}
+
+/**
+ * Actualiza una tarea existente en SQLite local.
+ * @param {number|string} id - ID local de la tarea.
+ * @param {object} data - Datos actualizados.
+ * @returns {Promise<object>} Tarea actualizada mapeada.
+ */
+async function updateTarea(id, data) {
+    try {
+        const payload = mapTareaALocal(data);
+        const respuesta = await localApi.tareas.actualizar(Number(id), payload);
+
+        if (!respuesta.success) {
+            const msg = respuesta.error ? `${respuesta.message} (${respuesta.error})` : respuesta.message;
+            throw new Error(msg || "Error al actualizar tarea.");
+        }
+
+        return mapTareaLocal(respuesta.data);
+    } catch (error) {
+        throw new Error(error.message || "Error al actualizar tarea.");
+    }
+}
+
+/**
+ * Elimina logicamente una tarea en SQLite local (soft delete).
+ * @param {number|string} id - ID local de la tarea.
+ * @returns {Promise<boolean>} true si se elimino correctamente.
+ */
+async function deleteTarea(id) {
+    try {
+        const respuesta = await localApi.tareas.eliminar(Number(id));
+
+        if (!respuesta.success) {
+            throw new Error(respuesta.message || "Error al eliminar tarea.");
+        }
+
+        return true;
+    } catch (error) {
+        throw new Error(error.message || "Error al eliminar tarea.");
+    }
+}
+
+/**
+ * Obtiene catalogo de tareas para selects (mismo que getTareas).
+ * @returns {Promise<Array>} Lista de tareas con shape { id, value, label, nombre }.
+ */
+async function getCatalogoTareas() {
+    try {
+        const tareas = await getTareas();
+        return tareas.map((t) => ({
+            id: t.id,
+            value: String(t.id),
+            label: t.nombre,
+            nombre: t.nombre,
+            categoria: t.categoria,
+            duracionEstimada: t.duracionEstimada,
+            descripcion: t.descripcion,
+        }));
+    } catch (error) {
+        return [];
+    }
+}
+
+/*
+//////////////////////////////////////////////////////////
+EXPORTACIONES
+//////////////////////////////////////////////////////////
+*/
+
+export const tareasService = {
+    getTareas,
+    getTareaById,
+    createTarea,
+    updateTarea,
+    deleteTarea,
+    getCatalogoTareas,
+};
+
+// Alias para compatibilidad con codigo existente
 export const obtenerTareas = getTareas;
 export const obtenerTareaPorId = getTareaById;
 export const crearTarea = createTarea;
