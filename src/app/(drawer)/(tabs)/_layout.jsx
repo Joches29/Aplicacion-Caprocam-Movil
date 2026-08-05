@@ -24,18 +24,6 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="finca"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon icon={ICONS.location} size={20} color={color} />
-          ),
-          tabBarActiveTintColor: COLORS.primary,
-          tabBarLabel: "Finca",
-          title: "Finca",
-        }}
-      />
-
-      <Tabs.Screen
         name="registros"
         options={{
           tabBarIcon: ({ color, size }) => (

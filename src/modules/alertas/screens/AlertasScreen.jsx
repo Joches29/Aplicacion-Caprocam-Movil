@@ -19,8 +19,6 @@ import { COLORS } from "../../../theme/colors";
 import { ICONS } from "../../../theme/icons";
 import { STYLE } from "../../../theme/style";
 
-import { fincas as fincasModulo } from "../../finca/screens/FincaData";
-import { estanques as estanquesModulo } from "../../mantCrecimiento/services/EstanqueData";
 import { obtenerSiembras } from "../../siembra/services/SiembraService";
 import useAlimentacion from "../../alimentacion/hooks/useAlimentacion";
 import { getProductosInventario } from "../../inventarios/services/InventarioService";
@@ -283,11 +281,9 @@ export default function AlertasScreen() {
   }, []);
 
   const alertasBase = construirAlertasOperativas({
-    fincas: fincasModulo,
     productosInventario: productosInventario,
     siembras: obtenerSiembras(),
     alimentaciones: alimentaciones,
-    estanques: estanquesModulo,
     equipos: EQUIPOS_MOCK,
     registrosEnfermedades: registrosEnfermedades,
     registrosParasitologia: registrosParasitologia,
