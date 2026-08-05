@@ -45,6 +45,8 @@ export const errorLocal = (message, err = null) => {
         detalleError = err.message;
     }
 
+    console.error(`[SQLite Error] ${message}:`, err || "");
+
     return {
         success: false,
         message: message,

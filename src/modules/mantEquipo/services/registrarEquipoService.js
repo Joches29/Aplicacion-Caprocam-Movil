@@ -1,96 +1,123 @@
+/*
+//////////////////////////////////////////////////////////
+CABEZA DE ARCHIVO
+//////////////////////////////////////////////////////////
+Archivo: registrarEquipoService.js
+Autor: Rodolfo
+Fecha: 04/08/2026
+Modulo: Mantenimiento de Equipos
+Descripcion:
+Expone catalogos y el payload normalizado para el formulario
+de registro de equipos. Delega la persistencia en equiposService
+que opera sobre SQLite local.
+//////////////////////////////////////////////////////////
+*/
+
+/*
+//////////////////////////////////////////////////////////
+IMPORTS
+//////////////////////////////////////////////////////////
+*/
+
+import { equiposService } from "./equiposService";
+
+/*
+//////////////////////////////////////////////////////////
+CONSTANTES / CATALOGOS
+//////////////////////////////////////////////////////////
+*/
+
 /**
- * ============================================================
- * SERVICIO: registrarEquipoService
- * ============================================================
- * Módulo: Mantenimiento de Equipos
- *
- * Expone catálogos y el payload normalizado para el formulario
- * de registro de equipos, y conecta con equiposService para
- * persistir contra la API real.
- *
- * NOTA sobre los catálogos: los values deben coincidir EXACTO
- * (mayúsculas y acentos) con los ENUM de MySQL, porque el backend
- * los compara con === (ver isTipoEquipo / isEstadoOperativoEquipo
- * en equipo.service.js). Si el backend agrega un valor nuevo al
- * ENUM, hay que agregarlo aquí también a mano.
- * ============================================================
+ * Tipos de equipo disponibles para el formulario.
+ * Los values coinciden con los ENUM de la base de datos.
  */
-
-import api from '../../../api/api';
-
 export const TIPOS_EQUIPO = [
-  { label: 'Aireación', value: 'Aireacion' },
-  { label: 'Bombeo', value: 'Bombeo' },
-  { label: 'Alimentación', value: 'Alimentacion' },
-  { label: 'Monitoreo', value: 'Monitoreo' },
-  { label: 'Mantenimiento', value: 'Mantenimiento' },
-  { label: 'Otro', value: 'Otro' },
+    { label: "Aireación", value: "Aireacion" },
+    { label: "Bombeo", value: "Bombeo" },
+    { label: "Alimentación", value: "Alimentacion" },
+    { label: "Monitoreo", value: "Monitoreo" },
+    { label: "Mantenimiento", value: "Mantenimiento" },
+    { label: "Otro", value: "Otro" },
 ];
-
-export const ESTADOS_OPERATIVOS_EQUIPO = [
-  { label: 'Activo', value: 'Activo' },
-  { label: 'Mantenimiento', value: 'Mantenimiento' },
-  { label: 'Inactivo', value: 'Inactivo' },
-];
-
-// NOTA: el backend valida explícitamente que fechaInstalacion venga
-// en formato dd/mm/aaaa (confirmado por el 422 "El campo fechaInstalacion
-// debe tener formato dd/mm/aaaa."), así que se envía tal cual la escribe
-// el usuario en el formulario, sin convertir a ISO.
 
 /**
- * Crea el payload que espera el backend real.
+ * Estados operativos disponibles para el formulario.
+ */
+export const ESTADOS_OPERATIVOS_EQUIPO = [
+    { label: "Activo", value: "Activo" },
+    { label: "Mantenimiento", value: "Mantenimiento" },
+    { label: "Inactivo", value: "Inactivo" },
+];
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES
+//////////////////////////////////////////////////////////
+*/
+
+/**
+ * Crea el payload normalizado que necesita equiposService.
+ * Convierte los datos del formulario al shape correcto para
+ * insertarlo en SQLite local.
  *
- * - tipoEquipo / estadoOperativo: values ya son el enum exacto,
- *   no hace falta traducirlos.
- * - estado (Encendido/Apagado): se envía explícitamente "Apagado"
- *   al crear (así el botón de encendido/apagado en la lista de
- *   equipos arranca apagado). Al editar, se reenvía el estado
- *   actual del equipo para no apagarlo accidentalmente cada vez
- *   que se guardan cambios.
- * - horasActuales: mismo patrón que estado — se envía 0 explícito
- *   al crear, y se reenvía el valor actual al editar para no
- *   resetear las horas acumuladas del equipo.
+ * @param {object} formulario - Datos del formulario de registro.
+ * @param {object} opciones - Opciones adicionales.
+ * @param {boolean} opciones.isEditing - Si se esta editando.
+ * @param {string} opciones.estadoActual - Estado actual del equipo (Encendido/Apagado).
+ * @param {number} opciones.horasActualesActual - Horas actuales del equipo.
+ * @returns {object} Payload para equiposService.
  */
 export function crearEquipoPayload(formulario, { isEditing, estadoActual, horasActualesActual } = {}) {
-  return {
-    identificador: formulario.codigoInterno.trim(),
-    nombreEquipo: formulario.nombre.trim(),
-    descripcion: formulario.descripcion.trim(),
-    tipoEquipo: formulario.tipo,
-    fechaInstalacion: formulario.fechaInstalacion,
-    estadoOperativo: formulario.estadoOperativo,
-    funcionEquipo: formulario.funcionEquipo.trim(),
-    estado: isEditing && estadoActual ? estadoActual : 'Apagado',
-    horasActuales: isEditing && horasActualesActual !== undefined ? horasActualesActual : 0,
-    ...(formulario.estanqueId ? { estanqueId: Number(formulario.estanqueId) } : {}),
-    ...(formulario.horasMantenimiento
-      ? { horasMantenimiento: Number(formulario.horasMantenimiento) }
-      : {}),
-  };
+    return {
+        codigoInterno: formulario.codigoInterno.trim(),
+        nombre: formulario.nombre.trim(),
+        descripcion: formulario.descripcion.trim(),
+        // tipo viene del formulario como valor capitalizado (e.g. "Aireacion")
+        // equiposService lo convierte a minusculas internamente para el shape frontend
+        // pero mapEquipoALocal lo acepta directamente como tipoEquipo
+        tipo: null,
+        tipoEquipo: formulario.tipo,
+        fechaInstalacion: formulario.fechaInstalacion,
+        estadoOperativo: formulario.estadoOperativo,
+        funcionEquipo: formulario.funcionEquipo.trim(),
+        estadoEncendido: isEditing && estadoActual ? estadoActual === "Encendido" : false,
+        horasActuales: isEditing && horasActualesActual !== undefined ? horasActualesActual : 0,
+        ...(formulario.estanqueId ? { estanqueId: Number(formulario.estanqueId) } : {}),
+        ...(formulario.horasMantenimiento
+            ? { horasMantenimiento: Number(formulario.horasMantenimiento) }
+            : {}),
+    };
 }
 
+/**
+ * Persiste un nuevo equipo en SQLite local.
+ * Delegado en equiposService.createEquipo para centralizar
+ * la logica de mapeo y auditoria.
+ *
+ * @param {object} payload - Payload creado por crearEquipoPayload.
+ * @returns {Promise<object>} Equipo creado.
+ */
 export async function agregarEquipo(payload) {
-  try {
-    // NOTA: se llama a `api` directamente (no a equiposService.createEquipo)
-    // porque equiposService ahora espera datos en formato "frontend" (codigo,
-    // nombre, tipo en minúscula...) y los remapea con mapEquipoFrontendABackend
-    // antes de mandarlos. Este payload ya viene armado en el formato exacto
-    // del backend, así que pasar por ese mapeo duplicado lo rompía (identificador
-    // y nombreEquipo llegaban undefined).
-    const response = await api.post('/equipos', payload);
-    return response.data.data;
-  } catch (error) {
-    // Propaga el mensaje real del backend (ej. "Ya existe un equipo con ese identificador.")
-    throw new Error(error.response?.data?.message || 'No se pudo guardar el equipo. Intente nuevamente.');
-  }
+    try {
+        return await equiposService.createEquipo(payload);
+    } catch (error) {
+        throw new Error(error.message || "No se pudo guardar el equipo. Intente nuevamente.");
+    }
 }
 
+/**
+ * Actualiza un equipo existente en SQLite local.
+ * Delegado en equiposService.updateEquipo para centralizar
+ * la logica de mapeo.
+ *
+ * @param {number|string} id - ID local del equipo.
+ * @param {object} payload - Payload creado por crearEquipoPayload.
+ * @returns {Promise<object>} Equipo actualizado.
+ */
 export async function actualizarEquipo(id, payload) {
-  try {
-    const response = await api.put(`/equipos/${id}`, payload);
-    return response.data.data;
-  } catch (error) {
-    throw new Error(error.response?.data?.message || 'No se pudo actualizar el equipo. Intente nuevamente.');
-  }
+    try {
+        return await equiposService.updateEquipo(Number(id), payload);
+    } catch (error) {
+        throw new Error(error.message || "No se pudo actualizar el equipo. Intente nuevamente.");
+    }
 }
