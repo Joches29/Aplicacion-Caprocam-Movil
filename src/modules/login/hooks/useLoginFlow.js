@@ -115,6 +115,7 @@ export function useLoginFlow({ onLoginSuccess }) {
     setIsAuthenticating(true);
     try {
       const resultado = await validarPinOffline(selectedWorker, pinCode);
+      console.log('colaborador autenticado:', resultado.data);
 
       if (!resultado.success) {
         setPinError(resultado.message);

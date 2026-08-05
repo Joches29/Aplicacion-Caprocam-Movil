@@ -1,5 +1,5 @@
 import axios from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getToken, removeToken } from "../modules/login/utils/tokenStorage";
 
 const api = axios.create({
     baseURL: process.env.EXPO_PUBLIC_API_URL,
@@ -13,7 +13,7 @@ const api = axios.create({
 api.interceptors.request.use(
     async (config) => {
         try {
-            const token = await AsyncStorage.getItem('caprocam_auth_token');
+            const token = await getToken();
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -31,8 +31,7 @@ api.interceptors.response.use(
     async (error) => {
         if (error.response && error.response.status === 401) {
             try {
-                await AsyncStorage.removeItem('caprocam_auth_token');
-                await AsyncStorage.removeItem('caprocam_usuario');
+                await removeToken();
             } catch (e) {
                 // Ignorar
             }
