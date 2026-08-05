@@ -3,24 +3,30 @@
 CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: useDashboard.js
-Autor: Gerald Andres Alfaro Solorzano
-Fecha: 30/07/2026
+Autor: Gerald
+Fecha: 04/08/2026
 Modulo: Dashboard
 Descripcion:
 Centraliza la carga y el estado de los datos utilizados
-por el Dashboard.
+por el Dashboard desde SQLite local.
 //////////////////////////////////////////////////////////
 */
 
 import { useCallback, useState } from "react";
 
 import { useError } from "../../../shared/context/ErrorContext";
-import DashboardService from "../services/DashboardService";
+import DashboardLocalService from "../services/DashboardLocal.service";
 import { adaptarDatosDashboard } from "../utils/DashboardAdapter";
 import {
   obtenerResumenEnfermedadesVacio,
   obtenerResumenParasitologiasVacio,
 } from "../utils/DashboardUtils";
+
+/*
+//////////////////////////////////////////////////////////
+DATOS INICIALES
+//////////////////////////////////////////////////////////
+*/
 
 function crearDatosIniciales() {
   return {
@@ -38,64 +44,76 @@ function crearDatosIniciales() {
   };
 }
 
+/*
+//////////////////////////////////////////////////////////
+PETICIONES LOCALES
+//////////////////////////////////////////////////////////
+*/
+
 const PETICIONES_DASHBOARD = [
   {
     clave: "fincas",
-    cargar: DashboardService.getFincas,
+    cargar: DashboardLocalService.getFincas,
     respaldo: [],
   },
   {
     clave: "estanques",
-    cargar: DashboardService.getEstanques,
+    cargar: DashboardLocalService.getEstanques,
     respaldo: [],
   },
   {
     clave: "alimentaciones",
-    cargar: DashboardService.getAlimentaciones,
+    cargar: DashboardLocalService.getAlimentaciones,
     respaldo: [],
   },
   {
     clave: "siembras",
-    cargar: DashboardService.getSiembras,
+    cargar: DashboardLocalService.getSiembras,
     respaldo: [],
   },
   {
     clave: "inventario",
-    cargar: DashboardService.getInventario,
+    cargar: DashboardLocalService.getInventario,
     respaldo: [],
     mostrarError: false,
   },
   {
     clave: "equipos",
-    cargar: DashboardService.getEquipos,
+    cargar: DashboardLocalService.getEquipos,
     respaldo: [],
   },
   {
     clave: "enfermedades",
-    cargar: DashboardService.getEnfermedades,
+    cargar: DashboardLocalService.getEnfermedades,
     respaldo: [],
   },
   {
     clave: "resumenEnfermedades",
-    cargar: DashboardService.getResumenEnfermedades,
-    respaldo: {},
+    cargar: DashboardLocalService.getResumenEnfermedades,
+    respaldo: obtenerResumenEnfermedadesVacio(),
   },
   {
     clave: "parasitologias",
-    cargar: DashboardService.getParasitologias,
+    cargar: DashboardLocalService.getParasitologias,
     respaldo: [],
   },
   {
     clave: "resumenParasitologias",
-    cargar: DashboardService.getResumenParasitologias,
-    respaldo: {},
+    cargar: DashboardLocalService.getResumenParasitologias,
+    respaldo: obtenerResumenParasitologiasVacio(),
   },
   {
     clave: "fisicoQuimicos",
-    cargar: DashboardService.getFisicoQuimicos,
+    cargar: DashboardLocalService.getFisicoQuimicos,
     respaldo: [],
   },
 ];
+
+/*
+//////////////////////////////////////////////////////////
+HOOK PRINCIPAL
+//////////////////////////////////////////////////////////
+*/
 
 export default function useDashboard() {
   const { mostrarError } = useError();
@@ -110,16 +128,20 @@ export default function useDashboard() {
       const resultados = await Promise.allSettled(
         PETICIONES_DASHBOARD.map(function (peticion) {
           return peticion.cargar();
-        }),
+        })
       );
 
-      const datosBackend = {};
+      const datosLocales = {};
       let primerError = null;
 
       PETICIONES_DASHBOARD.forEach(function (peticion, index) {
         const resultado = resultados[index];
 
-        datosBackend[peticion.clave] = resultado.status === "fulfilled" ? resultado.value : peticion.respaldo;
+        datosLocales[peticion.clave] =
+          resultado.status === "fulfilled"
+            ? resultado.value
+            : peticion.respaldo;
+
         if (
           primerError === null &&
           resultado.status === "rejected" &&
@@ -129,7 +151,7 @@ export default function useDashboard() {
         }
       });
 
-      setDatos(adaptarDatosDashboard(datosBackend));
+      setDatos(adaptarDatosDashboard(datosLocales));
 
       if (primerError !== null) {
         mostrarError(primerError);
