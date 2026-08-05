@@ -4,25 +4,25 @@
     "slug": "Aplicacion-Caprocam",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./src/assets/shrimp-solid.png",
     "scheme": "aplicacioncaprocam",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./src/assets/shrimp-solid.png"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundImage": "./assets/images/icon.png",
-        "monochromeImage": "./assets/images/icon.png"
+        "foregroundImage": "./src/assets/shrimp-solid.png",
+        "backgroundImage": "./src/assets/shrimp-solid.png",
+        "monochromeImage": "./src/assets/shrimp-solid.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.fofoexpo.AplicacionCaprocam"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./src/assets/shrimp-solid.png"
     },
     "plugins": [
       "expo-router",
@@ -31,7 +31,7 @@
         {
           "backgroundColor": "#208AEF",
           "android": {
-            "image": "./assets/images/icon.png",
+            "image": "./src/assets/shrimp-solid.png",
             "imageWidth": 76
           }
         }
