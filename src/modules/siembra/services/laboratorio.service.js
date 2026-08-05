@@ -20,8 +20,10 @@ export const getLaboratorios = async () => {
     const response = await api.get("/laboratorios");
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener laboratorios:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo obtener la lista de laboratorios.");
   }
 };
 
@@ -33,8 +35,10 @@ export const createLaboratorio = async (nombre) => {
     const response = await api.post("/laboratorios", { nombre });
     return response.data.data;
   } catch (error) {
-    console.error("Error al crear laboratorio:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo crear el laboratorio.");
   }
 };
 
@@ -46,8 +50,10 @@ export const updateLaboratorio = async (id, nombre) => {
     const response = await api.put(`/laboratorios/${id}`, { nombre });
     return response.data.data;
   } catch (error) {
-    console.error("Error al actualizar laboratorio:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo actualizar el laboratorio.");
   }
 };
 
@@ -59,7 +65,9 @@ export const eliminarLaboratorio = async (id) => {
     const response = await api.delete(`/laboratorios/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al eliminar laboratorio:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo eliminar el laboratorio.");
   }
 };

@@ -20,8 +20,10 @@ export const getProcedencias = async () => {
     const response = await api.get("/procedencias");
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener procedencias:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudieron obtener las procedencias.");
   }
 };
 
@@ -33,8 +35,10 @@ export const createProcedencia = async (nombre) => {
     const response = await api.post("/procedencias", { nombre });
     return response.data.data;
   } catch (error) {
-    console.error("Error al crear procedencia:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo crear la procedencia.");
   }
 };
 
@@ -46,8 +50,10 @@ export const updateProcedencia = async (id, nombre) => {
     const response = await api.put(`/procedencias/${id}`, { nombre });
     return response.data.data;
   } catch (error) {
-    console.error("Error al actualizar procedencia:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo actualizar la procedencia.");
   }
 };
 
@@ -59,7 +65,9 @@ export const eliminarProcedencia = async (id) => {
     const response = await api.delete(`/procedencias/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al eliminar procedencia:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo eliminar la procedencia.");
   }
 };
