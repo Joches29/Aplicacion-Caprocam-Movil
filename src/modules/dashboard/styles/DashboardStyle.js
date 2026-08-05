@@ -299,6 +299,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  statPanelInline: {
+    width: "100%",
+  },
+
   statCard: {
     width: "100%",
     alignSelf: "center",
