@@ -128,11 +128,12 @@ export function useLoginFlow({ onLoginSuccess }) {
     }
   };
 
-  return {
+return {
     workers,
     filteredWorkers,
     loading,
     error,
+    refetch,              // ← agregar esta línea
     selectedWorker,
     setSelectedWorker,
     workerSearchText,
