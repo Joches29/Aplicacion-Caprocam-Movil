@@ -1,24 +1,24 @@
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const api = axios.create({
-
     baseURL: process.env.EXPO_PUBLIC_API_URL,
     timeout: 10000,
-    headers:{
+    headers: {
         "Content-Type": "application/json"
     }
-})
+});
 
 // ── Interceptor: adjunta el JWT en cada petición autenticada ──
 api.interceptors.request.use(
-    (config) => {
+    async (config) => {
         try {
-            const token = localStorage.getItem('caprocam_auth_token');
+            const token = await AsyncStorage.getItem('caprocam_auth_token');
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
         } catch (e) {
-            // Ignorar en entornos sin localStorage
+            // Ignorar en entornos sin AsyncStorage disponible
         }
         return config;
     },
@@ -28,11 +28,11 @@ api.interceptors.request.use(
 // ── Interceptor: limpia el token si el backend responde 401 (Inválido/Expirado) ──
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         if (error.response && error.response.status === 401) {
             try {
-                localStorage.removeItem('caprocam_auth_token');
-                localStorage.removeItem('caprocam_usuario');
+                await AsyncStorage.removeItem('caprocam_auth_token');
+                await AsyncStorage.removeItem('caprocam_usuario');
             } catch (e) {
                 // Ignorar
             }
