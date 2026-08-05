@@ -8,19 +8,23 @@
  */
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
-  actualizarLectura,
-  getLecturaPorId,
   manejarCambioFinca,
   manejarCambioOxigeno,
   manejarCambioPh,
   manejarCambioSalinidad,
   manejarCambioTemperatura,
-  obtenerEstanquesPorFinca,
-  obtenerOpcionesFincas,
   sincronizarLecturasLocales,
   validarFormularioFisicoQuimica,
   validarSeleccionAntesDeAgregar,
 } from "../services/FisicoQuimicaServices";
+import {
+  actualizarLecturaLocal as actualizarLectura,
+  getLecturaPorIdLocal as getLecturaPorId,
+} from "../services/FisicoQuimicaLocalService";
+import {
+  obtenerOpcionesFincasLocal as obtenerOpcionesFincas,
+  obtenerEstanquesPorFincaLocal as obtenerEstanquesPorFinca,
+} from "../services/FisicoQuimicaCatalogosLocal.service";
 
 function mapearLecturas(lecturas, esDiaNoche = false) {
   return (lecturas ?? []).map((lectura, index) => {
