@@ -1,454 +1,501 @@
-/**
- * ============================================================
- * SERVICIO TrazabilidadServices
- * ============================================================
- *
- * Descripción:
- * Consulta, filtrado y registro de movimientos de trazabilidad con la API.
- *
- * @dependencies api, fincaService, colaboradorService
- * @validations Normalización de estanques, cruce de nombres y sesión de usuario/colaborador.
- * @navigation N/A
- */
+/*
+//////////////////////////////////////////////////////////
+CABEZA DE ARCHIVO
+//////////////////////////////////////////////////////////
+Archivo: TrazabilidadServices.js
+Modulo: Trazabilidad (Movil)
+Descripcion:
+Version SQLite (offline-first) del service de Trazabilidad.
+Reemplaza las llamadas HTTP directas por lectura/escritura en
+la base local (via TrazabilidadLocal.service) y por lectura de
+catalogos ya descargados (fincas, estanques, colaboradores,
+siembras), para poder trabajar sin depender del backend.
 
-import api from "../../../api/api";
-import { fincaService } from "../../finca/services/finca.service";
-import { colaboradorService } from "../../colaboradores/services/colaborador.service";
+IMPORTANTE:
+- Mantiene exactamente los mismos nombres de funcion y la
+  misma forma de los datos que la version anterior (basada en
+  HTTP directo), para no tener que tocar ninguno de los hooks
+  que ya consumen este service (useTrazabilidad, useTrazabilidad
+  List, useFilterButton). La version anterior queda respaldada
+  en el PR para referencia.
+- Se elimino toggleActivoRegistro(): no se usaba en ningun
+  hook ni pantalla, y llamaba a un endpoint (PUT .../activo)
+  que no existe en el backend real -- Trazabilidad no tiene
+  edicion ni borrado, ni fisico ni logico.
+- La sesion (JWT / colaborador por PIN) ya NO se decodifica a
+  mano: se usa la infraestructura compartida real
+  (tokenStorage.js, jwtUtils.js, sessionUtils.js). OJO: al
+  05/08/2026 esa infraestructura existe pero el modulo Login
+  todavia no llama saveToken/saveUsuario ni llena las claves de
+  AsyncStorage que sessionUtils.js espera -- mientras eso no se
+  conecte, la sesion de este modulo se ve "vacia" en runtime.
+  No es un bug de Trazabilidad, es una dependencia de Login que
+  hay que avisar en el PR.
+//////////////////////////////////////////////////////////
+*/
 
-function decodificarJwtPayload(token) {
-  if (!token) return null;
-  const partes = token.split(".");
-  if (partes.length !== 3) return null;
-  try {
-    const payloadBase64 = partes[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = payloadBase64.padEnd(payloadBase64.length + ((4 - (payloadBase64.length % 4)) % 4), "=");
-    const decoded = typeof globalThis !== "undefined" && typeof globalThis.atob === "function"
-      ? globalThis.atob(padded)
-      : Buffer.from(padded, "base64").toString("binary");
-    return JSON.parse(decoded);
-  } catch (error) {
-    return null;
-  }
-}
+/*
+//////////////////////////////////////////////////////////
+IMPORTS
+//////////////////////////////////////////////////////////
+*/
 
-function obtenerSesionDesdeTokenLocal() {
-  let token = null;
-  let usuarioGuardado = null;
-  try {
-    if (typeof localStorage !== "undefined") {
-      token = localStorage.getItem("caprocam_auth_token");
-      const raw = localStorage.getItem("caprocam_usuario");
-      if (raw) usuarioGuardado = JSON.parse(raw);
+import { localApi } from "../../../database/local/localApi.service";
+import {
+    getToken,
+    getUsuario,
+    cargarSesionPersistida
+} from "../../login/utils/tokenStorage";
+import { decodeToken } from "../../../shared/utils/jwtUtils";
+import { obtenerColaboradorIdSesion } from "../../../shared/utils/sessionUtils";
+import {
+    obtenerRegistrosLocal,
+    obtenerRegistroLocalPorId,
+    crearRegistroLocal
+} from "./TrazabilidadLocal.service";
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES SECUNDARIAS - CATALOGOS LOCALES
+//////////////////////////////////////////////////////////
+*/
+
+const obtenerDatosLocal = (respuesta) => {
+    if (!respuesta || respuesta.success !== true) {
+        return [];
     }
-  } catch (e) {
-    // Ignorar
-  }
 
-  const payload = decodificarJwtPayload(token);
+    return Array.isArray(respuesta.data) ? respuesta.data : [];
+};
 
-  if (!payload && !usuarioGuardado) {
-    return {
-      esColaborador: false,
-      tipo: "usuario",
-      id: null,
-      nombre: "Usuario",
-      colaboradorId: null,
-    };
-  }
+function obtenerValor(objeto, campos) {
+    for (const campo of campos) {
+        const valor = objeto?.[campo];
 
-  const esColaborador = payload?.esColaborador === true || (Boolean(payload?.colaboradorId) && !payload?.usuario);
-
-  if (esColaborador) {
-    const colaboradorId = payload?.colaboradorId ?? payload?.id ?? null;
-    const nombre = payload?.nombre ?? usuarioGuardado?.nombre ?? (colaboradorId ? `Colaborador ${colaboradorId}` : "Colaborador");
-    return {
-      esColaborador: true,
-      tipo: "colaborador",
-      id: colaboradorId,
-      nombre,
-      colaboradorId: colaboradorId ? Number(colaboradorId) : null,
-    };
-  }
-
-  const usuarioId = payload?.id ?? usuarioGuardado?.id ?? null;
-  const nombre = payload?.nombre ?? usuarioGuardado?.nombre ?? payload?.usuario ?? "Usuario";
-  return {
-    esColaborador: false,
-    tipo: "usuario",
-    id: usuarioId,
-    nombre,
-    colaboradorId: null,
-  };
-}
-
-function obtenerValor(estanque, campos) {
-  for (const campo of campos) {
-    const valor = estanque?.[campo];
-    if (valor !== undefined && valor !== null && valor !== "") {
-      return valor;
+        if (valor !== undefined && valor !== null && valor !== "") {
+            return valor;
+        }
     }
-  }
-  return undefined;
+
+    return undefined;
 }
 
 function normalizarEstanque(estanque) {
-  const id = obtenerValor(estanque, ["id", "estanqueId"]);
-  const fincaId = obtenerValor(estanque, ["idFinca", "fincaId", "finca_id"]);
-  const codigo = obtenerValor(estanque, ["codigo", "codigoEstanque"]);
-  const tipoEstanque = obtenerValor(estanque, ["tipoEstanque", "tipo_estanque", "tipo"]);
-  const estado = obtenerValor(estanque, ["estado", "estadoEstanque"]);
-  const usaPrecria = obtenerValor(estanque, ["precria", "usa_precria", "usaPrecria"]);
-
-  return {
-    ...estanque,
-    id,
-    fincaId,
-    finca_id: fincaId,
-    codigo,
-    tipoEstanque,
-    tipo_estanque: tipoEstanque,
-    estado,
-    precria: usaPrecria,
-    usa_precria: usaPrecria,
-  };
+    return {
+        ...estanque,
+        id: estanque.id,
+        fincaId: estanque.finca_id,
+        finca_id: estanque.finca_id,
+        codigo: estanque.codigo,
+        tipoEstanque: estanque.tipo_estanque,
+        tipo_estanque: estanque.tipo_estanque,
+        estado: estanque.estado,
+        precria: estanque.precria,
+        usa_precria: estanque.precria
+    };
 }
 
 function mapearEstanquesAOptions(estanques) {
-  return (estanques ?? [])
-    .map(normalizarEstanque)
-    .map((estanque) => ({
-      label: `${estanque.codigo ?? "Estanque"} (${estanque.tipoEstanque ?? ""})`,
-      value: estanque.id,
-      raw: estanque,
+    return (estanques ?? []).map((estanque) => ({
+        label: `${estanque.codigo ?? "Estanque"} (${estanque.tipoEstanque ?? ""})`,
+        value: estanque.id,
+        raw: estanque
     }));
 }
 
 function obtenerTipoEstanque(estanque) {
-  const rawTipo = obtenerValor(estanque, ["tipoEstanque", "tipo_estanque", "tipo"]);
-  if (rawTipo !== undefined && rawTipo !== null && rawTipo !== "") {
-    return String(rawTipo).trim().toLowerCase();
-  }
+    const rawTipo = obtenerValor(estanque, ["tipoEstanque", "tipo_estanque"]);
+    if (rawTipo !== undefined && rawTipo !== null && rawTipo !== "") {
+        return String(rawTipo).trim().toLowerCase();
+    }
 
-  const rawEstado = obtenerValor(estanque, ["estado", "estadoEstanque"]);
-  if (rawEstado !== undefined && rawEstado !== null && rawEstado !== "") {
-    return String(rawEstado).trim().toLowerCase();
-  }
+    const rawEstado = obtenerValor(estanque, ["estado"]);
+    if (rawEstado !== undefined && rawEstado !== null && rawEstado !== "") {
+        return String(rawEstado).trim().toLowerCase();
+    }
 
-  return "";
+    return "";
 }
 
 export function esEstanquePreCria(estanque) {
-  const tipo = obtenerTipoEstanque(estanque);
-  if (tipo.includes("pre")) return true;
-  if (tipo.includes("engorde")) return false;
+    const tipo = obtenerTipoEstanque(estanque);
+    if (tipo.includes("pre")) return true;
+    if (tipo.includes("engorde")) return false;
 
-  const raw = estanque?.precria ?? estanque?.usa_precria ?? estanque?.usaPrecria ?? "";
-  const val = String(raw).trim().toLowerCase();
-  if (val === "si" || val === "yes" || val === "true" || val === "1") return true;
-  if (Number(raw) === 1) return true;
-  return false;
+    const raw = estanque?.precria ?? estanque?.usa_precria ?? "";
+    if (Number(raw) === 1) return true;
+    const val = String(raw).trim().toLowerCase();
+    return val === "si" || val === "yes" || val === "true";
 }
 
 export function esEstanqueEngorde(estanque) {
-  const tipo = obtenerTipoEstanque(estanque);
-  if (tipo.includes("engorde")) return true;
-  if (tipo.includes("pre")) return false;
+    const tipo = obtenerTipoEstanque(estanque);
+    if (tipo.includes("engorde")) return true;
+    if (tipo.includes("pre")) return false;
 
-  const estado = String(obtenerValor(estanque, ["estado", "estadoEstanque"]) ?? "")
-    .trim()
-    .toLowerCase();
-  return estado.includes("engorde");
+    const estado = String(obtenerValor(estanque, ["estado"]) ?? "")
+        .trim()
+        .toLowerCase();
+    return estado.includes("engorde");
 }
 
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES - LISTADO Y DETALLE
+//////////////////////////////////////////////////////////
+*/
+
 export async function getRegistros() {
-  try {
-    const response = await api.get("/registrosTrazabilidad");
-    return response.data.data;
-  } catch (error) {
-    throw error;
-  }
+    return obtenerRegistrosLocal();
 }
 
 export async function getRegistroPorId(id) {
-  try {
-    const response = await api.get(`/registrosTrazabilidad/${id}`);
-    const registro = response.data.data;
+    const registro = await obtenerRegistroLocalPorId(id);
 
-    // El backend (trazabilidad.model.js) solo devuelve IDs crudos
-    // (fincaId, estanqueOrigenId, estanqueDestinoId, colaboradorId).
-    // Como no se toca el backend, se cruzan los IDs con nombres aquí.
+    if (!registro) {
+        throw new Error("Registro de trazabilidad no encontrado localmente.");
+    }
+
     const [fincas, colaboradores, estanques] = await Promise.all([
-      obtenerFincas().catch(() => []),
-      obtenerColaboradores().catch(() => []),
-      obtenerTodosLosEstanques().catch(() => []),
+        obtenerFincas().catch(() => []),
+        obtenerColaboradores().catch(() => []),
+        obtenerTodosLosEstanques().catch(() => [])
     ]);
 
-    return enriquecerRegistro(registro, construirMapas({ fincas, colaboradores, estanques }));
-  } catch (error) {
-    throw error;
-  }
+    return enriquecerRegistro(
+        registro,
+        construirMapas({ fincas, colaboradores, estanques })
+    );
 }
 
 export function filtrarRegistrosTrazabilidad(registros, texto, filtros) {
-  const textoBusqueda = String(texto ?? "").trim().toLowerCase();
+    const textoBusqueda = String(texto ?? "").trim().toLowerCase();
 
-  return registros.filter((registro) => {
-    const coincideBusqueda =
-      textoBusqueda === "" ||
-      [
-        registro.fincaNombre,
-        registro.colaboradorNombre,
-        registro.estanqueOrigenLabel,
-        registro.estanqueDestinoLabel,
-      ].some((valor) =>
-        String(valor ?? "").toLowerCase().includes(textoBusqueda),
-      );
+    return registros.filter((registro) => {
+        const coincideBusqueda =
+            textoBusqueda === "" ||
+            [
+                registro.fincaNombre,
+                registro.colaboradorNombre,
+                registro.estanqueOrigenLabel,
+                registro.estanqueDestinoLabel
+            ].some((valor) => String(valor ?? "").toLowerCase().includes(textoBusqueda));
 
-    const keyResponsable = registro.colaboradorId ?? (registro.creadoPorUsuarioId ? `user_${registro.creadoPorUsuarioId}` : registro.colaboradorNombre);
+        const keyResponsable =
+            registro.colaboradorId ??
+            (registro.creadoPorUsuarioId ? `user_${registro.creadoPorUsuarioId}` : registro.colaboradorNombre);
 
-    const coincideFiltros =
-      (filtros.fincas.length === 0 || filtros.fincas.includes(registro.fincaId)) &&
-      ((filtros.estanques ?? []).length === 0 ||
-        filtros.estanques.includes(registro.estanqueOrigenId) ||
-        filtros.estanques.includes(registro.estanqueDestinoId)) &&
-      (filtros.colaboradores.length === 0 ||
-        filtros.colaboradores.includes(keyResponsable) ||
-        filtros.colaboradores.includes(registro.colaboradorId) ||
-        filtros.colaboradores.includes(registro.colaboradorNombre)) &&
-      (filtros.fecha === "" || registro.fecha === filtros.fecha);
+        const coincideFiltros =
+            (filtros.fincas.length === 0 || filtros.fincas.includes(registro.fincaId)) &&
+            ((filtros.estanques ?? []).length === 0 ||
+                filtros.estanques.includes(registro.estanqueOrigenId) ||
+                filtros.estanques.includes(registro.estanqueDestinoId)) &&
+            (filtros.colaboradores.length === 0 ||
+                filtros.colaboradores.includes(keyResponsable) ||
+                filtros.colaboradores.includes(registro.colaboradorId) ||
+                filtros.colaboradores.includes(registro.colaboradorNombre)) &&
+            (filtros.fecha === "" || registro.fecha === filtros.fecha);
 
-    return coincideBusqueda && coincideFiltros;
-  });
+        return coincideBusqueda && coincideFiltros;
+    });
 }
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES - CREACION
+//////////////////////////////////////////////////////////
+*/
 
 export async function crearRegistro(datos) {
-  try {
-    const response = await api.post("/registrosTrazabilidad", datos);
-    return response.data.data;
-  } catch (error) {
-    throw error;
-  }
+    const resultado = await crearRegistroLocal(datos);
+
+    if (!resultado.exito) {
+        const error = new Error(resultado.errores[0] || "No se pudo guardar el registro.");
+        // Se imita la forma de un error de axios (response.data.message)
+        // para que el manejo de errores existente en useTrazabilidad.js
+        // (que revisa error?.response?.data?.message) siga funcionando
+        // igual sin tener que tocar el hook.
+        error.response = { status: 400, data: { message: resultado.errores[0] } };
+        throw error;
+    }
+
+    return resultado.registro;
 }
 
-export async function toggleActivoRegistro(id) {
-  try {
-    const response = await api.put(`/registrosTrazabilidad/${id}/activo`);
-    return response.data.data;
-  } catch (error) {
-    throw error;
-  }
-}
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES - CATALOGOS (LOCALES, YA DESCARGADOS)
+//////////////////////////////////////////////////////////
+*/
 
 export async function obtenerFincas() {
-  const fincas = await fincaService.getFincas();
-  return fincas.map((finca) => ({ label: finca.nombreFinca, value: finca.id }));
+    const respuesta = await localApi.fincas.obtenerTodos();
+    const fincas = obtenerDatosLocal(respuesta);
+
+    return fincas.map((finca) => ({ label: finca.nombre_finca, value: finca.id }));
 }
 
 export async function obtenerEstanquesPorFinca(fincaId) {
-  if (!fincaId) return [];
-  try {
-    const response = await api.get('/estanques');
-    const estanques = (response.data.data ?? []).map(normalizarEstanque);
-    return mapearEstanquesAOptions(
-      estanques.filter((estanque) => String(estanque.fincaId ?? estanque.finca_id) === String(fincaId)),
-    );
-  } catch (error) {
-    return [];
-  }
+    if (!fincaId) return [];
+
+    const respuesta = await localApi.estanques.obtenerTodos({ finca_id: fincaId });
+    const estanques = obtenerDatosLocal(respuesta).map(normalizarEstanque);
+
+    return mapearEstanquesAOptions(estanques);
 }
 
 export async function obtenerEstanquesPreCriaPorFinca(fincaId) {
-  if (!fincaId) return [];
-  try {
-    const response = await api.get('/estanques');
-    const estanques = (response.data.data ?? []).map(normalizarEstanque);
-    return mapearEstanquesAOptions(
-      estanques.filter((estanque) => {
-        const fincaCoincide = String(estanque.fincaId ?? estanque.finca_id) === String(fincaId);
-        const esPrecria = esEstanquePreCria(estanque);
-        return fincaCoincide && esPrecria;
-      }),
-    );
-  } catch (error) {
-    return [];
-  }
+    if (!fincaId) return [];
+
+    const estanques = await obtenerEstanquesPorFinca(fincaId);
+
+    return estanques.filter((opcion) => esEstanquePreCria(opcion.raw));
 }
 
 export async function obtenerEstanquesEngordePorFinca(fincaId) {
-  if (!fincaId) return [];
-  try {
-    const response = await api.get('/estanques');
-    const estanques = (response.data.data ?? []).map(normalizarEstanque);
-    return mapearEstanquesAOptions(
-      estanques.filter((estanque) => {
-        const fincaCoincide = String(estanque.fincaId ?? estanque.finca_id) === String(fincaId);
-        const esEngorde = esEstanqueEngorde(estanque);
-        return fincaCoincide && esEngorde;
-      }),
-    );
-  } catch (error) {
-    return [];
-  }
+    if (!fincaId) return [];
+
+    const estanques = await obtenerEstanquesPorFinca(fincaId);
+
+    return estanques.filter((opcion) => esEstanqueEngorde(opcion.raw));
 }
 
 export async function obtenerTodosLosEstanques() {
-  // El backend no filtra por finca (idFinca se ignora en
-  // estanques.routes.js), así que se trae todo y se cruza
-  // por ID en el cliente. Usado para enriquecer los registros
-  // de trazabilidad (listado y detalle).
-  try {
-    const response = await api.get('/estanques');
-    return (response.data.data ?? []).map((estanque) => ({
-      label: `${estanque.codigo} (${estanque.tipoEstanque})`,
-      value: estanque.id,
-    }));
-  } catch (error) {
-    return [];
-  }
-}
+    const respuesta = await localApi.estanques.obtenerTodos();
+    const estanques = obtenerDatosLocal(respuesta);
 
-// Trae la siembra activa del estanque de origen para precargar PL y
-// días de cultivo en el formulario de Trazabilidad. Usa el endpoint
-// real de Siembra (GET /siembras/activa?estanqueId=), NO el mock de
-// SiembraService.js -- ese mock sigue vivo solo para el módulo de
-// Siembra, que aún no se conecta a la API (fuera de alcance aquí, no
-// se toca ese módulo).
-// Devuelve null si el estanque no tiene siembra activa (404 esperado,
-// no es un error real) o si no se pudo consultar.
-export async function obtenerSiembraActivaPorEstanque(estanqueId) {
-  if (!estanqueId) return null;
-  try {
-    const response = await api.get("/siembras/activa", {
-      params: { estanqueId },
-    });
-    return response.data.data ?? null;
-  } catch (error) {
-    if (error?.response?.status === 404) return null;
-    return null;
-  }
+    return estanques.map((estanque) => ({
+        label: `${estanque.codigo} (${estanque.tipo_estanque})`,
+        value: estanque.id
+    }));
 }
 
 export async function obtenerColaboradores() {
-  const colaboradores = await colaboradorService.getColaboradores();
-  return colaboradores.map((colaborador) => ({
-    label: [colaborador.nombre, colaborador.apellidos].filter(Boolean).join(" "),
-    value: colaborador.id,
-  }));
-}
+    const respuesta = await localApi.colaboradores.obtenerTodos();
+    const colaboradores = obtenerDatosLocal(respuesta);
 
-export function obtenerSesionFormulario() {
-  const sesion = obtenerSesionDesdeTokenLocal();
-  const esUsuario = sesion.tipo === "usuario";
-
-  return {
-    tipo: sesion.tipo,
-    labelCampo: esUsuario ? "Usuario responsable" : "Colaborador responsable",
-    nombre: sesion.nombre,
-    label: esUsuario ? `Usuario: ${sesion.nombre}` : `Colaborador: ${sesion.nombre}`,
-    colaboradorId: sesion.colaboradorId,
-    usuarioId: esUsuario ? sesion.id : null,
-  };
-}
-
-export function obtenerColaboradorSesion(esAsync = false) {
-  const sesion = obtenerSesionFormulario();
-  if (!esAsync) {
-    return sesion;
-  }
-
-  return (async () => {
-    if (sesion.tipo === "usuario" || !sesion.colaboradorId) {
-      return sesion;
-    }
-
-    try {
-      const colaborador = await colaboradorService.getColaboradorById(sesion.colaboradorId);
-      const nombreCompleto = [colaborador?.nombre, colaborador?.apellidos]
-        .filter(Boolean)
-        .join(" ");
-      const nombre = nombreCompleto || `Colaborador ${sesion.colaboradorId}`;
-      return {
-        ...sesion,
-        nombre,
-        label: `Colaborador: ${nombre}`,
-        colaboradorId: sesion.colaboradorId,
-      };
-    } catch (error) {
-      return sesion;
-    }
-  })();
+    return colaboradores.map((colaborador) => ({
+        label: [colaborador.nombre, colaborador.apellidos].filter(Boolean).join(" "),
+        value: colaborador.id
+    }));
 }
 
 /**
- * ------------------------------------------------------------
- * Enriquecimiento de registros (cruce de IDs a nombres)
- * ------------------------------------------------------------
- * El backend (trazabilidad.model.js -> mapearFila) solo devuelve
- * IDs crudos (fincaId, estanqueOrigenId, estanqueDestinoId, colaboradorId). Como no se toca
- * el backend, se cruzan los IDs con nombres aquí.
+ * Trae la siembra activa del estanque de origen, para
+ * precargar PL y dias de cultivo en el formulario. Antes
+ * dependia de GET /siembras/activa (modulo Siembra, fuera de
+ * alcance). Ahora que Siembra ya tiene su propia tabla local
+ * (siembras) descargada por su propio SiembraSync.service, se
+ * lee de ahi directo -- sin llamar a la API ni tocar codigo
+ * del modulo Siembra.
+ * SUPUESTO A CONFIRMAR con el dueño de Siembra: "dias" aqui se
+ * calcula como dias transcurridos desde fecha_siembra hasta
+ * hoy, porque la tabla local no guarda ese calculo (el backend
+ * si lo calculaba en el endpoint que ya no se usa). Si Siembra
+ * define ese calculo distinto, hay que ajustarlo aqui.
+ * @param {number} estanqueId - Id del estanque de origen.
+ * @returns {Promise<object|null>} {pl_siembra, dias} o null.
  */
+export async function obtenerSiembraActivaPorEstanque(estanqueId) {
+    if (!estanqueId) return null;
 
-export function construirMapas({ fincas = [], colaboradores = [], estanques = [] } = {}) {
-  const fincasMap = new Map(fincas.map((f) => [f.value, f.label]));
-  const colaboradoresMap = new Map(colaboradores.map((c) => [c.value, c.label]));
-  const estanquesMap = new Map(estanques.map((e) => [e.value, e.label]));
+    try {
+        const respuesta = await localApi.siembras.obtenerTodos({
+            estanque_id: estanqueId,
+            estado: "Activa"
+        });
+        const siembras = obtenerDatosLocal(respuesta);
 
-  return {
-    fincasMap,
-    colaboradoresMap,
-    estanquesMap,
-  };
+        if (siembras.length === 0) return null;
+
+        const masReciente = siembras
+            .slice()
+            .sort((a, b) => String(a.fecha_siembra).localeCompare(String(b.fecha_siembra)))
+            .pop();
+
+        const fechaSiembra = new Date(`${masReciente.fecha_siembra}T00:00:00`);
+        const hoy = new Date();
+        const msPorDia = 1000 * 60 * 60 * 24;
+        const dias = Number.isNaN(fechaSiembra.getTime())
+            ? null
+            : Math.max(0, Math.floor((hoy - fechaSiembra) / msPorDia));
+
+        return {
+            pl_siembra: masReciente.pl_siembra,
+            dias
+        };
+    } catch (error) {
+        return null;
+    }
 }
 
-export function enriquecerRegistro(registro = {}, mapas = {}) {
-  const { fincasMap = new Map(), colaboradoresMap = new Map(), estanquesMap = new Map() } = mapas;
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES - SESION (formulario)
+//////////////////////////////////////////////////////////
+*/
 
-  let responsableNombre = "";
-  let tipoResponsable = "Colaborador";
-  const sesionActual = obtenerSesionDesdeTokenLocal();
+/**
+ * Version sincronica y "segura": usada solo como valor inicial
+ * de useState en el hook, antes de que se resuelva la sesion
+ * real de forma asincrona. Nunca se le debe confiar el dato
+ * final -- ver obtenerColaboradorSesion(true).
+ * @returns {object} Sesion por defecto (colaborador vacio).
+ */
+function obtenerSesionPorDefecto() {
+    return {
+        esColaborador: true,
+        tipo: "colaborador",
+        id: null,
+        nombre: "Colaborador",
+        colaboradorId: null
+    };
+}
 
-  if (registro.colaboradorId && colaboradoresMap.has(registro.colaboradorId)) {
-    responsableNombre = colaboradoresMap.get(registro.colaboradorId);
-    tipoResponsable = "Colaborador";
-  } else if (registro.colaboradorNombre) {
-    responsableNombre = registro.colaboradorNombre;
-    tipoResponsable = "Colaborador";
-  } else if (registro.usuarioNombre || registro.creadoPorUsuarioNombre || registro.creadoPorUsuario?.nombre || registro.usuario?.nombre) {
-    responsableNombre = registro.usuarioNombre || registro.creadoPorUsuarioNombre || registro.creadoPorUsuario?.nombre || registro.usuario?.nombre;
-    tipoResponsable = "Usuario";
-  } else if (registro.creadoPorUsuarioId || registro.usuarioId || registro.usuario_id) {
-    const usuarioIdReg = registro.creadoPorUsuarioId || registro.usuarioId || registro.usuario_id;
-    if (sesionActual && sesionActual.tipo === "usuario" && sesionActual.nombre) {
-      responsableNombre = sesionActual.nombre;
-    } else {
-      responsableNombre = `Usuario #${usuarioIdReg}`;
+/**
+ * Resuelve la sesion real de forma asincrona. Prioriza la
+ * sesion de colaborador (PIN, AsyncStorage via sessionUtils),
+ * que es el flujo real de captura en campo; si no hay
+ * colaborador activo, cae a la sesion de usuario por JWT
+ * (tokenStorage + jwtUtils).
+ * @returns {Promise<object>} Sesion resuelta.
+ */
+async function resolverSesionActual() {
+    const colaboradorId = await obtenerColaboradorIdSesion();
+
+    if (colaboradorId) {
+        return {
+            esColaborador: true,
+            tipo: "colaborador",
+            id: colaboradorId,
+            nombre: `Colaborador ${colaboradorId}`,
+            colaboradorId: Number(colaboradorId)
+        };
     }
-    tipoResponsable = "Usuario";
-  } else if (sesionActual && sesionActual.tipo === "usuario" && !registro.colaboradorId) {
-    responsableNombre = sesionActual.nombre || "Usuario";
-    tipoResponsable = "Usuario";
-  } else if (registro.creadoPorColaboradorId) {
-    responsableNombre = `Colaborador #${registro.creadoPorColaboradorId}`;
-    tipoResponsable = "Colaborador";
-  } else {
-    responsableNombre = "Sin asignar";
-    tipoResponsable = "Responsable";
-  }
 
-  return {
-    ...registro,
-    fincaNombre: fincasMap.get(registro.fincaId) ?? registro.fincaNombre ?? "",
-    colaboradorNombre: responsableNombre,
-    tipoResponsable,
-    responsableTexto: `${tipoResponsable}: ${responsableNombre}`,
-    estanqueOrigenLabel:
-      estanquesMap.get(registro.estanqueOrigenId) ?? registro.estanqueOrigenLabel ?? "",
-    estanqueDestinoLabel:
-      estanquesMap.get(registro.estanqueDestinoId) ?? registro.estanqueDestinoLabel ?? "",
-  };
+    await cargarSesionPersistida();
+    const token = getToken();
+    const usuarioGuardado = getUsuario();
+    const payload = decodeToken(token);
+
+    if (!payload && !usuarioGuardado) {
+        return obtenerSesionPorDefecto();
+    }
+
+    const usuarioId = payload?.id ?? usuarioGuardado?.id ?? null;
+    const nombre = payload?.nombre ?? usuarioGuardado?.nombre ?? "Usuario";
+
+    return {
+        esColaborador: false,
+        tipo: "usuario",
+        id: usuarioId,
+        nombre,
+        colaboradorId: null
+    };
+}
+
+export function obtenerSesionFormulario(sesion) {
+    const esUsuario = sesion.tipo === "usuario";
+
+    return {
+        tipo: sesion.tipo,
+        labelCampo: esUsuario ? "Usuario responsable" : "Colaborador responsable",
+        nombre: sesion.nombre,
+        label: esUsuario ? `Usuario: ${sesion.nombre}` : `Colaborador: ${sesion.nombre}`,
+        colaboradorId: sesion.colaboradorId,
+        usuarioId: esUsuario ? sesion.id : null
+    };
+}
+
+export function obtenerColaboradorSesion(esAsync = false) {
+    if (!esAsync) {
+        return obtenerSesionFormulario(obtenerSesionPorDefecto());
+    }
+
+    return (async () => {
+        const sesion = await resolverSesionActual();
+
+        if (sesion.tipo === "usuario" || !sesion.colaboradorId) {
+            return obtenerSesionFormulario(sesion);
+        }
+
+        try {
+            const respuesta = await localApi.colaboradores.obtenerPorId(sesion.colaboradorId);
+            const colaborador = respuesta?.success ? respuesta.data : null;
+            const nombreCompleto = [colaborador?.nombre, colaborador?.apellidos]
+                .filter(Boolean)
+                .join(" ");
+
+            return obtenerSesionFormulario({
+                ...sesion,
+                nombre: nombreCompleto || sesion.nombre
+            });
+        } catch (error) {
+            return obtenerSesionFormulario(sesion);
+        }
+    })();
+}
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES - ENRIQUECIMIENTO (cruce de IDs a nombres)
+//////////////////////////////////////////////////////////
+*/
+
+export function construirMapas({ fincas = [], colaboradores = [], estanques = [] } = {}) {
+    const fincasMap = new Map(fincas.map((f) => [f.value, f.label]));
+    const colaboradoresMap = new Map(colaboradores.map((c) => [c.value, c.label]));
+    const estanquesMap = new Map(estanques.map((e) => [e.value, e.label]));
+
+    return { fincasMap, colaboradoresMap, estanquesMap };
+}
+
+/**
+ * Cruza un registro local (ya trae sus propios IDs de quien lo
+ * creo: creadoPorUsuarioId / creadoPorColaboradorId) con los
+ * catalogos locales para mostrar nombres en vez de IDs. A
+ * diferencia de la version anterior, ya NO necesita adivinar
+ * "la sesion actual" como respaldo: cada registro local ya
+ * guarda quien lo creo desde el momento en que se genero.
+ * @param {object} registro - Registro en formato de vista.
+ * @param {object} mapas - {fincasMap, colaboradoresMap, estanquesMap}.
+ * @returns {object} Registro enriquecido con nombres.
+ */
+export function enriquecerRegistro(registro = {}, mapas = {}) {
+    const { fincasMap = new Map(), colaboradoresMap = new Map(), estanquesMap = new Map() } = mapas;
+
+    let responsableNombre = "";
+    let tipoResponsable = "Colaborador";
+
+    if (registro.colaboradorId && colaboradoresMap.has(registro.colaboradorId)) {
+        responsableNombre = colaboradoresMap.get(registro.colaboradorId);
+        tipoResponsable = "Colaborador";
+    } else if (registro.creadoPorColaboradorId && colaboradoresMap.has(registro.creadoPorColaboradorId)) {
+        responsableNombre = colaboradoresMap.get(registro.creadoPorColaboradorId);
+        tipoResponsable = "Colaborador";
+    } else if (registro.creadoPorColaboradorId) {
+        responsableNombre = `Colaborador #${registro.creadoPorColaboradorId}`;
+        tipoResponsable = "Colaborador";
+    } else if (registro.creadoPorUsuarioId) {
+        responsableNombre = `Usuario #${registro.creadoPorUsuarioId}`;
+        tipoResponsable = "Usuario";
+    } else {
+        responsableNombre = "Sin asignar";
+        tipoResponsable = "Responsable";
+    }
+
+    return {
+        ...registro,
+        fincaNombre: fincasMap.get(registro.fincaId) ?? registro.fincaNombre ?? "",
+        colaboradorNombre: responsableNombre,
+        tipoResponsable,
+        responsableTexto: `${tipoResponsable}: ${responsableNombre}`,
+        estanqueOrigenLabel: estanquesMap.get(registro.estanqueOrigenId) ?? "",
+        estanqueDestinoLabel: estanquesMap.get(registro.estanqueDestinoId) ?? ""
+    };
 }
 
 export function enriquecerRegistros(registros = [], mapas) {
-  if (!Array.isArray(registros)) return [];
-  return registros.map((r) => enriquecerRegistro(r, mapas));
+    if (!Array.isArray(registros)) return [];
+    return registros.map((r) => enriquecerRegistro(r, mapas));
 }
