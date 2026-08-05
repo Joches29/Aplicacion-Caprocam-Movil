@@ -18,7 +18,6 @@ IMPORTS
 //////////////////////////////////////////////////////////
 */
 
-import bcrypt from "bcryptjs";
 import { localApi } from "./localApi.service";
 
 /*
@@ -55,10 +54,6 @@ export const probarBaseLocal = async () => {
 
         console.log("Rol creado:", rol);
 
-        // PIN de prueba: 1234 — hasheado con bcrypt para que validarPinOffline
-        // (que usa bcrypt.compare) pueda validarlo correctamente.
-        const pinHashDemo = bcrypt.hashSync("1234", 10);
-
         const colaborador = await localApi.colaboradores.crear({
             grupo_datos: 1001,
             finca_id: null,
@@ -69,7 +64,7 @@ export const probarBaseLocal = async () => {
             telefono: "88888888",
             email: "gerald.demo@caprocam.local",
             nombre_usuario: "gerald_demo",
-            pin_hash: pinHashDemo,
+            pin_hash: "hash_demo_temporal",
             tipo_colaborador: "external_collab",
             creado_por_colaborador_id: null
         });
@@ -111,6 +106,33 @@ export const probarBaseLocal = async () => {
 
         console.log("Estanque creado:", estanque);
 
+        const productoBodega = await localApi.productos.crear({
+            codigo: "P-0001",
+            nombre: "Balanceado Premium",
+            categoria: "Alimento",
+            unidad: "Saco",
+            precio_unidad: 12500,
+            proveedor_id: null,
+            fecha_ingreso: "2026-08-03",
+            fecha_caducidad: "2026-12-31",
+            estado: "ACTIVO",
+            grupo_datos: 1001,
+            creado_por_colaborador_id: colaborador.data.id
+        });
+
+        console.log("Producto creado:", productoBodega);
+
+        const inventario = await localApi.inventario.crear({
+            grupo_datos: 1001,
+            producto_id: productoBodega.data.id,
+            proveedor_id: null,
+            cantidad: 24,
+            stock_minimo: 6,
+            creado_por_colaborador_id: colaborador.data.id
+        });
+
+        console.log("Inventario creado:", inventario);
+
         const alimentacion = await localApi.alimentaciones.crear({
             grupo_datos: 1001,
             finca_id: finca.data.id,
@@ -149,6 +171,8 @@ export const probarBaseLocal = async () => {
                 colaborador: colaborador.data,
                 finca: finca.data,
                 estanque: estanque.data,
+                productoBodega: productoBodega.data,
+                inventario: inventario.data,
                 alimentacion: alimentacion.data,
                 pendientes: pendientes.data
             }
