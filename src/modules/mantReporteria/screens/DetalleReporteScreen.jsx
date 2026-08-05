@@ -63,6 +63,7 @@ export default function DetalleReporteScreen({ onEditar }) {
 
     registros,
     loading,
+    cargandoCatalogos,
     filtrosCompletos,
 
     setRegistroTipo,
@@ -127,7 +128,13 @@ export default function DetalleReporteScreen({ onEditar }) {
                   <View style={styles.inputItem}>
                     <Select
                       label="Seleccione Finca"
-                      placeholder="Todas las fincas"
+                      placeholder={
+                        cargandoCatalogos
+                          ? "Cargando fincas..."
+                          : fincas.length > 0
+                            ? "Seleccione una finca"
+                            : "No se encuentran opciones o valores"
+                      }
                       options={fincas}
                       value={finca}
                       onChange={setFinca}
@@ -137,7 +144,15 @@ export default function DetalleReporteScreen({ onEditar }) {
                   <View style={styles.inputItem}>
                     <Select
                       label="Seleccione Estanque"
-                      placeholder="Todos los estanques"
+                      placeholder={
+                        !finca
+                          ? "Seleccione primero una finca"
+                          : cargandoCatalogos
+                            ? "Cargando estanques..."
+                            : estanquesFiltrados.length > 0
+                              ? "Seleccione un estanque"
+                              : "No se encuentran opciones o valores"
+                      }
                       options={estanquesFiltrados}
                       value={estanque}
                       onChange={setEstanque}
