@@ -23,8 +23,10 @@ export const getProveedoresLarva = async () => {
     const response = await api.get("/proveedores-larva");
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener proveedores de larva:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudieron obtener los proveedores de larva.");
   }
 };
 
@@ -36,8 +38,10 @@ export const createProveedorLarva = async (nombre) => {
     const response = await api.post("/proveedores-larva", { nombre });
     return response.data.data;
   } catch (error) {
-    console.error("Error al crear proveedor de larva:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo crear el proveedor de larva.");
   }
 };
 
@@ -49,8 +53,10 @@ export const updateProveedorLarva = async (id, nombre) => {
     const response = await api.put(`/proveedores-larva/${id}`, { nombre });
     return response.data.data;
   } catch (error) {
-    console.error("Error al actualizar proveedor de larva:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo actualizar el proveedor de larva.");
   }
 };
 
@@ -62,7 +68,9 @@ export const eliminarProveedorLarva = async (id) => {
     const response = await api.delete(`/proveedores-larva/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al eliminar proveedor de larva:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo eliminar el proveedor de larva.");
   }
 };

@@ -33,10 +33,27 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigation, useRouter } from "expo-router";
 import { calcularProgresoCiclo } from "./siembraCalculos";
-import { getSiembras } from "../services/siembra.service";
+import SiembraLocalService from "../services/SiembraLocal.services";
 import { getPrecrias } from "../services/precria.service";
 import { obtenerFincas, obtenerEstanquesPorFinca } from "./fincaEstanqueLocal";
 import { formatearFechaDesdeISO } from "./dateUtils";
+import { localApi } from "../../../database/local/localApi.service";
+
+
+function adaptarSiembraLocalABackend(s) {
+  return {
+    ...s,
+    id: s.id,
+    finca_id: s.fincaId,
+    estanque_id: s.estanqueId,
+    fecha_siembra: s.fechaSiembra,
+    cantidad_sembrada: s.cantidadSembrada,
+    pl_siembra: s.plSiembra,
+    precria_id: s.precriaId,
+    lote_larva_id: s.loteLarvaId,
+    estado: s.estado,
+  };
+}
 
 function haFinalizado(registro) {
   if (registro.tipoRegistro === "precria")
@@ -110,15 +127,19 @@ export default function useSiembraList() {
     try {
       setCargando(true);
       setError("");
+
+      await localApi.inicializar();
+
       const [siembras, precrias] = await Promise.all([
-        getSiembras(),
+        SiembraLocalService.getAll(),
         getPrecrias(),
       ]);
       setRegistros([
-        ...siembras.map(mapSiembraParaCard),
+        ...siembras.map(adaptarSiembraLocalABackend).map(mapSiembraParaCard),
         ...precrias.map(mapPrecriaParaCard),
       ]);
     } catch (err) {
+      console.error("Error al cargar siembras locales", err);
       setError("No fue posible cargar las siembras.");
     } finally {
       setCargando(false);
