@@ -1,37 +1,30 @@
 /**
- * SERVICIO: loginAuth.service
- * Servicio para verificar y validar las credenciales del PIN de operario contra la API REST backend.
+ * SERVICIO: loginAuth.service (adaptado a SQLite local)
+ * Valida el PIN de un colaborador contra el hash guardado en SQLite local,
+ * sin depender de conexión ni del backend.
  *
- * @dependencies - api (api/api.js)
- * @validations  - Requiere operarioId válido y un PIN numérico de 4 dígitos.
+ * @dependencies - offlineAuth.service (database/local)
+ * @validations  - Requiere workerId (id LOCAL del colaborador) y PIN numérico de 4 dígitos.
  * @navigation   - N/A
  */
 
-import api from "../../../api/api";
+import { validarPinOffline } from "../../../database/local/offlineAuth.service";
 
 export async function verifyPinCredentials({ workerId, pinCode }) {
   if (workerId == null || pinCode.length !== 4) {
-    return { isValid: false, message: 'Datos inválidos para autenticar.' };
+    return { isValid: false, message: "Datos inválidos para autenticar." };
   }
 
-  try {
-    const response = await api.post("/login/verificar-pin", {
-      operarioId: workerId,
-      pin: pinCode,
-    });
+  const respuesta = await validarPinOffline(workerId, pinCode);
 
-    return {
-      isValid: true,
-      message: response.data.message,
-      data: response.data.data,
-    };
-  } catch (err) {
-    if (err.response) {
-      // El backend respondió con 401, 404 o 422
-      const message = err.response.data?.message || 'Error al verificar el PIN.';
-      return { isValid: false, message };
-    }
-    // No hubo respuesta del servidor (red caída, IP mal, etc.)
-    return { isValid: false, message: 'Error de red. Verifica tu conexión.' };
+  if (!respuesta.success) {
+    // PIN incorrecto, colaborador no encontrado, o sin pin_hash configurado
+    return { isValid: false, message: respuesta.message };
   }
+
+  return {
+    isValid: true,
+    message: respuesta.message,
+    data: respuesta.data, // colaborador de sesión (ya sin pin_hash, lo limpia offlineAuth.service)
+  };
 }
