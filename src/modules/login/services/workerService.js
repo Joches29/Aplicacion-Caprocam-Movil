@@ -9,10 +9,19 @@
 
 import { obtenerColaboradoresLoginOffline } from '../../../database/local/offlineAuth.service';
 
-const roles = {
+import { localApi } from "../../../database/local/localApi.service";
+import { obtenerGrupoDatosSesion } from "../../../shared/utils/sessionUtils";
+
+/*
+//////////////////////////////////////////////////////////
+CONSTANTES
+//////////////////////////////////////////////////////////
+*/
+
+const ROLES_DISPLAY = {
     caprocam_collab: "Colaborador CAPROCAM",
     external_owner: "Propietario",
-    external_collab: "Colaborador Externo"
+    external_collab: "Colaborador Externo",
 };
 
 /**
@@ -30,6 +39,12 @@ const mapColaborador = (colaborador) => ({
     name: `${colaborador.nombre} ${colaborador.apellidos}`,
     role: roles[colaborador.tipo_colaborador] ?? colaborador.tipo_colaborador
 });
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES
+//////////////////////////////////////////////////////////
+*/
 
 /**
  * getWorkers()
