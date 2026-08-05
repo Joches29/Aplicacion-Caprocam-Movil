@@ -84,7 +84,7 @@ const mapearEnfermedadParaBackend = (registro) => ({
   mortalidadRegistrada: convertirNumero(
     obtenerValor(
       registro,
-      ["mortalidad", "mortalidad_registrada", "mortalidadRegistrada"],
+      ["mortalidad_registrada", "mortalidad", "mortalidadRegistrada"],
       0
     ),
     0

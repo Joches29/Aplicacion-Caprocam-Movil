@@ -1,28 +1,44 @@
 /**
  * ============================================================
- * HOOK DE DETALLE DE VENTAS
+ * HOOK DE DETALLE DE VENTA
  * ============================================================
  *
- * Centraliza la lógica de carga de parámetros, filtros y
- * opciones de selección para la pantalla de detalle de ventas.
+ * Centraliza el estado y las operaciones locales
+ * correspondientes al modulo de ventas.
+ *
+ * Trabaja contra SQLite usando VentaLocalService.
  */
-import { fincaService } from "../../finca/services/finca.service.js";
-import { estanqueService } from "../../estanques/services/estanque.service.js";
-import { getVentas, deleteVenta } from "../services/mantVentas.service.js";
 
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useWindowDimensions, View } from "react-native";
+import { useError } from "../../../shared/context/ErrorContext.js";
+import VentasLocalService from "../services/mantVentasLocal.service.js";
+import { localApi } from "../../../database/local/localApi.service.js";
 import Text from "../../../shared/components/Text.jsx";
 import Icon from "../../../shared/components/Icons.jsx";
 import Card from "../../../shared/components/Card.jsx";
 import Button from "../../../shared/components/Button.jsx";
 import { ICONS } from "../../../theme/icons";
 import { COLORS } from "../../../theme/colors.js";
-import { View } from "react-native";
 import { styles } from "../styles/VentaStyles.js";
-import { useMemo, useState, useCallback, useEffect } from "react";
-import { useLocalSearchParams } from "expo-router";
-import { useWindowDimensions } from "react-native";
-import { useError } from "../../../shared/context/ErrorContext.js";
 
+/*
+============================================================
+HELPERS
+============================================================
+*/
+
+function formatearMontoColones(value) {
+  const numero = Math.round(Number(value) || 0);
+  return `₡ ${String(numero).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+}
+
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
 export function useDetalleVenta({ onEdit, success, message } = {}) {
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
@@ -30,8 +46,8 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
 
   const [fincas, setFincas] = useState([]);
   const [estanques, setEstanques] = useState([]);
-
-const [mostrarExito, setMostrarExito] = useState(
+  const [ventas, setVentas] = useState([]);
+  const [mostrarExito, setMostrarExito] = useState(
     success === "1" && Boolean(message)
   );
 
@@ -40,7 +56,6 @@ const [mostrarExito, setMostrarExito] = useState(
       setMostrarExito(false);
       return;
     }
-
     setMostrarExito(true);
     const timer = setTimeout(() => setMostrarExito(false), 3000);
     return () => clearTimeout(timer);
@@ -50,48 +65,42 @@ const [mostrarExito, setMostrarExito] = useState(
 
   useEffect(() => {
     let activo = true;
-
-    async function cargarCatalogos() {
-      const [dataFincas, dataEstanques] = await Promise.all([
-        fincaService.getFincas(),
-        estanqueService.getEstanques(),
-      ]);
-
-      if (activo) {
-        setFincas(dataFincas);
-        setEstanques(dataEstanques);
+    async function cargarCatalogosLocales() {
+      try {
+        await localApi.inicializar();
+        const [resFincas, resEstanques] = await Promise.all([
+          localApi.fincas.obtenerTodos(),
+          localApi.estanques.obtenerTodos(),
+        ]);
+        if (activo) {
+          setFincas(resFincas.data || []);
+          setEstanques(resEstanques.data || []);
+        }
+      } catch (error) {
+        console.error(error);
       }
     }
-
-    cargarCatalogos();
-
-    return () => {
-      activo = false;
-    };
+    cargarCatalogosLocales();
+    return () => { activo = false; };
   }, []);
 
-  const [ventas, setVentas] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
   const [eliminando, setEliminando] = useState(false);
 
-  useEffect(() => {
-    let activo = true;
-
-    async function cargarVentas() {
-      const data = await getVentas();
-
-      if (activo) {
-        setVentas(data);
-      }
+  const cargarVentas = useCallback(async () => {
+    try {
+      await localApi.inicializar();
+      const data = await VentasLocalService.getAll();
+      setVentas(data);
+    } catch (error) {
+      console.error(error);
     }
-
-    cargarVentas();
-
-    return () => {
-      activo = false;
-    };
   }, []);
+
+  useEffect(() => {
+    cargarVentas();
+  }, [cargarVentas]);
 
   const fincaInicial =
     typeof params.fincaFiltro === "string" ? params.fincaFiltro : "";
@@ -102,31 +111,28 @@ const [mostrarExito, setMostrarExito] = useState(
   const [estanqueFiltro, setEstanqueFiltro] = useState(estanqueInicial);
 
   const opcionesFincas = useMemo(
-    () =>
-      fincas.map((finca) => ({
-        label: finca.nombreFinca,
-        value: finca.id,
-      })),
-    [fincas],
+    () => fincas.map((finca) => ({
+      label: finca.nombre_finca || `Finca ${finca.id}`,
+      value: String(finca.id),
+    })),
+    [fincas]
   );
 
   const opcionesEstanques = useMemo(() => {
     if (!fincaFiltro) return [];
-
     return estanques
-      .filter((estanque) => estanque.idFinca === Number(fincaFiltro))
+      .filter((estanque) => Number(estanque.finca_id) === Number(fincaFiltro))
       .map((estanque) => ({
-        label: estanque.codigo,
-        value: estanque.id,
+        label: estanque.codigo || `Estanque ${estanque.id}`,
+        value: String(estanque.id),
       }));
   }, [fincaFiltro, estanques]);
 
   const ventasFiltradas = useMemo(() => {
     return (ventas || []).filter((venta) => {
-      const coincideFinca = !fincaFiltro || venta.finca === Number(fincaFiltro);
+      const coincideFinca = !fincaFiltro || Number(venta.finca) === Number(fincaFiltro);
       const coincideEstanque =
-        !estanqueFiltro || venta.estanque === Number(estanqueFiltro);
-
+        !estanqueFiltro || Number(venta.estanque) === Number(estanqueFiltro);
       return coincideFinca && coincideEstanque;
     });
   }, [ventas, fincaFiltro, estanqueFiltro]);
@@ -139,13 +145,11 @@ const [mostrarExito, setMostrarExito] = useState(
 
   const descripcionEliminar = useMemo(() => {
     if (!ventaSeleccionada) return "";
-
-    const finca = fincas.find((item) => item.id === ventaSeleccionada.finca);
+    const finca = fincas.find((item) => Number(item.id) === Number(ventaSeleccionada.finca));
     const estanque = estanques.find(
-      (item) => item.id === ventaSeleccionada.estanque,
+      (item) => Number(item.id) === Number(ventaSeleccionada.estanque)
     );
-
-    return `${finca?.nombreFinca ?? "Finca"} • ${estanque?.codigo ?? "Estanque"}`;
+    return `${finca?.nombre_finca ?? "Finca"} • ${estanque?.codigo ?? "Estanque"}`;
   }, [ventaSeleccionada, fincas, estanques]);
 
   const handleFincaChange = useCallback((value) => {
@@ -181,7 +185,6 @@ const [mostrarExito, setMostrarExito] = useState(
         >
           {etiqueta}
         </Text>
-
         <Text
           size={14}
           weight="600"
@@ -195,16 +198,15 @@ const [mostrarExito, setMostrarExito] = useState(
   }
 
   function TarjetaVenta({ venta }) {
-    const finca = fincas.find((item) => item.id === venta.finca);
-    const estanque = estanques.find((item) => item.id === venta.estanque);
+    const finca = fincas.find((item) => Number(item.id) === Number(venta.finca));
+    const estanque = estanques.find((item) => Number(item.id) === Number(venta.estanque));
 
     return (
       <Card style={styles.tarjeta}>
         <View style={styles.tarjetaEncabezado}>
           <Text style={styles.nombreProducto}>
-            {finca?.nombreFinca ?? "Finca"} • {estanque?.codigo ?? "Estanque"}
+            {finca?.nombre_finca ?? "Finca"} • {estanque?.codigo ?? "Estanque"}
           </Text>
-
           <View style={styles.buttonsCrud}>
             <Button
               style={styles.delete}
@@ -223,7 +225,6 @@ const [mostrarExito, setMostrarExito] = useState(
             </Button>
           </View>
         </View>
-
         <View style={styles.filasDetalle}>
           <FilaDetalle
             etiqueta="Fecha"
@@ -255,16 +256,14 @@ const [mostrarExito, setMostrarExito] = useState(
 
   async function confirmarEliminar() {
     if (!ventaSeleccionada) return;
-
     setEliminando(true);
-
     try {
-      await deleteVenta(ventaSeleccionada.id);
+      await VentasLocalService.deleteById(ventaSeleccionada.id);
       setVentas((actual) =>
-        actual.filter((venta) => venta.id !== ventaSeleccionada.id),
+        actual.filter((venta) => venta.id !== ventaSeleccionada.id)
       );
     } catch (error) {
-      mostrarError(error); 
+      mostrarError(error);
     } finally {
       setEliminando(false);
       setModalVisible(false);
@@ -292,12 +291,7 @@ const [mostrarExito, setMostrarExito] = useState(
     cancelarEliminar,
     handleFincaChange,
     handleEstanqueChange,
-mostrarExito,
-  mensajeExito: message,
+    mostrarExito,
+    mensajeExito: message,
   };
-}
-
-function formatearMontoColones(value) {
-  const numero = Math.round(Number(value) || 0);
-  return `₡ ${String(numero).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 }

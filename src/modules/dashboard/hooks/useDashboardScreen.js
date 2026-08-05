@@ -4,11 +4,12 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: useDashboardScreen.js
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 30/07/2026
+Fecha: 04/08/2026
 Modulo: Dashboard
 Descripcion:
 Centraliza la logica de interfaz, calculos, alertas,
-navegacion y actualizacion automatica del Dashboard.
+navegacion y actualizacion automatica del Dashboard
+utilizando datos locales preparados desde SQLite.
 //////////////////////////////////////////////////////////
 */
 
@@ -17,16 +18,50 @@ import { useWindowDimensions } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { useError } from "../../../shared/context/ErrorContext";
-import { construirAlertasOperativas, descartarAlerta, filtrarAlertasDescartadas, obtenerAlertasDescartadas } from "../../alertas/services/AlertasServices";
+import {
+  construirAlertasOperativas,
+  descartarAlerta,
+  filtrarAlertasDescartadas,
+  obtenerAlertasDescartadas,
+} from "../../alertas/services/AlertasServices";
 
 import useDashboard from "./useDashboard";
-import { construirFincasDashboard, obtenerAlimentacionSemanal, obtenerMortalidadTotal, obtenerTotalCasosSanitarios, obtenerUltimosRegistros } from "../utils/DashboardUtils";
+import {
+  construirFincasDashboard,
+  obtenerAlimentacionSemanal,
+  obtenerMortalidadTotal,
+  obtenerTotalCasosSanitarios,
+  obtenerUltimosRegistros,
+} from "../utils/DashboardUtils";
+
+/*
+//////////////////////////////////////////////////////////
+CONSTANTES
+//////////////////////////////////////////////////////////
+*/
 
 const ALERTAS_ABIERTAS_INICIALES = {
   critica: true,
   advertencia: true,
   info: false,
 };
+
+/*
+//////////////////////////////////////////////////////////
+HELPERS
+//////////////////////////////////////////////////////////
+*/
+
+const obtenerListaSegura = (valor) => (Array.isArray(valor) ? valor : []);
+
+const obtenerObjetoSeguro = (valor) =>
+  valor && typeof valor === "object" && !Array.isArray(valor) ? valor : {};
+
+/*
+//////////////////////////////////////////////////////////
+HOOK PRINCIPAL
+//////////////////////////////////////////////////////////
+*/
 
 export default function useDashboardScreen() {
   const router = useRouter();
@@ -50,49 +85,152 @@ export default function useDashboardScreen() {
   } = useDashboard();
 
   const [selectedCard, setSelectedCard] = useState(null);
-  const [alertasAbiertas, setAlertasAbiertas] = useState(ALERTAS_ABIERTAS_INICIALES);
+  const [alertasAbiertas, setAlertasAbiertas] = useState(
+    ALERTAS_ABIERTAS_INICIALES
+  );
   const [alertasDescartadas, setAlertasDescartadas] = useState([]);
 
+  /*
+  //////////////////////////////////////////////////////////
+  DATOS SEGUROS
+  //////////////////////////////////////////////////////////
+  */
+
+  const fincasSeguras = useMemo(
+    () => obtenerListaSegura(fincas),
+    [fincas]
+  );
+
+  const estanquesSeguros = useMemo(
+    () => obtenerListaSegura(estanques),
+    [estanques]
+  );
+
+  const alimentacionesSeguras = useMemo(
+    () => obtenerListaSegura(alimentaciones),
+    [alimentaciones]
+  );
+
+  const siembrasSeguras = useMemo(
+    () => obtenerListaSegura(siembras),
+    [siembras]
+  );
+
+  const inventarioSeguro = useMemo(
+    () => obtenerListaSegura(inventario),
+    [inventario]
+  );
+
+  const equiposSeguros = useMemo(
+    () => obtenerListaSegura(equipos),
+    [equipos]
+  );
+
+  const enfermedadesSeguras = useMemo(
+    () => obtenerListaSegura(enfermedades),
+    [enfermedades]
+  );
+
+  const parasitologiasSeguras = useMemo(
+    () => obtenerListaSegura(parasitologias),
+    [parasitologias]
+  );
+
+  const fisicoQuimicosSeguros = useMemo(
+    () => obtenerListaSegura(fisicoQuimicos),
+    [fisicoQuimicos]
+  );
+
+  const resumenEnfermedadesSeguro = useMemo(
+    () => obtenerObjetoSeguro(resumenEnfermedades),
+    [resumenEnfermedades]
+  );
+
+  const resumenParasitologiasSeguro = useMemo(
+    () => obtenerObjetoSeguro(resumenParasitologias),
+    [resumenParasitologias]
+  );
+
+  /*
+  //////////////////////////////////////////////////////////
+  CALCULOS DEL DASHBOARD
+  //////////////////////////////////////////////////////////
+  */
+
   const fincasDashboard = useMemo(function () {
-    return construirFincasDashboard(fincas, estanques);
-  }, [fincas, estanques]);
+    return construirFincasDashboard(fincasSeguras, estanquesSeguros);
+  }, [fincasSeguras, estanquesSeguros]);
 
   const alimentacionSemanal = useMemo(function () {
-    return obtenerAlimentacionSemanal(alimentaciones);
-  }, [alimentaciones]);
+    return obtenerAlimentacionSemanal(alimentacionesSeguras);
+  }, [alimentacionesSeguras]);
 
   const totalCasosSanitarios = useMemo(function () {
-    return obtenerTotalCasosSanitarios(resumenEnfermedades, resumenParasitologias);
-  }, [resumenEnfermedades, resumenParasitologias]);
+    return obtenerTotalCasosSanitarios(
+      resumenEnfermedadesSeguro,
+      resumenParasitologiasSeguro
+    );
+  }, [resumenEnfermedadesSeguro, resumenParasitologiasSeguro]);
 
   const totalMortalidad = useMemo(function () {
-    return obtenerMortalidadTotal(resumenEnfermedades);
-  }, [resumenEnfermedades]);
+    return obtenerMortalidadTotal(resumenEnfermedadesSeguro);
+  }, [resumenEnfermedadesSeguro]);
 
   const alertasBase = useMemo(function () {
     return construirAlertasOperativas({
-      productosInventario: inventario,
-      siembras,
-      alimentaciones,
-      estanques,
-      equipos,
-      registrosEnfermedades: enfermedades,
-      registrosParasitologia: parasitologias,
-      registrosFisicoQuimicos: fisicoQuimicos,
+      productosInventario: inventarioSeguro,
+      siembras: siembrasSeguras,
+      alimentaciones: alimentacionesSeguras,
+      estanques: estanquesSeguros,
+      equipos: equiposSeguros,
+      registrosEnfermedades: enfermedadesSeguras,
+      registrosParasitologia: parasitologiasSeguras,
+      registrosFisicoQuimicos: fisicoQuimicosSeguros,
     });
-  }, [inventario, siembras, alimentaciones, estanques, equipos, enfermedades, parasitologias, fisicoQuimicos]);
+  }, [
+    inventarioSeguro,
+    siembrasSeguras,
+    alimentacionesSeguras,
+    estanquesSeguros,
+    equiposSeguros,
+    enfermedadesSeguras,
+    parasitologiasSeguras,
+    fisicoQuimicosSeguros,
+  ]);
 
   const alertasDashboard = useMemo(function () {
-    return filtrarAlertasDescartadas(alertasBase, alertasDescartadas).slice(0, 10);
+    return filtrarAlertasDescartadas(
+      alertasBase,
+      alertasDescartadas
+    ).slice(0, 10);
   }, [alertasBase, alertasDescartadas]);
 
   const ultimosRegistros = useMemo(function () {
-    return obtenerUltimosRegistros(alimentaciones, siembras, enfermedades, parasitologias, fisicoQuimicos);
-  }, [alimentaciones, siembras, enfermedades, parasitologias, fisicoQuimicos]);
+    return obtenerUltimosRegistros(
+      alimentacionesSeguras,
+      siembrasSeguras,
+      enfermedadesSeguras,
+      parasitologiasSeguras,
+      fisicoQuimicosSeguros
+    );
+  }, [
+    alimentacionesSeguras,
+    siembrasSeguras,
+    enfermedadesSeguras,
+    parasitologiasSeguras,
+    fisicoQuimicosSeguros,
+  ]);
+
+  /*
+  //////////////////////////////////////////////////////////
+  CARGA DE DATOS Y ALERTAS
+  //////////////////////////////////////////////////////////
+  */
 
   const cargarAlertasDescartadas = useCallback(async function () {
     try {
       const ids = await obtenerAlertasDescartadas();
+
       setAlertasDescartadas(Array.isArray(ids) ? ids : []);
     } catch (error) {
       mostrarError(error);
@@ -103,8 +241,14 @@ export default function useDashboardScreen() {
     useCallback(function () {
       recargar();
       cargarAlertasDescartadas();
-    }, [recargar, cargarAlertasDescartadas]),
+    }, [recargar, cargarAlertasDescartadas])
   );
+
+  /*
+  //////////////////////////////////////////////////////////
+  ACCIONES DE INTERFAZ
+  //////////////////////////////////////////////////////////
+  */
 
   const manejarSeleccionCard = useCallback(function (cardId) {
     setSelectedCard(function (cardActual) {
@@ -124,6 +268,7 @@ export default function useDashboardScreen() {
   const descartarAlertaDashboard = useCallback(async function (id) {
     try {
       const ids = await descartarAlerta(id);
+
       setAlertasDescartadas(Array.isArray(ids) ? ids : []);
     } catch (error) {
       mostrarError(error);
@@ -134,6 +279,12 @@ export default function useDashboardScreen() {
     router.push("/alertas");
   }, [router]);
 
+  /*
+  //////////////////////////////////////////////////////////
+  RETORNO
+  //////////////////////////////////////////////////////////
+  */
+
   return {
     selectedCard,
     alertasAbiertas,
@@ -141,21 +292,21 @@ export default function useDashboardScreen() {
     cargando: loading,
     isTablet: width >= 720,
 
-    fincasData: fincas,
+    fincasData: fincasSeguras,
     fincasDashboard,
-    estanquesData: estanques,
+    estanquesData: estanquesSeguros,
 
-    alimentaciones,
+    alimentaciones: alimentacionesSeguras,
     alimentacionSemanal,
-    siembrasData: siembras,
-    productosInventario: inventario,
-    equiposData: equipos,
+    siembrasData: siembrasSeguras,
+    productosInventario: inventarioSeguro,
+    equiposData: equiposSeguros,
 
-    registrosEnfermedades: enfermedades,
-    resumenEnfermedades,
-    registrosParasitologia: parasitologias,
-    resumenParasitologia: resumenParasitologias,
-    registrosFisicoQuimicos: fisicoQuimicos,
+    registrosEnfermedades: enfermedadesSeguras,
+    resumenEnfermedades: resumenEnfermedadesSeguro,
+    registrosParasitologia: parasitologiasSeguras,
+    resumenParasitologia: resumenParasitologiasSeguro,
+    registrosFisicoQuimicos: fisicoQuimicosSeguros,
 
     totalCasosSanitarios,
     totalMortalidad,

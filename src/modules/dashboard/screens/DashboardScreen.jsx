@@ -33,28 +33,47 @@ import { styles } from "../styles/DashboardStyle";
 export default function DashboardScreen() {
   const pantalla = useDashboardScreen();
 
-  const panelSeleccionado = pantalla.selectedCard === "fincas" ? (
-    <DashboardFincasPanel fincas={pantalla.fincasDashboard} estanques={pantalla.estanquesData} />
-  ) : pantalla.selectedCard === "estanques" ? (
-    <DashboardEstanquesPanel estanques={pantalla.estanquesData} alimentacionSemanal={pantalla.alimentacionSemanal} />
-  ) : pantalla.selectedCard === "casos" ? (
-    <DashboardSanidadPanel
-      tipo="casos"
-      resumenEnfermedades={pantalla.resumenEnfermedades}
-      resumenParasitologia={pantalla.resumenParasitologia}
-      registrosEnfermedades={pantalla.registrosEnfermedades}
-      registrosParasitologia={pantalla.registrosParasitologia}
-    />
-  ) : pantalla.selectedCard === "mortalidad" ? (
-    <DashboardSanidadPanel tipo="mortalidad" resumenEnfermedades={pantalla.resumenEnfermedades} registrosEnfermedades={pantalla.registrosEnfermedades} registrosParasitologia={pantalla.registrosParasitologia} />
-  ) : null;
+  const panelSeleccionado =
+    pantalla.selectedCard === "fincas" ? (
+      <DashboardFincasPanel
+        fincas={pantalla.fincasDashboard}
+        estanques={pantalla.estanquesData}
+      />
+    ) : pantalla.selectedCard === "estanques" ? (
+      <DashboardEstanquesPanel
+        estanques={pantalla.estanquesData}
+        alimentacionSemanal={pantalla.alimentacionSemanal}
+      />
+    ) : pantalla.selectedCard === "casos" ? (
+      <DashboardSanidadPanel
+        tipo="casos"
+        resumenEnfermedades={pantalla.resumenEnfermedades}
+        resumenParasitologia={pantalla.resumenParasitologia}
+        registrosEnfermedades={pantalla.registrosEnfermedades}
+        registrosParasitologia={pantalla.registrosParasitologia}
+      />
+    ) : pantalla.selectedCard === "mortalidad" ? (
+      <DashboardSanidadPanel
+        tipo="mortalidad"
+        resumenEnfermedades={pantalla.resumenEnfermedades}
+        registrosEnfermedades={pantalla.registrosEnfermedades}
+        registrosParasitologia={pantalla.registrosParasitologia}
+      />
+    ) : null;
 
   return (
     <SafeAreaView style={STYLE.container}>
       <ScrollView
         contentContainerStyle={[STYLE.contentWrapper, styles.scrollContent]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={pantalla.cargando} onRefresh={pantalla.recargar} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={pantalla.cargando}
+            onRefresh={pantalla.recargar}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         <DashboardHeader />
 
@@ -74,6 +93,7 @@ export default function DashboardScreen() {
           totalCasosSanitarios={pantalla.totalCasosSanitarios}
           totalMortalidad={pantalla.totalMortalidad}
           onSelect={pantalla.manejarSeleccionCard}
+          panelSeleccionado={panelSeleccionado}
         />
 
         {panelSeleccionado}

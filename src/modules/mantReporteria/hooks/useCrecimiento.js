@@ -3,12 +3,13 @@
  * HOOK DE CRECIMIENTO
  * ============================================================
  *
- * Autocontenido: carga, eliminación y alert.
+ * Autocontenido: carga, eliminación y alert (SQLite / local).
  * Enriquece: nombreFinca, codigoEstanque, nombreColaborador, nombreCreadoPor
+ * Adaptado al patrón offline de EnfermedadesLocal.
  */
 import { useState, useEffect } from "react";
-import crecimientoService from "../../mantCrecimiento/services/mantCrecimiento.service.js";
 import { obtenerDetalleReporte } from "../services/detalleReporte.service.js";
+import { eliminarRegistroLocal } from "../services/ReporteriaLocal.service.js";
 import useModalEliminar from "../hooks/useModalEliminar.js";
 import { cargarYEnriquecerRegistros } from "../utils/enriquecerRegistros.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
@@ -46,7 +47,7 @@ export default function useCrecimiento(fincaId, estanqueId, onAlertChange) {
   }, [fincaId, estanqueId]);
 
   async function eliminarCrecimiento(id) {
-    await crecimientoService.deleteById(id);
+    await eliminarRegistroLocal("crecimiento", id);
     await cargarCrecimientos();
     setAlert("deleted");
   }

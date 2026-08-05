@@ -4,10 +4,11 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: DashboardEstadisticas.jsx
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 30/07/2026
+Fecha: 04/08/2026
 Modulo: Dashboard
 Descripcion:
-Renderiza las tarjetas de resumen general del Dashboard.
+Renderiza las tarjetas de resumen general del Dashboard
+y muestra el panel seleccionado debajo de la card activa.
 //////////////////////////////////////////////////////////
 */
 
@@ -22,7 +23,19 @@ import { ICONS } from "../../../theme/icons";
 import { formatearNumero } from "../utils/DashboardUtils";
 import { styles } from "../styles/DashboardStyle";
 
-function StatCard({ id, selectedId, onPress, icon, value, label, cardStyle, iconStyle, iconColor, danger, isTablet }) {
+function StatCard({
+  id,
+  selectedId,
+  onPress,
+  icon,
+  value,
+  label,
+  cardStyle,
+  iconStyle,
+  iconColor,
+  danger,
+  isTablet,
+}) {
   const cardStyles = [
     styles.statCard,
     cardStyle,
@@ -50,9 +63,7 @@ function StatCard({ id, selectedId, onPress, icon, value, label, cardStyle, icon
       </View>
 
       <View style={styles.statBottom}>
-        <CustomText style={valueStyles}>
-          {value}
-        </CustomText>
+        <CustomText style={valueStyles}>{value}</CustomText>
 
         <CustomText size={12} color={COLORS.textTertiary} style={styles.statLabel}>
           {label}
@@ -60,6 +71,14 @@ function StatCard({ id, selectedId, onPress, icon, value, label, cardStyle, icon
       </View>
     </Button>
   );
+}
+
+function PanelDebajoCard({ id, selectedId, children }) {
+  return selectedId === id && children ? (
+    <View style={styles.statPanelInline}>
+      {children}
+    </View>
+  ) : null;
 }
 
 export default function DashboardEstadisticas({
@@ -70,6 +89,7 @@ export default function DashboardEstadisticas({
   totalCasosSanitarios,
   totalMortalidad,
   onSelect,
+  panelSeleccionado,
 }) {
   return (
     <View style={[styles.statsGrid, isTablet ? styles.statsGridTablet : null]}>
@@ -86,6 +106,10 @@ export default function DashboardEstadisticas({
         isTablet={isTablet}
       />
 
+      <PanelDebajoCard id="fincas" selectedId={selectedCard}>
+        {panelSeleccionado}
+      </PanelDebajoCard>
+
       <StatCard
         id="estanques"
         selectedId={selectedCard}
@@ -98,6 +122,10 @@ export default function DashboardEstadisticas({
         iconColor={COLORS.primary}
         isTablet={isTablet}
       />
+
+      <PanelDebajoCard id="estanques" selectedId={selectedCard}>
+        {panelSeleccionado}
+      </PanelDebajoCard>
 
       <StatCard
         id="casos"
@@ -112,6 +140,10 @@ export default function DashboardEstadisticas({
         isTablet={isTablet}
       />
 
+      <PanelDebajoCard id="casos" selectedId={selectedCard}>
+        {panelSeleccionado}
+      </PanelDebajoCard>
+
       <StatCard
         id="mortalidad"
         selectedId={selectedCard}
@@ -125,6 +157,10 @@ export default function DashboardEstadisticas({
         danger={true}
         isTablet={isTablet}
       />
+
+      <PanelDebajoCard id="mortalidad" selectedId={selectedCard}>
+        {panelSeleccionado}
+      </PanelDebajoCard>
     </View>
   );
 }

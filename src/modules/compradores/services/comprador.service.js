@@ -1,91 +1,163 @@
-import api from "../../../api/api";
+/*
+//////////////////////////////////////////////////////////
+CABEZA DE ARCHIVO
+//////////////////////////////////////////////////////////
+Archivo: comprador.service.js
+Modulo: Compradores
+Descripcion:
+Version SQLite (offline-first) del service de Compradores.
+Reemplaza temporalmente las llamadas HTTP directas por lectura/
+escritura en la base local, para poder trabajar y probar sin
+depender del backend ni de un JWT real.
 
-/**
- * ============================================================
- * MANEJO DE ERRORES DE ESTE SERVICE
- * ============================================================
- * Patrón acordado en equipo (ver Explicación ModalError): si el
- * back devuelve un status "controlado" (con un mensaje real y útil,
- * ej. 404 "Comprador no encontrado"), dejamos pasar el error tal
- * cual (throw error) para que el mensaje real del back llegue hasta
- * mostrarError(). Para cualquier otro status (500 inesperado, sin
- * respuesta del servidor, etc.) armamos un mensaje genérico propio
- * de la acción que falló, en vez de mostrarle al usuario un error
- * técnico crudo.
- * ============================================================
- */
-function esErrorControlado(error, statusEsperados) {
-  return statusEsperados.includes(error.response?.status);
+IMPORTANTE:
+- Mantiene exactamente los mismos nombres de funcion y la misma
+  forma de los datos que la version anterior (comprador.service.api.js,
+  que queda guardada como respaldo/referencia), para no tener que
+  tocar ninguno de los hooks que ya consumen este service.
+- No hay sincronizacion con el backend todavia: esto solo guarda
+  y lee de SQLite local. La sincronizacion (subir lo pendiente a
+  /compradores) es un paso aparte, pendiente.
+- grupoDatos/colaboradorId salen de local/sesionTemporal.helper.js
+  (dentro de este mismo modulo, no en database/local), que usa
+  sesion offline real si existe, o un valor fijo de prueba si
+  todavia no hay login (ver ese archivo para el detalle).
+- Este archivo se encarga solo de inicializar la base SQLite
+  (asegurarBaseInicializada), en vez de agregar esa llamada al
+  _layout.jsx global. La funcion de Gerald es idempotente (CREATE
+  TABLE IF NOT EXISTS), asi que no hay problema en llamarla desde
+  aca sin tocar ningun archivo compartido del proyecto.
+//////////////////////////////////////////////////////////
+*/
+
+/*
+//////////////////////////////////////////////////////////
+IMPORTS
+//////////////////////////////////////////////////////////
+*/
+
+import { localApi } from "../../../database/local/localApi.service";
+import { obtenerContextoLocal } from "../local/sesionTemporal.helper";
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES SECUNDARIAS
+//////////////////////////////////////////////////////////
+*/
+
+// Evita llamar inicializar() en cada operacion; solo la primera
+// vez que se usa el service en la sesion de la app.
+let baseInicializada = false;
+
+async function asegurarBaseInicializada() {
+  if (baseInicializada) return;
+  await localApi.inicializar();
+  baseInicializada = true;
 }
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES
+//////////////////////////////////////////////////////////
+*/
 
 export const compradorService = {
 
   getCompradores: async () => {
-    try {
-      const response = await api.get("/compradores");
-      return response.data.data;
-    } catch (error) {
-      if (esErrorControlado(error, [500])) throw error;
+    await asegurarBaseInicializada();
+    const { grupoDatos } = await obtenerContextoLocal();
+
+    const resultado = await localApi.compradores.obtenerTodos({
+      grupo_datos: grupoDatos,
+      estado: "ACTIVO",
+    });
+
+    if (!resultado?.success) {
       throw new Error("No se pudieron obtener los compradores.");
     }
+
+    return resultado.data;
   },
 
   getCompradorPorId: async (id) => {
-    try {
-      const response = await api.get(`/compradores/${id}`);
-      return response.data.data;
-    } catch (error) {
-      if (esErrorControlado(error, [404, 500])) throw error;
+    await asegurarBaseInicializada();
+    const resultado = await localApi.compradores.obtenerPorId(Number(id));
+
+    if (!resultado?.success) {
       throw new Error("No se pudo obtener el comprador.");
     }
+
+    if (!resultado.data) {
+      const noEncontrado = new Error("Comprador no encontrado.");
+      noEncontrado.response = { status: 404 };
+      throw noEncontrado;
+    }
+
+    return resultado.data;
   },
 
-
   crearComprador: async (datos) => {
-    try {
-      const response = await api.post("/compradores", {
-        nombre: datos.nombre,
-        cedula: datos.cedula,
-        telefono: datos.telefono,
-        correo: datos.correo,
-        direccion: datos.direccion,
-        notas: datos.notas,
-      });
-      return response.data.data;
-    } catch (error) {
-      if (esErrorControlado(error, [400, 500])) throw error;
+    await asegurarBaseInicializada();
+    const { grupoDatos, colaboradorId } = await obtenerContextoLocal();
+
+    if (!datos.nombre || (!datos.cedula && !datos.telefono)) {
+      const err = new Error("Faltan campos requeridos: nombre y cedula o telefono.");
+      err.response = { status: 400 };
+      throw err;
+    }
+
+    const resultado = await localApi.compradores.crear({
+      grupo_datos: grupoDatos,
+      nombre: datos.nombre,
+      cedula: datos.cedula || null,
+      telefono: datos.telefono || null,
+      correo: datos.correo || null,
+      direccion: datos.direccion || null,
+      notas: datos.notas || null,
+      estado: "ACTIVO",
+      creado_por_colaborador_id: colaboradorId,
+    });
+
+    if (!resultado?.success) {
       throw new Error("No se pudo crear el comprador.");
     }
+
+    return resultado.data;
   },
 
   actualizarComprador: async (id, datos) => {
-    try {
-      const response = await api.put(`/compradores/${id}`, {
-        nombre: datos.nombre,
-        cedula: datos.cedula,
-        telefono: datos.telefono,
-        correo: datos.correo,
-        direccion: datos.direccion,
-        notas: datos.notas,
-      });
-      return response.data.data;
-    } catch (error) {
-      if (esErrorControlado(error, [400, 404, 500])) throw error;
-      throw new Error("No se pudo actualizar el comprador.");
+    await asegurarBaseInicializada();
+    const resultado = await localApi.compradores.actualizar(Number(id), {
+      nombre: datos.nombre,
+      cedula: datos.cedula,
+      telefono: datos.telefono,
+      correo: datos.correo || null,
+      direccion: datos.direccion || null,
+      notas: datos.notas || null,
+    });
+
+    if (!resultado?.success) {
+      const noEncontrado = new Error("Comprador no encontrado.");
+      noEncontrado.response = { status: 404 };
+      throw noEncontrado;
     }
+
+    return resultado.data;
   },
 
-  // CORREGIDO: Se cambia de api.put('/compradores/:id/activo') a api.delete('/compradores/:id')
   desactivarComprador: async (id) => {
-    try {
-      const response = await api.delete(`/compradores/${id}`);
-      return response.data.data;
-    } catch (error) {
-      if (esErrorControlado(error, [404, 500])) throw error;
-      throw new Error("No se pudo eliminar el comprador.");
+    await asegurarBaseInicializada();
+    const resultado = await localApi.compradores.eliminar(Number(id));
+
+    if (!resultado?.success) {
+      const noEncontrado = new Error("Comprador no encontrado.");
+      noEncontrado.response = { status: 404 };
+      throw noEncontrado;
     }
+
+    return resultado.data;
   },
-}
+};
 
 export function mapComprador(apiComprador) {
   if (!apiComprador) return null;

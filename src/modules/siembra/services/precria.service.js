@@ -23,8 +23,10 @@ export const getPrecrias = async () => {
     const response = await api.get("/precrias");
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener pre-crías:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudieron obtener las pre-crías.");
   }
 };
 
@@ -36,8 +38,10 @@ export const getPrecriaById = async (id) => {
     const response = await api.get(`/precrias/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener pre-cría:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo obtener la pre-cría.");
   }
 };
 
@@ -49,11 +53,10 @@ export const createPrecria = async (precriaDTO) => {
     const response = await api.post("/precrias", precriaDTO);
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al crear pre-cría:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo crear la pre-cría.");
   }
 };
 
@@ -65,11 +68,10 @@ export const updatePrecria = async (id, precriaDTO) => {
     const response = await api.put(`/precrias/${id}`, precriaDTO);
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al actualizar pre-cría:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo actualizar la pre-cría.");
   }
 };
 
@@ -84,11 +86,10 @@ export const finalizarPrecria = async (id, finalizarPrecriaDTO) => {
     );
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al finalizar pre-cría:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo finalizar la pre-cría.");
   }
 };
 
@@ -100,10 +101,9 @@ export const eliminarPrecria = async (id) => {
     const response = await api.delete(`/precrias/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al eliminar pre-cría:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo eliminar la pre-cría.");
   }
 };

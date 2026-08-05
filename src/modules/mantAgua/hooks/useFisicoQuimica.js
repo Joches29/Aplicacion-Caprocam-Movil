@@ -15,22 +15,26 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
-  guardarLectura,
-  actualizarLectura,
-  eliminarLectura,
-  getLecturaPorEstanqueYFecha,
   manejarCambioFinca,
   manejarCambioOxigeno,
   manejarCambioPh,
   manejarCambioSalinidad,
   manejarCambioTemperatura,
   hayMedicionesRegistradas,
-  obtenerEstanquesPorFinca,
-  obtenerOpcionesFincas,
   sincronizarLecturasLocales,
   validarFormularioFisicoQuimica,
   validarSeleccionAntesDeAgregar,
 } from '../services/FisicoQuimicaServices';
+import {
+  guardarLecturaLocal as guardarLectura,
+  actualizarLecturaLocal as actualizarLectura,
+  eliminarLecturaLocal as eliminarLectura,
+  getLecturaPorEstanqueYFechaLocal as getLecturaPorEstanqueYFecha,
+} from '../services/FisicoQuimicaLocalService';
+import {
+  obtenerOpcionesFincasLocal as obtenerOpcionesFincas,
+  obtenerEstanquesPorFincaLocal as obtenerEstanquesPorFinca,
+} from '../services/FisicoQuimicaCatalogosLocal.service';
 import { useError } from '../../../shared/context/ErrorContext';
 
 // Convierte las lecturas de RangeCard ({id, value}) al formato que

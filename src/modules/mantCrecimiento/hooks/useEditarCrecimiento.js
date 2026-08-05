@@ -1,12 +1,24 @@
 /**
- * Calco de useFincaCrecimiento orientado a edición (getById + update).
- * Misma forma de retorno para que EditarCrecimientoScreen sea idéntica a la original.
+ * ============================================================
+ * HOOK DE EDICIÓN DE CRECIMIENTO
+ * ============================================================
+ *
+ * Centraliza el estado y las operaciones locales
+ * correspondientes al modulo de crecimiento.
+ *
+ * Trabaja contra SQLite usando CrecimientosLocalService.
  */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fincaService } from "../../finca/services/finca.service.js";
-import { estanqueService } from "../../estanques/services/estanque.service.js";
-import crecimientoService from "../services/mantCrecimiento.service.js";
+import { localApi } from "../../../database/local/localApi.service.js";
+import CrecimientosLocalService from "../services/mantCrecimientoLocal.service.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
+
+/**
+ * ============================================================
+ * HELPERS
+ * ============================================================
+ */
 
 function convertirFechaParaBackend(fechaDDMMYYYY) {
   if (!fechaDDMMYYYY) return "";
@@ -26,9 +38,15 @@ function formatearFechaParaUI(fecha) {
   return fecha;
 }
 
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
+
 export default function useEditarCrecimiento(registroId, onGuardado) {
-    const { mostrarError } = useError();
-const [fincas, setFincas] = useState([]);
+  const { mostrarError } = useError();
+  const [fincas, setFincas] = useState([]);
   const [estanques, setEstanques] = useState([]);
   const [cargando, setCargando] = useState(true);
 
@@ -42,18 +60,20 @@ const [fincas, setFincas] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [crecimientos, setCrecimientos] = useState([]);
 
   useEffect(() => {
     let activo = true;
     (async () => {
       try {
-        const [fincasData, estanquesData] = await Promise.all([
-          fincaService.getFincas(),
-          estanqueService.getEstanques(),
+        await localApi.inicializar();
+        const [resFincas, resEstanques] = await Promise.all([
+          localApi.fincas.obtenerTodos(),
+          localApi.estanques.obtenerTodos(),
         ]);
         if (!activo) return;
-        setFincas(fincasData || []);
-        setEstanques(estanquesData || []);
+        setFincas(resFincas.data || []);
+        setEstanques(resEstanques.data || []);
       } catch (e) {
         console.error(e);
       }
@@ -68,27 +88,30 @@ const [fincas, setFincas] = useState([]);
     }
     let activo = true;
     setCargando(true);
-    crecimientoService
-      .getById(registroId)
-      .then((r) => {
+
+    async function cargarRegistro() {
+      try {
+        await localApi.inicializar();
+        const r = await CrecimientosLocalService.getById(registroId);
         if (!activo || !r) return;
-        setFincaSeleccionada(String(r.finca ?? r.fincaId ?? r.finca_id ?? ""));
-        setEstanqueSeleccionado(String(r.estanque ?? r.estanqueId ?? r.estanque_id ?? ""));
-        setPesoActual(String(r.pesoActual ?? r.peso_actual ?? ""));
-        setFechaRegistro(formatearFechaParaUI(r.fechaRegistro ?? r.fecha_registro ?? r.fecha));
-      })
-      .catch((e) => {
+        setFincaSeleccionada(r.finca ? String(r.finca) : "");
+        setEstanqueSeleccionado(r.estanque ? String(r.estanque) : "");
+        setPesoActual(String(r.pesoActual ?? ""));
+        setFechaRegistro(formatearFechaParaUI(r.fechaRegistro));
+      } catch (e) {
         if (activo) mostrarError(e);
-      })
-      .finally(() => {
+      } finally {
         if (activo) setCargando(false);
-      });
+      }
+    }
+
+    cargarRegistro();
     return () => { activo = false; };
   }, [registroId]);
 
   const searchEstanqueById = useCallback(
     (targetId) => estanques.find((item) => Number(item.id) === Number(targetId)) ?? null,
-    [estanques],
+    [estanques]
   );
 
   const estanqueSeleccionadoObj = useMemo(() => {
@@ -97,15 +120,21 @@ const [fincas, setFincas] = useState([]);
   }, [estanqueSeleccionado, searchEstanqueById]);
 
   const opcionesFincas = useMemo(
-    () => fincas.map((f) => ({ label: f.nombreFinca, value: f.id })),
-    [fincas],
+    () => fincas.map((f) => ({
+      label: f.nombre_finca || `Finca ${f.id}`,
+      value: String(f.id),
+    })),
+    [fincas]
   );
 
   const estanquesFiltrados = useMemo(() => {
     if (!fincaSeleccionada) return [];
     return estanques
-      .filter((e) => Number(e.idFinca ?? e.fincaId) === Number(fincaSeleccionada))
-      .map((e) => ({ label: e.codigo, value: e.id }));
+      .filter((e) => Number(e.finca_id) === Number(fincaSeleccionada))
+      .map((e) => ({
+        label: e.codigo || `Estanque ${e.id}`,
+        value: String(e.id),
+      }));
   }, [fincaSeleccionada, estanques]);
 
   const handleFincaChange = useCallback((value) => {
@@ -136,7 +165,7 @@ const [fincas, setFincas] = useState([]);
     }
     setIsSaving(true);
     try {
-      await crecimientoService.update(registroId, {
+      await CrecimientosLocalService.update(registroId, {
         finca: Number(fincaSeleccionada),
         estanque: Number(estanqueSeleccionado),
         pesoActual: Number(pesoActual),
@@ -146,51 +175,38 @@ const [fincas, setFincas] = useState([]);
       setSuccessMessage("Actualizado exitosamente");
       onGuardado?.();
     } catch (e) {
-      // Error fuera del formulario → ModalError (ErrorContext)
-      mostrarError(e);
+      setErrorMessage(e.message || "Error al actualizar localmente.");
     } finally {
       setIsSaving(false);
     }
   }, [validarCampos, fincaSeleccionada, estanqueSeleccionado, pesoActual, fechaRegistro, registroId, onGuardado]);
 
-  const [crecimientos, setCrecimientos] = useState([]);
-
   useEffect(() => {
     let activo = true;
-    crecimientoService
-      .getAll()
+    CrecimientosLocalService.getAll()
       .then((data) => {
         if (activo) setCrecimientos(Array.isArray(data) ? data : []);
       })
       .catch(() => {
         if (activo) setCrecimientos([]);
       });
-    return () => {
-      activo = false;
-    };
+    return () => { activo = false; };
   }, []);
 
-  // Peso anterior = último registro de ese estanque (excluye el actual)
   const pesoAnteriorLabel = useMemo(() => {
     if (!estanqueSeleccionado) return "Peso anterior: -";
-
     const delEstanque = (crecimientos || []).filter((c) => {
       if (registroId != null && String(c.id) === String(registroId)) return false;
-      const idEst = Number(c.estanque ?? c.estanqueId ?? c.estanque_id);
-      return idEst === Number(estanqueSeleccionado);
+      return Number(c.estanque) === Number(estanqueSeleccionado);
     });
-
     if (delEstanque.length === 0) return "Peso anterior: -";
-
     const ordenados = [...delEstanque].sort((a, b) => {
-      const fa = String(a.fechaRegistro ?? a.fecha_registro ?? a.fecha ?? "");
-      const fb = String(b.fechaRegistro ?? b.fecha_registro ?? b.fecha ?? "");
+      const fa = String(a.fechaRegistro || "");
+      const fb = String(b.fechaRegistro || "");
       return fb.localeCompare(fa);
     });
-
     const ultimo = ordenados[0];
-    const peso = ultimo?.pesoActual ?? ultimo?.peso_actual;
-
+    const peso = ultimo?.pesoActual;
     return peso !== undefined && peso !== null && peso !== ""
       ? `Peso anterior: ${peso} g`
       : "Peso anterior: -";
@@ -205,13 +221,11 @@ const [fincas, setFincas] = useState([]);
     estanquesFiltrados,
     estanqueSeleccionadoObj,
     estanque: estanqueSeleccionadoObj,
-
     setEstanqueSeleccionado,
     setPesoActual,
     setFechaRegistro,
     handleFincaChange,
     guardarDatos,
-
     isSaving,
     submitted,
     errors,

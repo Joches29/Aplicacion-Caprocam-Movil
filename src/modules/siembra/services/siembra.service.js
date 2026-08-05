@@ -20,8 +20,10 @@ export const getSiembras = async () => {
     const response = await api.get("/siembras");
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener siembras:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo obtener la lista de siembras.");
   }
 };
 
@@ -33,8 +35,10 @@ export const getSiembraById = async (id) => {
     const response = await api.get(`/siembras/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener siembra:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo obtener la siembra.");
   }
 };
 
@@ -46,8 +50,10 @@ export const createSiembra = async (siembraDTO) => {
     const response = await api.post("/siembras", siembraDTO);
     return response.data.data;
   } catch (error) {
-    console.error("Error al crear siembra:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo crear la siembra.");
   }
 };
 
@@ -59,8 +65,10 @@ export const updateSiembra = async (id, siembraDTO) => {
     const response = await api.put(`/siembras/${id}`, siembraDTO);
     return response.data.data;
   } catch (error) {
-    console.error("Error al actualizar siembra:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo actualizar la siembra.");
   }
 };
 
@@ -72,8 +80,10 @@ export const finalizarSiembra = async (id) => {
     const response = await api.post(`/siembras/${id}/finalizar`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al finalizar siembra:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo finalizar la siembra.");
   }
 };
 
@@ -85,7 +95,9 @@ export const eliminarSiembra = async (id) => {
     const response = await api.delete(`/siembras/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al eliminar siembra:", error.response?.data || error.message);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo eliminar la siembra.");
   }
 };

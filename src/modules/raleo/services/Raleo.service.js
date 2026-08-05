@@ -3,29 +3,8 @@
  * SERVICE RALEO.SERVICE
  * ============================================================
  *
- * Conecta el módulo de Raleo con el backend real (Express +
- * MySQL) usando axios.
- *
- * Endpoint base: /raleo (definido en app.js del backend como
- * /api/v0/raleo, y api.js ya apunta a EXPO_PUBLIC_API_URL que
- * debe incluir ese prefijo /api/v0).
- *
- * Corregido: antes apuntaba a `/raleos` (con "s"), que no existe
- * en el backend (mount real es `/api/v0/raleo`, sin "s") — todas
- * las llamadas daban 404. También devolvía `respuesta.data`
- * (el sobre completo { success, message, data }) en vez de
- * `respuesta.data.data` (el payload real), igual que corrigieron
- * los otros services (Alimentacion/DensidadPoblacional).
- *
- * Importante:
- * - Este archivo NO valida ni mapea nombres de campo: es un
- *   passthrough puro (mismo patrón que los otros 2 services).
- *   La validación ocurre en useRaleo.validarForm(), y el mapeo de
- *   nombres de campo (finca -> idFinca, etc.) ocurre en
- *   RaleoScreen.jsx antes de llamar a create()/update().
- *
- * Ejemplo:
- * await raleoService.create(raleoDTO);
+ * Centraliza las peticiones HTTP del modulo de enfermedades.
+ * 
  */
 
 import api from "../../../api/api.js";

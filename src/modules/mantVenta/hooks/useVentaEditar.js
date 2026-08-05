@@ -1,39 +1,31 @@
 /**
  * ============================================================
- * HOOK DE EDICIÓN DE VENTA
+ * HOOK DE VENTA EDITAR
  * ============================================================
  *
- * Carga una venta existente por id y precarga el formulario con
- * los mismos catálogos y validaciones que useVenta.js, pero
- * guardando los cambios con updateVenta en vez de crear una
- * venta nueva.
+ * Centraliza el estado y las operaciones locales
+ * correspondientes al modulo de ventas.
  *
- * NOTA: los nombres de campo de lectura (peso_promedio,
- * tamano_promedio, colaborador_id, comprador_id) se infieren a
- * partir de los ya confirmados en useDetalleVenta.js (finca_id,
- * estanque_id, fecha, total, cantidad_vendida, precio_kilo).
- * Verifica contra la respuesta real de GET /ventas/:id y ajusta
- * si difiere.
+ * Trabaja contra SQLite usando VentaLocalService.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWindowDimensions } from "react-native";
-
-import { getVentaById, updateVenta } from "../services/mantVentas.service.js";
+import VentasLocalService from "../services/mantVentasLocal.service.js";
 import { MantVentaDTO } from "../dtos/mantVenta.dto.js";
-
-import { colaboradorService } from "../../colaboradores/services/colaborador.service.js";
-import { fincaService } from "../../finca/services/finca.service.js";
-import { estanqueService } from "../../estanques/services/estanque.service.js";
-import { compradorService } from "../../compradores/services/comprador.service.js";
-
+import { localApi } from "../../../database/local/localApi.service.js";
 import {
-  CLIENTE_GENERICO,
   normalizarDecimal,
   formatearFechaParaInput,
   convertirFechaParaBackend,
   validarVentaFormulario,
 } from "./useVenta.js";
+
+/**
+============================================================
+HELPERS
+============================================================
+*/
 
 function formatearFechaDesdeBackend(fechaBackend) {
   if (!fechaBackend) return "";
@@ -41,33 +33,21 @@ function formatearFechaDesdeBackend(fechaBackend) {
   return formatearFechaParaInput(soloFecha);
 }
 
-function mensajeDeError(error) {
-  if (typeof error === "string") return error;
-
-  const detalles = error?.response?.data?.error;
-  if (Array.isArray(detalles) && detalles.length > 0) {
-    return detalles.join(" ");
-  }
-
-  return (
-    error?.response?.data?.message ||
-    error?.message ||
-    "Ocurrió un error inesperado."
-  );
-}
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
 
 export function useVentaEditar({ id, onGuardado } = {}) {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-
   const ventaId = id ?? null;
 
   const [ventaOriginal, setVentaOriginal] = useState(null);
   const [cargandoVenta, setCargandoVenta] = useState(true);
-
   const [fincas, setFincas] = useState([]);
   const [estanques, setEstanques] = useState([]);
-  const [colaboradores, setColaboradores] = useState([]);
   const [compradoresData, setCompradoresData] = useState([]);
 
   const [fincaSeleccionada, setFincaSeleccionadaState] = useState("");
@@ -77,122 +57,96 @@ export function useVentaEditar({ id, onGuardado } = {}) {
   const [kilosVendidos, setKilosVendidos] = useState("0");
   const [precioKilo, setPrecioKilo] = useState("0");
   const [fechaVenta, setFechaVenta] = useState("");
-  const [colaboradorSeleccionado, setColaboradorSeleccionado] = useState("");
   const [compradorSeleccionado, setCompradorSeleccionado] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("");
   const [errores, setErrores] = useState({});
   const [guardando, setGuardando] = useState(false);
 
-  // Catálogos: finca, estanque, colaborador, comprador
   useEffect(() => {
     let activo = true;
-
-    async function cargarCatalogos() {
-      const [dataColaboradores, dataFincas, dataEstanques, dataCompradores] =
-        await Promise.all([
-          colaboradorService.getColaboradores({ activo: true }),
-          fincaService.getFincas(),
-          estanqueService.getEstanques(),
-          compradorService.getCompradores(),
+    async function cargarCatalogosLocales() {
+      try {
+        await localApi.inicializar();
+        const [resFincas, resEstanques, resCompradores] = await Promise.all([
+          localApi.fincas.obtenerTodos(),
+          localApi.estanques.obtenerTodos(),
+          localApi.compradores.obtenerTodos(),
         ]);
 
-      if (activo) {
-        setColaboradores(dataColaboradores);
-        setFincas(dataFincas);
-        setEstanques(dataEstanques);
-        setCompradoresData(dataCompradores);
+        if (activo) {
+          setFincas(resFincas.data || []);
+          setEstanques(resEstanques.data || []);
+          setCompradoresData(resCompradores.data || []);
+        }
+      } catch (error) {
+        console.error(error);
       }
     }
-
-    cargarCatalogos();
-
-    return () => {
-      activo = false;
-    };
+    cargarCatalogosLocales();
+    return () => { activo = false; };
   }, []);
 
   useEffect(() => {
     let activo = true;
-
     async function cargarVenta() {
       if (!ventaId) {
         setCargandoVenta(false);
         return;
       }
-
       try {
-        const venta = await getVentaById(ventaId);
-
-        if (!activo) return;
+        await localApi.inicializar();
+        const venta = await VentasLocalService.getById(ventaId);
+        if (!activo || !venta) return;
 
         setVentaOriginal(venta);
-        setFincaSeleccionadaState(venta?.finca ?? "");
-        setEstanqueSeleccionado(venta?.estanque ?? "");
+        setFincaSeleccionadaState(venta?.finca ? String(venta.finca) : "");
+        setEstanqueSeleccionado(venta?.estanque ? String(venta.estanque) : "");
         setPesoPromedio(String(venta?.pesoPromedio ?? "0.1"));
         setTamanoPromedio(String(venta?.tamanoPromedio ?? "0.1"));
         setKilosVendidos(String(venta?.cantVendida ?? "0"));
         setPrecioKilo(String(venta?.precioKilo ?? "0"));
         setFechaVenta(formatearFechaDesdeBackend(venta?.fecha));
-        setColaboradorSeleccionado(venta?.colaborador ?? "");
-        setCompradorSeleccionado(venta?.comprador ?? CLIENTE_GENERICO);
+        setCompradorSeleccionado(venta?.comprador ? String(venta.comprador) : "");
       } catch (error) {
         setTipoMensaje("error");
-        setMensaje(mensajeDeError(error));
+        setMensaje("No se pudo cargar la venta local.");
       } finally {
         if (activo) setCargandoVenta(false);
       }
     }
-
     cargarVenta();
-
-    return () => {
-      activo = false;
-    };
+    return () => { activo = false; };
   }, [ventaId]);
 
   const opcionesFincas = useMemo(
-    () =>
-      fincas.map((finca) => ({
-        label: finca.nombreFinca,
-        value: finca.id,
-      })),
-    [fincas],
+    () => fincas.map((finca) => ({
+      label: finca.nombre_finca || `Finca ${finca.id}`,
+      value: String(finca.id),
+    })),
+    [fincas]
   );
 
   const estanquesFiltrados = useMemo(() => {
     if (!fincaSeleccionada) return [];
-
     return estanques
-      .filter((estanque) => estanque.idFinca === Number(fincaSeleccionada))
+      .filter((estanque) => Number(estanque.finca_id) === Number(fincaSeleccionada))
       .map((estanque) => ({
-        label: estanque.codigo,
-        value: estanque.id,
+        label: estanque.codigo || `Estanque ${estanque.id}`,
+        value: String(estanque.id),
       }));
   }, [fincaSeleccionada, estanques]);
 
-  const opcionesColaboradores = useMemo(
-    () =>
-      colaboradores.map((colaborador) => ({
-        label: colaborador.nombre,
-        value: colaborador.id,
-      })),
-    [colaboradores],
-  );
-
   const opcionesCompradores = useMemo(
-    () => [
-      { label: "Cliente genérico", value: CLIENTE_GENERICO },
-      ...compradoresData.map((comprador) => ({
-        label: comprador.nombre,
-        value: comprador.id,
-      })),
-    ],
-    [compradoresData],
+    () => compradoresData.map((comprador) => ({
+      label: comprador.nombre || `Comprador ${comprador.id}`,
+      value: String(comprador.id),
+    })),
+    [compradoresData]
   );
 
-  const precioKiloNumero = Number(precioKilo || 0);
-  const totalVenta = Number(kilosVendidos || 0) * precioKiloNumero;
+  const priceKiloNumero = Number(precioKilo || 0);
+  const totalVenta = Number(kilosVendidos || 0) * priceKiloNumero;
 
   const limpiarError = useCallback((campo) => {
     setErrores((actual) => {
@@ -201,62 +155,36 @@ export function useVentaEditar({ id, onGuardado } = {}) {
     });
   }, []);
 
-  const handleFincaChange = useCallback(
-    (value) => {
-      setFincaSeleccionadaState(value);
-      setEstanqueSeleccionado("");
-      limpiarError("finca");
-    },
-    [limpiarError],
-  );
+  const handleFincaChange = useCallback((value) => {
+    setFincaSeleccionadaState(value);
+    setEstanqueSeleccionado("");
+    limpiarError("finca");
+  }, [limpiarError]);
 
-  const handlePesoPromedioChange = useCallback(
-    (value) => {
-      setPesoPromedio(normalizarDecimal(value));
-      limpiarError("pesoPromedio");
-    },
-    [limpiarError],
-  );
+  const handlePesoPromedioChange = useCallback((value) => {
+    setPesoPromedio(normalizarDecimal(value));
+    limpiarError("pesoPromedio");
+  }, [limpiarError]);
 
-  const handleTamanoPromedioChange = useCallback(
-    (value) => {
-      setTamanoPromedio(normalizarDecimal(value));
-      limpiarError("tamanoPromedio");
-    },
-    [limpiarError],
-  );
+  const handleTamanoPromedioChange = useCallback((value) => {
+    setTamanoPromedio(normalizarDecimal(value));
+    limpiarError("tamanoPromedio");
+  }, [limpiarError]);
 
-  const handleKilosVendidosChange = useCallback(
-    (value) => {
-      setKilosVendidos(normalizarDecimal(value));
-      limpiarError("kilosVendidos");
-    },
-    [limpiarError],
-  );
+  const handleKilosVendidosChange = useCallback((value) => {
+    setKilosVendidos(normalizarDecimal(value));
+    limpiarError("kilosVendidos");
+  }, [limpiarError]);
 
-  const handlePrecioChange = useCallback(
-    (value) => {
-      setPrecioKilo(String(Math.max(0, Math.round(Number(value) || 0))));
-      limpiarError("precioKilo");
-    },
-    [limpiarError],
-  );
+  const handlePrecioChange = useCallback((value) => {
+    setPrecioKilo(String(Math.max(0, Math.round(Number(value) || 0))));
+    limpiarError("precioKilo");
+  }, [limpiarError]);
 
-  const handleColaboradorChange = useCallback(
-    (value) => {
-      setColaboradorSeleccionado(value);
-      limpiarError("colaborador");
-    },
-    [limpiarError],
-  );
-
-  const handleCompradorChange = useCallback(
-    (value) => {
-      setCompradorSeleccionado(value);
-      limpiarError("comprador");
-    },
-    [limpiarError],
-  );
+  const handleCompradorChange = useCallback((value) => {
+    setCompradorSeleccionado(value);
+    limpiarError("comprador");
+  }, [limpiarError]);
 
   const guardarCambios = useCallback(async () => {
     const nuevosErrores = validarVentaFormulario({
@@ -265,8 +193,7 @@ export function useVentaEditar({ id, onGuardado } = {}) {
       pesoPromedio,
       tamanoPromedio,
       kilosVendidos,
-      precioKiloNumero,
-      colaboradorSeleccionado,
+      precioKiloNumero: priceKiloNumero,
       compradorSeleccionado,
     });
 
@@ -278,31 +205,23 @@ export function useVentaEditar({ id, onGuardado } = {}) {
       return;
     }
 
-    if (!ventaId) {
-      setTipoMensaje("error");
-      setMensaje("No se encontró la venta que se quiere editar.");
-      return;
-    }
+    if (!ventaId) return;
 
     setGuardando(true);
 
     const ventaDTO = new MantVentaDTO({
       finca: Number(fincaSeleccionada),
       estanque: Number(estanqueSeleccionado),
-      colaborador: Number(colaboradorSeleccionado),
-      comprador:
-        compradorSeleccionado === CLIENTE_GENERICO
-          ? null
-          : Number(compradorSeleccionado),
+      comprador: compradorSeleccionado ? Number(compradorSeleccionado) : null,
       pesoPromedio: Number(pesoPromedio),
       tamanoPromedio: Number(tamanoPromedio),
       cantVendida: Number(kilosVendidos),
-      precioKilo: precioKiloNumero,
+      precioKilo: priceKiloNumero,
       fecha: convertirFechaParaBackend(fechaVenta),
     });
 
     try {
-      await updateVenta(ventaId, ventaDTO);
+      await VentasLocalService.update(ventaId, ventaDTO);
       setTipoMensaje("success");
       setMensaje("Venta actualizada correctamente.");
       onGuardado?.({
@@ -311,7 +230,7 @@ export function useVentaEditar({ id, onGuardado } = {}) {
       });
     } catch (error) {
       setTipoMensaje("error");
-      setMensaje(mensajeDeError(error));
+      setMensaje(error?.message || "Ocurrió un error.");
     } finally {
       setGuardando(false);
     }
@@ -321,8 +240,7 @@ export function useVentaEditar({ id, onGuardado } = {}) {
     pesoPromedio,
     tamanoPromedio,
     kilosVendidos,
-    precioKiloNumero,
-    colaboradorSeleccionado,
+    priceKiloNumero,
     compradorSeleccionado,
     fechaVenta,
     ventaId,
@@ -339,7 +257,6 @@ export function useVentaEditar({ id, onGuardado } = {}) {
     kilosVendidos,
     precioKilo,
     fechaVenta,
-    colaboradorSeleccionado,
     compradorSeleccionado,
     mensaje,
     tipoMensaje,
@@ -348,7 +265,6 @@ export function useVentaEditar({ id, onGuardado } = {}) {
     isWide,
     opcionesFincas,
     estanquesFiltrados,
-    opcionesColaboradores,
     opcionesCompradores,
     totalVenta,
     setEstanqueSeleccionado,
@@ -358,7 +274,6 @@ export function useVentaEditar({ id, onGuardado } = {}) {
     handleKilosVendidosChange,
     handlePrecioChange,
     handleCompradorChange,
-    handleColaboradorChange,
     limpiarError,
     guardarCambios,
   };

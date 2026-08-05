@@ -30,13 +30,31 @@ import SearchBar from '../../../shared/components/SearchBar';
 import styles from '../styles/loginStyles';
 import { STYLE } from '../../../theme/style';
 
+// ⚠️ TEMPORAL — import solo para pruebas locales, borrar antes de mergear
+import { probarBaseLocal } from '../../../database/local/testLocalDb.service';
+
 /**
  * LoginScreen
  *
  * Composición principal de la pantalla.
  */
-export default function LoginScreen({ onLoginSuccess = () => {} }) {
+export default function LoginScreen({ onLoginSuccess = () => { } }) {
   const loginFlow = useLoginFlow({ onLoginSuccess });
+
+  // ⚠️ TEMPORAL — solo para pruebas locales
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const handleSeedTest = async () => {
+    setIsSeeding(true);
+    try {
+      await probarBaseLocal();   // crea a "Gerald Alfaro" (PIN 1234) + finca/estanque/alimentación
+      await loginFlow.refetch();
+    } catch (err) {
+      console.log('Error sembrando datos de prueba:', err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   return (
     <View style={STYLE.container}>
@@ -49,11 +67,13 @@ export default function LoginScreen({ onLoginSuccess = () => {} }) {
           selectedWorker={loginFlow.selectedWorker}
           onSelectWorker={loginFlow.setSelectedWorker}
           onSyncData={loginFlow.handleSyncData}
-          isSyncDisabled={loginFlow.hasSyncedData}
+          isSyncDisabled={loginFlow.isSyncing}
           searchText={loginFlow.workerSearchText}
           onSearchTextChange={loginFlow.setWorkerSearchText}
           isFormValid={loginFlow.isFormValid}
           onContinue={loginFlow.openPinModal}
+          onSeedTest={handleSeedTest}
+          isSeeding={isSeeding}
         />
       </ScrollView>
 
@@ -94,7 +114,8 @@ function LoginHeader({ formattedDate }) {
 /**
  * WorkerSection
  *
- * Lista a los colaboradores disponibles.
+ * Lista a los colaboradores disponibles, con búsqueda, sincronización
+ * y selección para continuar al PIN.
  */
 function WorkerSection({
   workers,
@@ -108,17 +129,26 @@ function WorkerSection({
   onSearchTextChange,
   isFormValid,
   onContinue,
+  onSeedTest,
+  isSeeding,
 }) {
-  // Estado demostrativo de sincronización — reemplazar con lógica real
+  // Estado de sincronización basado en el resultado real de onSyncData()
   const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'danger'
+  const [syncMessage, setSyncMessage] = useState('');
 
-  const handleSync = () => {
-    // TODO: reemplazar con la lógica real de sincronización
-    // Por ahora alterna entre éxito y error para demostración
-    const result = Math.random() > 0.5 ? 'success' : 'danger';
-    setSyncStatus(result);
-    setTimeout(() => setSyncStatus(null), result === 'success' ? 3000 : 6000);
-    if (onSyncData) onSyncData();
+  /**
+   * handleSync()
+   * Ejecuta la sincronización real (delegada al hook vía onSyncData) y
+   * muestra el resultado (éxito o error) devuelto por handleSyncData.
+   */
+  const handleSync = async () => {
+    const result = await onSyncData();
+    setSyncStatus(result.success ? 'success' : 'danger');
+    setSyncMessage(result.message);
+    setTimeout(() => {
+      setSyncStatus(null);
+      setSyncMessage('');
+    }, result.success ? 3000 : 6000);
   };
 
   return (
@@ -126,14 +156,14 @@ function WorkerSection({
       {syncStatus === 'success' && (
         <Alert
           variant="success"
-          message="Sincronización completada correctamente."
+          message={syncMessage}
           style={styles.syncAlert}
         />
       )}
       {syncStatus === 'danger' && (
         <Alert
           variant="danger"
-          message="Error de sincronización. Verifica tu conexión."
+          message={syncMessage}
           style={styles.syncAlert}
         />
       )}
@@ -146,6 +176,15 @@ function WorkerSection({
           <Text style={styles.buttonText}>{LOGIN_MESSAGES.SYNC_BUTTON_TEXT}</Text>
         </View>
       </Button>
+
+      {/* ⚠️ TEMPORAL — borrar este botón antes de mergear */}
+      <Button onPress={onSeedTest} variant="outline" disabled={isSeeding} style={styles.syncButton}>
+        <View style={styles.buttonContent}>
+          <Icon icon={ICONS.document || ICONS.info} size={18} color={COLORS.primary} />
+          <Text style={styles.buttonText}>{isSeeding ? 'SQLiteando...' : 'SQLite'}</Text>
+        </View>
+      </Button>
+
       <SearchBar
         value={searchText}
         onChangeText={onSearchTextChange}
@@ -190,7 +229,9 @@ function WorkerSection({
         <Button onPress={onContinue} variant="outline" disabled={!isFormValid} style={styles.continueButton}>
           <View style={styles.buttonContent}>
             <Icon icon={ICONS.enter} size={18} color={isFormValid ? COLORS.primary : COLORS.textTertiary} />
-            <Text style={[styles.buttonText, !isFormValid && { color: COLORS.textTertiary }]}>{LOGIN_MESSAGES.BUTTON_TEXT}</Text>
+            <Text style={[styles.buttonText, !isFormValid && { color: COLORS.textTertiary }]}>
+              {LOGIN_MESSAGES.BUTTON_TEXT}
+            </Text>
           </View>
         </Button>
       </View>
@@ -252,38 +293,38 @@ function SectionStatus({ message, error = false }) {
  * Modal para ingresar el PIN de 4 dígitos.
  */
 function PinModal({ visible, pinCode, pinError, isAuthenticating, onClose, onPinChange, onSubmit }) {
-    return (
-        <Modal
-            visible={visible}
-            onClose={onClose}
-            showCloseButton
-            closeText="Cancelar"
-            containerStyle={styles.modalContainer}
-            overlayStyle={styles.modalOverlay}
-            buttonStyle={styles.cancelButtonOutline}
-            buttonTextStyle={styles.cancelButtonTextOutline}
-        >
-            <Title level={5} color={COLORS.textPrimary} align="center" style={styles.modalTitle}>
-                Digite su PIN
-            </Title>
-            <Input
-                value={pinCode}
-                onChangeText={onPinChange}
-                placeholder="0000"
-                keyboardType="number-pad"
-                maxLength={4}
-                secureTextEntry
-                autoFocus={visible}
-                editable={!isAuthenticating}
-                containerStyle={styles.pinInputContainer}
-                style={styles.pinInput}
-            />
-            {pinError !== '' && (
-                <Alert variant="danger" message={pinError} style={styles.pinErrorAlert} />
-            )}
-            <Button onPress={onSubmit} variant="outline" disabled={pinCode.length !== 4 || isAuthenticating}>
-                Ingresar
-            </Button>
-        </Modal>
-    );
+  return (
+    <Modal
+      visible={visible}
+      onClose={onClose}
+      showCloseButton
+      closeText="Cancelar"
+      containerStyle={styles.modalContainer}
+      overlayStyle={styles.modalOverlay}
+      buttonStyle={styles.cancelButtonOutline}
+      buttonTextStyle={styles.cancelButtonTextOutline}
+    >
+      <Title level={5} color={COLORS.textPrimary} align="center" style={styles.modalTitle}>
+        Digite su PIN
+      </Title>
+      <Input
+        value={pinCode}
+        onChangeText={onPinChange}
+        placeholder="0000"
+        keyboardType="number-pad"
+        maxLength={4}
+        secureTextEntry
+        autoFocus={visible}
+        editable={!isAuthenticating}
+        containerStyle={styles.pinInputContainer}
+        style={styles.pinInput}
+      />
+      {pinError !== '' && (
+        <Alert variant="danger" message={pinError} style={styles.pinErrorAlert} />
+      )}
+      <Button onPress={onSubmit} variant="outline" disabled={pinCode.length !== 4 || isAuthenticating}>
+        Ingresar
+      </Button>
+    </Modal>
+  );
 }

@@ -5,10 +5,13 @@
  *
  * Modulo independiente para ver todas las alertas por prioridad,
  * tipo y categoria.
+ *
+ * Lee los datos desde SQLite local mediante useDashboard.
  */
 
-import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 
 import Card from "../../../shared/components/Card";
 import CustomText from "../../../shared/components/Text";
@@ -19,14 +22,7 @@ import { COLORS } from "../../../theme/colors";
 import { ICONS } from "../../../theme/icons";
 import { STYLE } from "../../../theme/style";
 
-import { fincas as fincasModulo } from "../../finca/screens/FincaData";
-import { estanques as estanquesModulo } from "../../mantCrecimiento/services/EstanqueData";
-import { obtenerSiembras } from "../../siembra/services/SiembraService";
-import useAlimentacion from "../../alimentacion/hooks/useAlimentacion";
-import { getProductosInventario } from "../../inventarios/services/InventarioService";
-import { EQUIPOS_MOCK } from "../../mantEquipo/services/mantEquipoService";
-import enfermedadesService from "../../enfermedades/services/EnfermedadesService";
-import parasitologiaService from "../../parasitologia/services/ParasitologiaService";
+import useDashboard from "../../dashboard/hooks/useDashboard";
 
 import {
   agruparAlertasPorTipo,
@@ -34,7 +30,8 @@ import {
   descartarAlerta,
   filtrarAlertasDescartadas,
   obtenerAlertasDescartadas,
-} from "../services/AlertasServices.js";
+} from "../services/AlertasServices";
+
 import {
   agruparPorCategoria,
   obtenerColorTipo,
@@ -42,9 +39,23 @@ import {
   obtenerEstiloAlerta,
   obtenerIconoTipo,
   obtenerTituloTipo,
-} from "../services/AlertasScreenService.js";
+} from "../services/AlertasScreenService";
 
 import { styles } from "../styles/AlertasStyle";
+
+/*
+============================================================
+HELPERS
+============================================================
+*/
+
+const obtenerListaSegura = (valor) => (Array.isArray(valor) ? valor : []);
+
+/*
+============================================================
+COMPONENTES INTERNOS
+============================================================
+*/
 
 function ResumenAlertas({ grupos }) {
   return (
@@ -55,11 +66,13 @@ function ResumenAlertas({ grupos }) {
           value={grupos.critica.length}
           color={COLORS.error}
         />
+
         <ResumenItem
           label="Advertencias"
           value={grupos.advertencia.length}
           color={COLORS.warning}
         />
+
         <ResumenItem
           label="Info"
           value={grupos.info.length}
@@ -92,17 +105,18 @@ function DropdownAlertas({ tipo, alertas, abierto, onToggle, onDismiss }) {
   const color = obtenerColorTipo(tipo);
   const categorias = agruparPorCategoria(alertas);
   const nombresCategorias = Object.keys(categorias);
-  let chevron = ICONS.chevronDown;
-
-  if (abierto === true) {
-    chevron = ICONS.chevronUp;
-  }
+  const chevron = abierto === true ? ICONS.chevronUp : ICONS.chevronDown;
 
   return (
     <Card style={styles.dropdownCard}>
       <Pressable style={styles.dropdownHeader} onPress={onToggle}>
         <View
-          style={[styles.dropdownIconBox, { backgroundColor: COLORS.surface }]}
+          style={[
+            styles.dropdownIconBox,
+            {
+              backgroundColor: COLORS.surface,
+            },
+          ]}
         >
           <Icon icon={obtenerIconoTipo(tipo)} size={20} color={color} />
         </View>
@@ -222,79 +236,94 @@ function AlertaItem({ alerta, onDismiss }) {
   );
 }
 
+/*
+============================================================
+SCREEN PRINCIPAL
+============================================================
+*/
+
 export default function AlertasScreen() {
-  const { alimentaciones, recargar } = useAlimentacion();
+  const {
+    fincas,
+    estanques,
+    alimentaciones,
+    siembras,
+    inventario,
+    equipos,
+    enfermedades,
+    parasitologias,
+    fisicoQuimicos,
+    loading,
+    recargar,
+  } = useDashboard();
 
   const [abiertos, setAbiertos] = useState(obtenerEstadoInicialDropdowns());
   const [descartadas, setDescartadas] = useState([]);
-  const [productosInventario, setProductosInventario] = useState([]);
-  const [registrosEnfermedades, setRegistrosEnfermedades] = useState([]);
-  const [registrosParasitologia, setRegistrosParasitologia] = useState([]);
 
-  useEffect(function () {
-    let activo = true;
+  const cargarAlertasDescartadas = useCallback(async function () {
+    const ids = await obtenerAlertasDescartadas();
 
-    async function cargarDatos() {
-      let ids = [];
-      let productos = [];
-      let enfermedades = [];
-      let parasitos = [];
-
-      try {
-        ids = await obtenerAlertasDescartadas();
-      } catch (error) {
-        ids = [];
-      }
-
-      try {
-        productos = await getProductosInventario();
-      } catch (error) {
-        productos = [];
-      }
-
-      try {
-        enfermedades = await enfermedadesService.getAll();
-      } catch (error) {
-        enfermedades = [];
-      }
-
-      try {
-        parasitos = await parasitologiaService.getAll();
-      } catch (error) {
-        parasitos = [];
-      }
-
-      if (activo === true) {
-        setDescartadas(Array.isArray(ids) ? ids : []);
-        setProductosInventario(Array.isArray(productos) ? productos : []);
-        setRegistrosEnfermedades(
-          Array.isArray(enfermedades) ? enfermedades : [],
-        );
-        setRegistrosParasitologia(Array.isArray(parasitos) ? parasitos : []);
-      }
-    }
-
-    recargar();
-    cargarDatos();
-
-    return function () {
-      activo = false;
-    };
+    setDescartadas(Array.isArray(ids) ? ids : []);
   }, []);
 
-  const alertasBase = construirAlertasOperativas({
-    fincas: fincasModulo,
-    productosInventario: productosInventario,
-    siembras: obtenerSiembras(),
-    alimentaciones: alimentaciones,
-    estanques: estanquesModulo,
-    equipos: EQUIPOS_MOCK,
-    registrosEnfermedades: registrosEnfermedades,
-    registrosParasitologia: registrosParasitologia,
-  });
+  const cargarPantalla = useCallback(async function () {
+    await recargar();
+    await cargarAlertasDescartadas();
+  }, [recargar, cargarAlertasDescartadas]);
 
-  const alertas = filtrarAlertasDescartadas(alertasBase, descartadas);
-  const grupos = agruparAlertasPorTipo(alertas);
+  useFocusEffect(
+    useCallback(function () {
+      let activo = true;
+
+      async function cargarDatos() {
+        await recargar();
+
+        const ids = await obtenerAlertasDescartadas();
+
+        if (activo === true) {
+          setDescartadas(Array.isArray(ids) ? ids : []);
+        }
+      }
+
+      cargarDatos();
+
+      return function () {
+        activo = false;
+      };
+    }, [recargar])
+  );
+
+  const alertasBase = useMemo(function () {
+    return construirAlertasOperativas({
+      fincas: obtenerListaSegura(fincas),
+      estanques: obtenerListaSegura(estanques),
+      productosInventario: obtenerListaSegura(inventario),
+      siembras: obtenerListaSegura(siembras),
+      alimentaciones: obtenerListaSegura(alimentaciones),
+      equipos: obtenerListaSegura(equipos),
+      registrosEnfermedades: obtenerListaSegura(enfermedades),
+      registrosParasitologia: obtenerListaSegura(parasitologias),
+      registrosFisicoQuimicos: obtenerListaSegura(fisicoQuimicos),
+    });
+  }, [
+    fincas,
+    estanques,
+    inventario,
+    siembras,
+    alimentaciones,
+    equipos,
+    enfermedades,
+    parasitologias,
+    fisicoQuimicos,
+  ]);
+
+  const alertas = useMemo(function () {
+    return filtrarAlertasDescartadas(alertasBase, descartadas);
+  }, [alertasBase, descartadas]);
+
+  const grupos = useMemo(function () {
+    return agruparAlertasPorTipo(alertas);
+  }, [alertas]);
 
   function cambiarDropdown(tipo) {
     setAbiertos(function (actual) {
@@ -307,6 +336,7 @@ export default function AlertasScreen() {
 
   async function descartar(id) {
     const ids = await descartarAlerta(id);
+
     setDescartadas(Array.isArray(ids) ? ids : []);
   }
 
@@ -318,7 +348,18 @@ export default function AlertasScreen() {
         Icono="notification"
       />
 
-      <ScrollView style={STYLE.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={STYLE.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={cargarPantalla}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+      >
         <View style={STYLE.contentWrapper}>
           <ResumenAlertas grupos={grupos} />
 

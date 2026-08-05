@@ -21,8 +21,10 @@ export const getLotes = async () => {
     const response = await api.get("/lotes-larva");
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener lotes de larva:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudieron obtener los lotes de larva.");
   }
 };
 
@@ -34,8 +36,10 @@ export const getLoteById = async (id) => {
     const response = await api.get(`/lotes-larva/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error("Error al obtener lote de larva:", error);
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo obtener el lote de larva.");
   }
 };
 
@@ -47,11 +51,10 @@ export const createLote = async (loteDTO) => {
     const response = await api.post("/lotes-larva", loteDTO);
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al crear lote de larva:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo crear el lote de larva.");
   }
 };
 
@@ -63,11 +66,10 @@ export const updateLote = async (id, loteDTO) => {
     const response = await api.put(`/lotes-larva/${id}`, loteDTO);
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al actualizar lote de larva:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo actualizar el lote de larva.");
   }
 };
 
@@ -79,10 +81,9 @@ export const eliminarLote = async (id) => {
     const response = await api.delete(`/lotes-larva/${id}`);
     return response.data.data;
   } catch (error) {
-    console.error(
-      "Error al eliminar lote de larva:",
-      error.response?.data || error.message,
-    );
-    throw error;
+    if (error.response?.status === 404 || error.response?.status === 500) {
+      throw error;
+    }
+    throw new Error("No se pudo eliminar el lote de larva.");
   }
 };
