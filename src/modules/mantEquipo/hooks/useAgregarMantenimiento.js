@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getProductosInventario } from '../../inventarios/services/InventarioService.js';
+import { productoService } from '../../productos/services/producto.service.js';
 import * as MantService from '../services/mantEquipoService.js';
 import { obtenerFechaHoraActual, validarCostoManoObra, formatearNombreHerramienta } from '../utils/mantEquipoUtils.js';
 import { parseDate } from '../../../shared/utils/dateUtils.js';
@@ -51,7 +51,7 @@ export function useAgregarMantenimiento({ onNavigateToMain }) {
   useEffect(() => {
     async function cargarProductos() {
       try {
-        const data = await getProductosInventario();
+        const data = await productoService.getProductos();
         const raw = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
         const list = raw.map(p => ({
           ...p,

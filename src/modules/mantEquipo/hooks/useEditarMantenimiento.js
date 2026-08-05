@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getProductosInventario } from '../../inventarios/services/InventarioService.js';
+import { productoService } from '../../productos/services/producto.service.js';
 import * as MantService from '../services/mantEquipoService.js';
 import { parseDate, formatDate } from '../../../shared/utils/dateUtils.js';
 import { validarCostoManoObra, formatearNombreHerramienta } from '../utils/mantEquipoUtils.js';
@@ -96,7 +96,7 @@ export function useEditarMantenimiento({ id, onNavigateToDetail, onNavigateToMai
         // 4. Catálogo de inventario para el select de productos
         let prodList = [];
         try {
-          const resProd = await getProductosInventario();
+          const resProd = await productoService.getProductos();
           if (!activo) return;
           const raw = Array.isArray(resProd) ? resProd : (Array.isArray(resProd?.data) ? resProd.data : []);
           prodList = raw.map(p => ({

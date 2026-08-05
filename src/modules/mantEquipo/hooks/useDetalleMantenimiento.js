@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getProductoById, getProductosInventario } from '../../inventarios/services/InventarioService.js';
+import { productoService } from '../../productos/services/producto.service.js';
 import * as MantService from '../services/mantEquipoService.js';
 import { obtenerTareas } from '../services/tareasService.js';
 import { equiposService } from '../services/equiposService.js';
@@ -55,7 +55,7 @@ export function useDetalleMantenimiento({ id, alertaTipo, alertaMensaje, onNavig
         // Mapear productos del ticket contra el inventario local
         let list = [];
         try {
-          const resProd = await getProductosInventario();
+          const resProd = await productoService.getProductos();
           const raw = Array.isArray(resProd) ? resProd : (Array.isArray(resProd?.data) ? resProd.data : []);
           list = raw.map(p => ({
             ...p,
@@ -90,7 +90,7 @@ export function useDetalleMantenimiento({ id, alertaTipo, alertaMensaje, onNavig
           setProductosSeleccionados(mapped);
         } else if (t.productoId) {
           try {
-            const prod = await getProductoById(t.productoId);
+            const prod = await productoService.getProductoPorId(t.productoId);
             setProductosSeleccionados(prod ? [prod] : []);
           } catch (errProd) {
             console.warn('useDetalleMantenimiento: no se pudo obtener producto por ID:', errProd?.message || errProd);

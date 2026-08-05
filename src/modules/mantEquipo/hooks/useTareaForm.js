@@ -12,7 +12,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as tareasService from "../services/tareasService";
-import { getProductosInventario } from "../../inventarios/services/InventarioService";
+import { productoService } from "../../productos/services/producto.service";
 
 export function useTareaForm() {
   const router = useRouter();
@@ -56,7 +56,7 @@ export function useTareaForm() {
   // ─── Cargar productos del inventario ──────────────────────────
   useEffect(() => {
     let isMounted = true;
-    getProductosInventario()
+    productoService.getProductos()
       .then((data) => {
         if (isMounted) {
           setProductosDisponibles(Array.isArray(data) ? data : []);
@@ -268,6 +268,7 @@ export function useTareaForm() {
     loading,
     cargandoDatos,
     isEditing,
+    productosDisponibles,
     productosFiltrados,
     opcionesProductos,
     hayResultados,

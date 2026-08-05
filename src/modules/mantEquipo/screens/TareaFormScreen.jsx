@@ -37,6 +37,7 @@ export default function TareaFormScreen() {
     productos,
     busquedaProducto,
     productoSeleccionado,
+    productosDisponibles,
     cantidadProducto,
     errores,
     submitted,
