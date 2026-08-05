@@ -37,6 +37,7 @@ export const useWorkers = () => {
   // FUNCION: obtiene los trabajadores y actualiza el estado
   const fetchWorkers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       // Llamar al servicio
       const data = await getWorkers();

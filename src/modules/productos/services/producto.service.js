@@ -32,7 +32,7 @@ IMPORTANTE:
 */
 
 import { localApi } from "../../../database/local/localApi.service";
-import { obtenerContextoLocal } from "../local/sesionTemporal.helper";
+import { obtenerGrupoDatosSesion, obtenerColaboradorIdSesion } from "../../../shared/utils/sessionUtils";
 
 let baseInicializada = false;
 
@@ -72,7 +72,7 @@ export const productoService = {
 
   getProductos: async () => {
     await asegurarBaseInicializada();
-    const { grupoDatos } = await obtenerContextoLocal();
+    const grupoDatos = await obtenerGrupoDatosSesion();
 
     const resultado = await localApi.productos.obtenerTodos({
       grupo_datos: grupoDatos,
@@ -115,8 +115,8 @@ export const productoService = {
 
   crearProducto: async (datos) => {
     await asegurarBaseInicializada();
-    const { grupoDatos, colaboradorId } = await obtenerContextoLocal();
-
+    const grupoDatos = await obtenerGrupoDatosSesion();
+     const colaboradorId = await obtenerColaboradorIdSesion();
     if (!datos.codigo || !datos.nombre || !datos.categoria) {
       const err = new Error("Faltan campos requeridos: codigo, nombre y categoria.");
       err.response = { status: 400 };
@@ -138,9 +138,6 @@ export const productoService = {
       estado: "ACTIVO",
       creado_por_colaborador_id: colaboradorId,
     });
-
-   
-
 
     if (!productoCreado?.success) {
       throw new Error("No se pudo crear el producto.");
@@ -198,7 +195,8 @@ export const productoService = {
 
       inventarioRow = inventarioActualizado.data;
     } else {
-      const { grupoDatos, colaboradorId } = await obtenerContextoLocal();
+      const grupoDatos = await obtenerGrupoDatosSesion();
+      const colaboradorId = await obtenerColaboradorIdSesion();
       const inventarioCreado = await localApi.inventario.crear({
         grupo_datos: grupoDatos,
         producto_id: Number(id),

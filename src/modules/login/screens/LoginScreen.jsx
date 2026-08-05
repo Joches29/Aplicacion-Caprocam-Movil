@@ -9,29 +9,28 @@
  * @navigation - Navega a la pantalla principal si el login es exitoso.
  */
 
-import { useState } from 'react';
-import { View, ScrollView } from 'react-native';
+import { useState } from "react";
+import { View, ScrollView, Alert as RNAlert } from "react-native";
 
-import Alert from '../../../shared/components/Alert';
-import Avatar from '../../../shared/components/Avatar';
-import Button from '../../../shared/components/Button';
-import Card from '../../../shared/components/Card';
-import Icon from '../../../shared/components/Icons';
-import Modal from '../../../shared/components/Modal';
-import Text from '../../../shared/components/Text';
-import Title from '../../../shared/components/Title';
-import Input from '../../../shared/components/Input';
-
-import { COLORS } from '../../../theme/colors';
-import { ICONS } from '../../../theme/icons';
-import { LOGIN_MESSAGES } from '../constants/authMessages';
-import { useLoginFlow } from '../hooks/useLoginFlow';
-import SearchBar from '../../../shared/components/SearchBar';
-import styles from '../styles/loginStyles';
-import { STYLE } from '../../../theme/style';
-
-// ⚠️ TEMPORAL — import solo para pruebas locales, borrar antes de mergear
+import Alert from "../../../shared/components/Alert";
+import Avatar from "../../../shared/components/Avatar";
+import Button from "../../../shared/components/Button";
+import Card from "../../../shared/components/Card";
+import Icon from "../../../shared/components/Icons";
+import Modal from "../../../shared/components/Modal";
+import Text from "../../../shared/components/Text";
+import Title from "../../../shared/components/Title";
+import Input from "../../../shared/components/Input";
 import { probarBaseLocal } from '../../../database/local/testLocalDb.service';
+
+import { COLORS } from "../../../theme/colors";
+import { ICONS } from "../../../theme/icons";
+import { LOGIN_MESSAGES } from "../constants/authMessages";
+import { useLoginFlow } from "../hooks/useLoginFlow";
+import SearchBar from "../../../shared/components/SearchBar";
+import styles from "../styles/loginStyles";
+import { STYLE } from "../../../theme/style";
+
 
 /**
  * LoginScreen
@@ -58,8 +57,12 @@ export default function LoginScreen({ onLoginSuccess = () => { } }) {
 
   return (
     <View style={STYLE.container}>
-      <ScrollView contentContainerStyle={STYLE.contentWrapper} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={STYLE.contentWrapper}
+        showsVerticalScrollIndicator={false}
+      >
         <LoginHeader formattedDate={loginFlow.formattedDate} />
+
         <WorkerSection
           workers={loginFlow.filteredWorkers}
           loading={loginFlow.loading}
@@ -101,10 +104,22 @@ function LoginHeader({ formattedDate }) {
       <View style={styles.logoContainer}>
         <Icon icon={ICONS.shrimp} size={32} color={COLORS.primary} />
       </View>
-      <Title level={1} color={COLORS.textPrimary} align="center" style={styles.companyName}>
+
+      <Title
+        level={1}
+        color={COLORS.textPrimary}
+        align="center"
+        style={styles.companyName}
+      >
         {LOGIN_MESSAGES.COMPANY_NAME}
       </Title>
-      <Text size={13} color={COLORS.textTertiary} align="center" style={styles.dateText}>
+
+      <Text
+        size={13}
+        color={COLORS.textTertiary}
+        align="center"
+        style={styles.dateText}
+      >
         {formattedDate}
       </Text>
     </Card>
@@ -124,6 +139,9 @@ function WorkerSection({
   selectedWorker,
   onSelectWorker,
   onSyncData,
+  onTestLogin,
+  onShowLocalDb,
+  onLoadDemoData,
   isSyncDisabled,
   searchText,
   onSearchTextChange,
@@ -153,27 +171,41 @@ function WorkerSection({
 
   return (
     <Card style={styles.sectionCard}>
-      {syncStatus === 'success' && (
+      {syncStatus === "success" && (
         <Alert
           variant="success"
           message={syncMessage}
           style={styles.syncAlert}
         />
       )}
-      {syncStatus === 'danger' && (
+
+      {syncStatus === "danger" && (
         <Alert
           variant="danger"
           message={syncMessage}
           style={styles.syncAlert}
         />
       )}
+
       <Title level={4} color={COLORS.textPrimary} align="center">
         {LOGIN_MESSAGES.WORKER_TITLE}
       </Title>
-      <Button onPress={handleSync} variant="outline" disabled={isSyncDisabled} style={styles.syncButton}>
+
+      <Button
+        onPress={handleSync}
+        variant="outline"
+        disabled={isSyncDisabled}
+        style={styles.syncButton}
+      >
         <View style={styles.buttonContent}>
-          <Icon icon={ICONS.refresh || ICONS.update} size={18} color={COLORS.primary} />
-          <Text style={styles.buttonText}>{LOGIN_MESSAGES.SYNC_BUTTON_TEXT}</Text>
+          <Icon
+            icon={ICONS.refresh || ICONS.update}
+            size={18}
+            color={COLORS.primary}
+          />
+          <Text style={styles.buttonText}>
+            {LOGIN_MESSAGES.SYNC_BUTTON_TEXT}
+          </Text>
         </View>
       </Button>
 
@@ -191,7 +223,9 @@ function WorkerSection({
         placeholder={LOGIN_MESSAGES.SEARCH_PLACEHOLDER}
         containerStyle={styles.searchContainer}
       />
+
       {loading && <SectionStatus message={LOGIN_MESSAGES.LOADING} />}
+
       {error && (
         <Alert
           variant="danger"
@@ -200,15 +234,25 @@ function WorkerSection({
           textStyle={styles.errorText}
         />
       )}
+
       {!loading && !error && (
         <View style={styles.workersList}>
           {workers.length === 0 ? (
-            <View style={[styles.workersScroll, syncStatus && styles.workersScrollCompressed, styles.centerContent]}>
+            <View
+              style={[
+                styles.workersScroll,
+                syncStatus && styles.workersScrollCompressed,
+                styles.centerContent,
+              ]}
+            >
               <SectionStatus message={LOGIN_MESSAGES.NO_WORKERS_FOUND} />
             </View>
           ) : (
             <ScrollView
-              style={[styles.workersScroll, syncStatus && styles.workersScrollCompressed]}
+              style={[
+                styles.workersScroll,
+                syncStatus && styles.workersScrollCompressed,
+              ]}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
@@ -225,8 +269,14 @@ function WorkerSection({
           )}
         </View>
       )}
+
       <View style={styles.actionSection}>
-        <Button onPress={onContinue} variant="outline" disabled={!isFormValid} style={styles.continueButton}>
+        <Button
+          onPress={onContinue}
+          variant="outline"
+          disabled={!isFormValid}
+          style={styles.continueButton}
+        >
           <View style={styles.buttonContent}>
             <Icon icon={ICONS.enter} size={18} color={isFormValid ? COLORS.primary : COLORS.textTertiary} />
             <Text style={[styles.buttonText, !isFormValid && { color: COLORS.textTertiary }]}>
@@ -247,21 +297,26 @@ function WorkerSection({
 function WorkerItem({ worker, isSelected, onPress }) {
   return (
     <Button onPress={onPress} variant="outline" style={styles.workerButton}>
-      <Card style={[styles.workerCard, isSelected && styles.workerCardSelected]}>
+      <Card
+        style={[styles.workerCard, isSelected && styles.workerCardSelected]}
+      >
         <Avatar
           name={worker.name}
           size={48}
           backgroundColor={isSelected ? COLORS.primary : COLORS.secondary}
           textColor={isSelected ? COLORS.white : COLORS.textPrimary}
         />
+
         <View style={styles.workerInfo}>
           <Text size={15} weight="700" color={COLORS.textPrimary}>
             {worker.name}
           </Text>
+
           <Text size={13} color={COLORS.textTertiary}>
             {worker.role}
           </Text>
         </View>
+
         {isSelected && (
           <View style={styles.selectionBadge}>
             <Text size={14} weight="700" color={COLORS.white}>
@@ -281,7 +336,12 @@ function WorkerItem({ worker, isSelected, onPress }) {
  */
 function SectionStatus({ message, error = false }) {
   return (
-    <Text size={14} color={error ? COLORS.error : COLORS.textTertiary} align="center" style={styles.statusText}>
+    <Text
+      size={14}
+      color={error ? COLORS.error : COLORS.textTertiary}
+      align="center"
+      style={styles.statusText}
+    >
       {message}
     </Text>
   );

@@ -9,10 +9,19 @@
 
 import { obtenerColaboradoresLoginOffline } from '../../../database/local/offlineAuth.service';
 
-const roles = {
+import { localApi } from "../../../database/local/localApi.service";
+import { obtenerGrupoDatosSesion } from "../../../shared/utils/sessionUtils";
+
+/*
+//////////////////////////////////////////////////////////
+CONSTANTES
+//////////////////////////////////////////////////////////
+*/
+
+const ROLES_DISPLAY = {
     caprocam_collab: "Colaborador CAPROCAM",
     external_owner: "Propietario",
-    external_collab: "Colaborador Externo"
+    external_collab: "Colaborador Externo",
 };
 
 /**
@@ -24,12 +33,25 @@ const roles = {
  * @param {Object} colaborador - Fila de SQLite (id, nombre, apellidos, tipo_colaborador, etc.)
  * @returns {Object} { id, initials, name, role }
  */
-const mapColaborador = (colaborador) => ({
-    id: colaborador.id, // id LOCAL de SQLite (no servidor_id) — es lo que espera validarPinOffline
-    initials: `${colaborador.nombre.charAt(0)}${colaborador.apellidos.charAt(0)}`,
-    name: `${colaborador.nombre} ${colaborador.apellidos}`,
-    role: roles[colaborador.tipo_colaborador] ?? colaborador.tipo_colaborador
-});
+const mapColaborador = (colaborador) => {
+    const nombre = colaborador.nombre ?? "";
+    const apellidos = colaborador.apellidos ?? "";
+
+    const inicialNombre = nombre.charAt(0) || "";
+    const inicialApellido = apellidos.charAt(0) || "";
+
+    return {
+        id: colaborador.id,
+        initials: `${inicialNombre}${inicialApellido}`.toUpperCase(),
+        name: `${nombre} ${apellidos}`.trim(),
+        role: ROLES_DISPLAY[colaborador.tipo_colaborador] ?? colaborador.tipo_colaborador ?? "Colaborador"
+    };
+};
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES
+//////////////////////////////////////////////////////////
+*/
 
 /**
  * getWorkers()

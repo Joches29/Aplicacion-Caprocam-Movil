@@ -1,472 +1,588 @@
-/**
- * ============================================================
- * SERVICIO: mantEquipoService
- * ============================================================
- *
- * Conecta el módulo de Mantenimiento de Equipos con el backend
- * real mediante la API REST. Expone funciones para tickets,
- * tareas y productos de mantenimiento.
- *
- * @dependencies - api (axios con interceptor de tokens) de api/api.js
- *               - equiposService, tareasService, InventarioService
- *               - mantEquipoMensajes (constantes de mapeo de estados)
- * @validations  - Endpoints bajo /api/v0/:
- *                 GET|POST|PUT|DELETE /mantenimientos
- *                 GET|POST|PUT|DELETE /mantenimientos/:id/tareas
- *                 GET|POST|PUT|DELETE /mantenimientos/:id/productos
- * @navigation   - N/A (capa de servicio).
- */
+/*
+//////////////////////////////////////////////////////////
+CABEZA DE ARCHIVO
+//////////////////////////////////////////////////////////
+Archivo: mantEquipoService.js
+Autor: Rodolfo
+Fecha: 04/08/2026
+Modulo: Mantenimiento de Equipos
+Descripcion:
+Servicio CRUD para tickets de mantenimiento operando sobre
+SQLite local. Maneja 3 tablas relacionadas:
+  - mantenimiento_equipo (ticket principal)
+  - mantenimiento_equipo_tareas (junction ticket-tarea)
+  - mantenimiento_equipo_productos (junction ticket-producto)
+Marca todos los registros con pendiente_sync para sincronizacion
+futura con el backend cuando haya conexion a internet.
+//////////////////////////////////////////////////////////
+*/
 
-import api from "../../../api/api.js";
-import { equiposService } from "./equiposService.js";
-import { obtenerTareas } from "./tareasService.js";
-import { getProductosInventario } from "../../inventarios/services/InventarioService.js";
+/*
+//////////////////////////////////////////////////////////
+IMPORTS
+//////////////////////////////////////////////////////////
+*/
+
+import { localApi } from "../../../database/local/localApi.service";
+import { equiposService } from "./equiposService";
+import { obtenerTareas } from "./tareasService";
+import { obtenerCamposAuditoria, obtenerGrupoDatosSesion } from "../../../shared/utils/sessionUtils";
 import {
-  ESTADO_BACKEND_A_FRONTEND,
-  ESTADO_FRONTEND_A_BACKEND,
-  TIPO_PERSONAL_A_BACKEND,
-  TIPO_PERSONAL_A_FRONTEND,
-  LISTA_ESTADOS_EQUIPO,
-} from "../constants/mantEquipoMensajes.js";
+    ESTADO_BACKEND_A_FRONTEND,
+    ESTADO_FRONTEND_A_BACKEND,
+    TIPO_PERSONAL_A_BACKEND,
+    TIPO_PERSONAL_A_FRONTEND,
+    LISTA_ESTADOS_EQUIPO,
+} from "../constants/mantEquipoMensajes";
 
-// Re-exportar para compatibilidad
+// Re-exportar para compatibilidad con importaciones existentes
 export {
-  ESTADO_BACKEND_A_FRONTEND,
-  ESTADO_FRONTEND_A_BACKEND,
-  TIPO_PERSONAL_A_BACKEND,
-  TIPO_PERSONAL_A_FRONTEND,
-  LISTA_ESTADOS_EQUIPO,
-  LISTA_ESTADOS_EQUIPO as ESTADOS_EQUIPO,
+    ESTADO_BACKEND_A_FRONTEND,
+    ESTADO_FRONTEND_A_BACKEND,
+    TIPO_PERSONAL_A_BACKEND,
+    TIPO_PERSONAL_A_FRONTEND,
+    LISTA_ESTADOS_EQUIPO,
+    LISTA_ESTADOS_EQUIPO as ESTADOS_EQUIPO,
 };
 
-// ─── Adaptador: respuesta backend → objeto frontend ───────────────────────────
-function adaptBackendTicket(item) {
-  if (!item || !item.id) throw new Error('adaptBackendTicket: item inválido');
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES DE MAPEO — TICKET
+//////////////////////////////////////////////////////////
+*/
 
-  const estadoRaw    = item.estadoTicket || 'En espera';
-  const estadoFront  = ESTADO_BACKEND_A_FRONTEND[estadoRaw] || 'en_espera';
-  const equipoId     = item.equipoId ? String(item.equipoId) : null;
-  const tipoRaw      = item.tipoPersonal || 'TrabajadorInterno';
-  const tipoPersonal = TIPO_PERSONAL_A_FRONTEND[tipoRaw] || 'interno';
+/**
+ * Mapea un registro SQLite de mantenimiento_equipo al shape del frontend.
+ * @param {object} item - Registro SQLite de mantenimiento_equipo.
+ * @param {Array} tareas - Tareas vinculadas (de mantenimiento_equipo_tareas).
+ * @param {Array} productos - Productos vinculados (de mantenimiento_equipo_productos).
+ * @returns {object} Ticket en formato frontend.
+ */
+function mapTicketLocal(item, tareas = [], productos = []) {
+    if (!item || !item.id) {
+        throw new Error("mapTicketLocal: item invalido.");
+    }
 
-  // ID visual: número consecutivo del backend
-  const idVisual = String(item.id);
+    const estadoRaw = item.estado_ticket || "En espera";
+    const estadoFront = ESTADO_BACKEND_A_FRONTEND[estadoRaw] || "en_espera";
+    const tipoRaw = item.tipo_personal || "TrabajadorInterno";
+    const tipoPersonal = TIPO_PERSONAL_A_FRONTEND[tipoRaw] || "interno";
 
-  // Tareas vinculadas al ticket (tabla junction mantenimiento_equipo_tareas)
-  const tareas = Array.isArray(item.tareas) ? item.tareas.map(t => {
-    const nombreDefaut = t.nombre || t.label || t.tarea?.nombre || `Tarea ${t.tareaId || t.id}`;
     return {
-      id:               t.id,
-      tareaId:          t.tareaId || t.tarea_id,
-      value:            String(t.tareaId || t.tarea_id || t.id),
-      label:            nombreDefaut,
-      nombre:           nombreDefaut,
-      categoria:        t.categoria || t.tarea?.categoria || '',
-      duracionEstimada: Number(t.duracionEstimada || t.duracion_estimada || t.horas || t.tarea?.horas) || 0,
-      descripcion:      t.descripcion || t.tarea?.descripcion || '',
-      estado:           t.estadoTarea || t.estado_tarea || 'Pendiente',
-      realizada:        (t.estadoTarea || t.estado_tarea) === 'Realizado',
+        id: String(item.id),
+        dbId: item.id,
+        equipoId: item.equipo_id ? String(item.equipo_id) : null,
+        herramienta: item.equipo_id ? `Equipo ${item.equipo_id}` : "Equipo General",
+        titulo: item.titulo_ticket || "Mantenimiento",
+        descripcion: item.descripcion_ticket || "",
+        tareas: tareas,
+        productos: productos,
+        estado: estadoFront,
+        creadoPor: item.creado_por_colaborador_id
+            ? String(item.creado_por_colaborador_id)
+            : "Colaborador",
+        fechaCreacion: new Date(item.fecha_mantenimiento || item.fecha_creacion || Date.now()),
+        estadoEquipo: item.estado_equipo || "",
+        tipoPersonal,
+        costoManoObra: Number(item.costo_mano_obra) || 0,
+        costoProductos: Number(item.costo_productos) || 0,
+        costoTotalEstimado: Number(item.costo_total_estimado) || 0,
+        costoTotal: Number(item.costo_total_estimado) || 0,
+        // Campos sync
+        sincronizado: Boolean(item.sincronizado),
+        pendienteSync: Boolean(item.pendiente_sync),
+        uuid: item.uuid,
     };
-  }) : [];
-
-  // Productos vinculados al ticket (tabla junction mantenimiento_equipo_productos)
-  const productos = Array.isArray(item.productos) ? item.productos.map(p => ({
-    id:          p.id,
-    productoId:  p.productoId || p.producto_id,
-    cantidad:    Number(p.cantidad) || 1,
-    costoUnitario: Number(p.costoUnitario || p.costo_unitario) || 0,
-    subtotal:    Number(p.subtotal) || 0,
-    nombre:      p.nombre || p.producto?.nombre || `Producto ${p.productoId || p.id}`,
-  })) : [];
-
-  return {
-    id:                 idVisual,
-    dbId:               item.id,
-    equipoId,
-    herramienta:        equipoId ? `Equipo ${equipoId}` : 'Equipo General',
-    titulo:             item.tituloTicket      || 'Mantenimiento',
-    descripcion:        item.descripcionTicket || '',
-    tareas,
-    productos,
-    estado:             estadoFront,
-    creadoPor:          item.nombreCreador || (item.creadoPorUsuarioId ? String(item.creadoPorUsuarioId) : 'Usuario'),
-    fechaCreacion:      new Date(item.fechaMantenimiento || item.fechaCreacion || Date.now()),
-    estadoEquipo:       item.estadoEquipo || '',
-    tipoPersonal,
-    costoManoObra:      Number(item.costoManoObra)      || 0,
-    costoProductos:     Number(item.costoProductos)     || 0,
-    costoTotalEstimado: Number(item.costoTotalEstimado) || 0,
-    costoTotal:         Number(item.costoTotalEstimado) || 0,
-  };
 }
 
-// ─── OBTENER todos los tickets ─────────────────────────────────────────────────
-export async function obtenerTickets() {
-  const response = await api.get('/mantenimientos');
-  const data = response.data?.data || response.data;
-
-  if (!Array.isArray(data)) {
-    throw new Error('obtenerTickets: la respuesta del servidor no es un arreglo');
-  }
-
-  // Resolver nombres de usuarios únicos en paralelo
-  const idsUnicos = [...new Set(
-    data.map(t => t.creado_por_usuario_id || t.creadoPorUsuarioId).filter(Boolean)
-  )];
-  const mapaUsuarios = {};
-  await Promise.allSettled(
-    idsUnicos.map(async (uid) => {
-      try {
-        const res = await api.get(`/login/${uid}`);
-        const u = res.data?.data || res.data;
-        mapaUsuarios[String(uid)] = u?.nombre || u?.nombreUsuario || u?.email || String(uid);
-      } catch (_) {
-        mapaUsuarios[String(uid)] = String(uid);
-      }
-    })
-  );
-
-  return data.map(item => adaptBackendTicket({
-    ...item,
-    nombreCreador: mapaUsuarios[String(item.creado_por_usuario_id || item.creadoPorUsuarioId)] || null,
-  }));
-}
-
-
-// ─── OBTENER un ticket por ID con sus tareas y productos ──────────────────────
-export async function obtenerTicketPorId(id) {
-  const numericId = String(id).replace(/\D/g, '');
-
-  if (!numericId) {
-    throw new Error(`obtenerTicketPorId: ID inválido recibido: "${id}"`);
-  }
-
-  try {
-    const [resTicket, resTareas, resProductos, resCatTareas, resCatProductos] = await Promise.allSettled([
-      api.get(`/mantenimientos/${numericId}`),
-      api.get(`/mantenimientos/${numericId}/tareas`),
-      api.get(`/mantenimientos/${numericId}/productos`),
-      obtenerTareas(),
-      getProductosInventario(),
-    ]);
-
-    if (resTicket.status === 'rejected') {
-      throw resTicket.reason;
-    }
-
-    const item = resTicket.value.data?.data || resTicket.value.data;
-
-    // Catálogo de tareas para resolver nombres
-    const catTareas = resCatTareas.status === 'fulfilled'
-      ? (Array.isArray(resCatTareas.value) ? resCatTareas.value : [])
-      : [];
-
-    // Catálogo de productos para resolver nombres
-    const rawProd = resCatProductos.status === 'fulfilled' ? resCatProductos.value : [];
-    const catProductos = Array.isArray(rawProd) ? rawProd : (Array.isArray(rawProd?.data) ? rawProd.data : []);
-
-    // Tareas del ticket enriquecidas con todos los campos del catálogo
-    const tareasVal = resTareas.status === 'fulfilled' ? resTareas.value.data : null;
-    const tareasRaw = Array.isArray(tareasVal?.data) ? tareasVal.data : (Array.isArray(tareasVal) ? tareasVal : []);
-    const tareas = tareasRaw.map(t => {
-      const tareaId = String(t.tareaId || t.tarea_id || t.id || '');
-      const c = catTareas.find(x =>
-        String(x.id) === tareaId ||
-        String(x.tareaId) === tareaId ||
-        String(x.value) === tareaId
-      );
-      return {
-        ...t,
-        tareaId,
-        nombre:           t.nombre || c?.nombre || c?.label || `Tarea ${tareaId}`,
-        label:            t.label  || t.nombre  || c?.nombre || c?.label || `Tarea ${tareaId}`,
-        categoria:        t.categoria        || c?.categoria || '',
-        descripcion:      t.descripcion      || c?.descripcion || '',
-        duracionEstimada: t.duracionEstimada || c?.duracionEstimada || Number(c?.horas) || 0,
-      };
-    });
-
-    // Productos del ticket enriquecidos con nombre del catálogo
-    const productosVal = resProductos.status === 'fulfilled' ? resProductos.value.data : null;
-    const productosRaw = Array.isArray(productosVal?.data) ? productosVal.data : (Array.isArray(productosVal) ? productosVal : []);
-    const productos = productosRaw.map(p => {
-      const prodId = String(p.productoId || p.producto_id || p.id || '');
-      const enCatalogo = catProductos.find(c =>
-        String(c.productoId || c.producto_id || c.id) === prodId ||
-        String(c.id) === prodId
-      );
-      return {
-        ...p,
-        nombre: p.nombre || enCatalogo?.nombre || enCatalogo?.nombreProducto || `Producto ${prodId}`,
-      };
-    });
-
-    // Nombre del usuario creador
-    let nombreCreador = null;
-    if (item.creadoPorUsuarioId) {
-      try {
-        const resUsuario = await api.get(`/login/${item.creadoPorUsuarioId}`);
-        const uData = resUsuario.data?.data || resUsuario.data;
-        nombreCreador = uData?.nombre || uData?.nombreUsuario || uData?.email || null;
-      } catch (_) {
-        // Si no se puede obtener el nombre, se mostrará el ID
-      }
-    }
-
-    return adaptBackendTicket({ ...item, tareas, productos, nombreCreador });
-  } catch (errorDirecto) {
-    // Si GET /:id falla, intentar buscar en el listado completo
-    const todos = await obtenerTickets();
-    const encontrado = todos.find(
-      t => t.id === id || String(t.dbId) === numericId
+/**
+ * Mapea una tarea vinculada (mantenimiento_equipo_tareas) al shape del frontend.
+ * @param {object} t - Registro de junction.
+ * @param {Array} catalogoTareas - Catalogo de tareas para enriquecer datos.
+ * @returns {object} Tarea vinculada mapeada.
+ */
+function mapTareaVinculada(t, catalogoTareas = []) {
+    const tareaId = String(t.tarea_id || t.tareaId || "");
+    const catalogo = catalogoTareas.find(
+        (x) => String(x.id) === tareaId || String(x.value) === tareaId
     );
-    if (!encontrado) {
-      throw new Error(`obtenerTicketPorId: ticket con ID "${id}" no encontrado`);
+
+    const nombre = t.nombre || catalogo?.nombre || catalogo?.label || `Tarea ${tareaId}`;
+
+    return {
+        id: t.id,
+        tareaId,
+        value: tareaId,
+        label: nombre,
+        nombre,
+        categoria: t.categoria || catalogo?.categoria || "",
+        duracionEstimada: Number(t.duracion_estimada || catalogo?.duracionEstimada || 0),
+        descripcion: t.descripcion || catalogo?.descripcion || "",
+        estado: t.estado_tarea || "Pendiente",
+        realizada: (t.estado_tarea) === "Realizado",
+    };
+}
+
+/**
+ * Mapea un producto vinculado (mantenimiento_equipo_productos) al shape del frontend.
+ * @param {object} p - Registro de junction.
+ * @returns {object} Producto vinculado mapeado.
+ */
+function mapProductoVinculado(p) {
+    return {
+        id: p.id,
+        productoId: p.producto_id ? String(p.producto_id) : null,
+        cantidad: Number(p.cantidad) || 1,
+        costoUnitario: Number(p.costo_unitario) || 0,
+        subtotal: Number(p.subtotal) || 0,
+        nombre: p.nombre || `Producto ${p.producto_id || p.id}`,
+    };
+}
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES DE CONSTRUCCION DE PAYLOAD
+//////////////////////////////////////////////////////////
+*/
+
+/**
+ * Construye el payload para insertar/actualizar en mantenimiento_equipo.
+ * @param {object} ticket - Ticket del formulario frontend.
+ * @param {object} auditoria - Campos de auditoria (grupo_datos, colaborador_id).
+ * @returns {object} Payload para SQLite.
+ */
+function buildPayloadLocal(ticket, auditoria) {
+    if (!ticket.equipoId) {
+        throw new Error("buildPayloadLocal: equipoId es obligatorio.");
     }
-    return encontrado;
-  }
+    if (!ticket.titulo) {
+        throw new Error("buildPayloadLocal: titulo es obligatorio.");
+    }
+
+    const estadoBackend = ESTADO_FRONTEND_A_BACKEND[ticket.estado] || "En espera";
+    const tipoPersonalBackend = TIPO_PERSONAL_A_BACKEND[ticket.tipoPersonal] || "TrabajadorInterno";
+
+    const fechaISO =
+        ticket.fechaCreacion instanceof Date
+            ? ticket.fechaCreacion.toISOString().slice(0, 19).replace("T", " ")
+            : new Date().toISOString().slice(0, 19).replace("T", " ");
+
+    const codigoTicket = (
+        ticket.codigoTicket || ticket.codigo || `MT-${String(Date.now()).slice(-6)}`
+    ).slice(0, 10);
+
+    const costoProductos = Number(ticket.costoProductos || ticket.costoTotal) || 0;
+    const costoManoObra = Number(ticket.costoManoObra) || 0;
+
+    return {
+        ...auditoria,
+        codigo_ticket: codigoTicket,
+        fecha_mantenimiento: fechaISO,
+        titulo_ticket: ticket.titulo,
+        descripcion_ticket: ticket.descripcion || "",
+        equipo_id: Number(ticket.equipoId),
+        estado_ticket: estadoBackend,
+        estado_equipo: ticket.estadoEquipo || "Mantenimiento",
+        tipo_personal: tipoPersonalBackend,
+        costo_mano_obra: costoManoObra,
+        costo_productos: costoProductos,
+        costo_total_estimado: costoManoObra + costoProductos,
+    };
 }
 
-// ─── Actualizar estado operativo del equipo ───────────────────────────────────
-export async function actualizarEstadoEquipo(equipoId, nuevoEstado) {
-  if (!equipoId || !nuevoEstado) return;
-  try {
-    // Obtener el equipo completo para hacer un PUT con todos los campos
-    const equipo = await equiposService.getEquipoById(equipoId);
-    if (!equipo) return;
-    // updateEquipo mapea data.estado → estadoOperativo en el backend
-    await equiposService.updateEquipo(equipoId, { ...equipo, estado: nuevoEstado });
-  } catch (err) {
-    console.warn('actualizarEstadoEquipo:', err?.message || err);
-  }
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES DE JUNCTION — TAREAS
+//////////////////////////////////////////////////////////
+*/
+
+/**
+ * Crea los registros de junction mantenimiento_equipo_tareas.
+ * @param {number} mantenimientoId - ID local del ticket.
+ * @param {Array} tareas - Tareas del formulario.
+ * @param {object} auditoria - Campos de auditoria.
+ */
+async function crearTareasVinculadas(mantenimientoId, tareas, auditoria) {
+    if (!Array.isArray(tareas) || tareas.length === 0) return;
+
+    for (const t of tareas) {
+        const tareaId = t.tareaId || t.value || t.id;
+        if (!tareaId) continue;
+
+        await localApi.mantenimientoEquipoTareas.crear({
+            ...auditoria,
+            mantenimiento_equipo_id: mantenimientoId,
+            tarea_id: Number(tareaId),
+            estado_tarea: t.realizada ? "Realizado" : "Pendiente",
+        });
+    }
 }
 
-// ─── Reiniciar estado operativo del equipo a Activo ──────────────────────────
-export function reiniciarHorasEquipo(equipoId) {
-  if (!equipoId) return;
-  equiposService.updateEquipo(equipoId, { estadoOperativo: 'Activo' })
-    .catch(err => console.warn('reiniciarHorasEquipo:', err?.message || err));
-}
+/**
+ * Sincroniza (diff) las tareas vinculadas a un ticket existente.
+ * Inserta las nuevas, actualiza las que cambiaron y elimina las que salieron.
+ * @param {number} mantenimientoId - ID local del ticket.
+ * @param {Array} tareasNuevas - Tareas actuales del formulario.
+ * @param {object} auditoria - Campos de auditoria.
+ */
+async function sincronizarTareasLocal(mantenimientoId, tareasNuevas, auditoria) {
+    const respExistentes = await localApi.mantenimientoEquipoTareas.obtenerTodos({
+        mantenimiento_equipo_id: mantenimientoId,
+        incluirInactivos: true,
+    });
 
-// ─── Construir payload para POST / PUT ────────────────────────────────────────
-function buildPayload(ticket) {
-  if (!ticket.equipoId) throw new Error('buildPayload: equipoId es obligatorio');
-  if (!ticket.titulo)   throw new Error('buildPayload: titulo es obligatorio');
-
-  const estadoBackend       = ESTADO_FRONTEND_A_BACKEND[ticket.estado]     || 'En espera';
-  const tipoPersonalBackend = TIPO_PERSONAL_A_BACKEND[ticket.tipoPersonal] || 'TrabajadorInterno';
-
-  const fechaISO = ticket.fechaCreacion instanceof Date
-    ? ticket.fechaCreacion.toISOString().slice(0, 19).replace('T', ' ')
-    : new Date().toISOString().slice(0, 19).replace('T', ' ');
-
-  const codigoTicket = (ticket.codigoTicket || ticket.codigo || `MT-${String(Date.now()).slice(-6)}`).slice(0, 10);
-
-  return {
-    codigoTicket,
-    fechaMantenimiento: fechaISO,
-    tituloTicket:       ticket.titulo,
-    descripcionTicket:  ticket.descripcion,
-    equipoId:           Number(ticket.equipoId),
-    estadoTicket:       estadoBackend,
-    tipoPersonal:       tipoPersonalBackend,
-    costoManoObra:      Number(ticket.costoManoObra)  || 0,
-    costoProductos:     Number(ticket.costoProductos  || ticket.costoTotal) || 0,
-    costoTotalEstimado: Number(ticket.costoTotal)      || 0,
-  };
-}
-
-// ─── Vincular tareas al ticket (tabla junction) ───────────────────────────────
-async function vincularTareas(mantenimientoEquipoId, tareas) {
-  if (!Array.isArray(tareas) || tareas.length === 0) return;
-
-  const calls = tareas.map(t => {
-    const tareaId = t.tareaId || t.value || t.id;
-    if (!tareaId) return null;
-    return api.post('/mantenimientos/tareas', {
-      mantenimientoEquipoId,
-      tareaId: Number(tareaId),
-      estadoTarea: t.realizada ? 'Realizado' : 'Pendiente',
-    }).catch(err => console.warn(`vincularTareas: no se pudo vincular tarea ${tareaId}:`, err?.message));
-  }).filter(Boolean);
-
-  await Promise.allSettled(calls);
-}
-
-// ─── Vincular productos al ticket (tabla junction) ────────────────────────────
-async function vincularProductos(mantenimientoEquipoId, productos) {
-  if (!Array.isArray(productos) || productos.length === 0) return;
-
-  const calls = productos.map(p => {
-    const productoId = p.productoId || p.id;
-    if (!productoId) return null;
-    const cantidad     = Number(p.cantidad) || 1;
-    const costoUnitario = Number(p.precioUnidad || p.precio || p.costoUnitario) || 0;
-    const subtotal     = cantidad * costoUnitario;
-
-    return api.post('/mantenimientos/productos', {
-      mantenimientoEquipoId,
-      productoId: Number(productoId),
-      cantidad,
-      costoUnitario,
-      subtotal,
-    }).catch(err => console.warn(`vincularProductos: no se pudo vincular producto ${productoId}:`, err?.message));
-  }).filter(Boolean);
-
-  await Promise.allSettled(calls);
-}
-
-// ─── CREAR ticket ──────────────────────────────────────────────────────────────
-export async function agregarTicket(ticket) {
-  const payload = buildPayload(ticket);
-  const res = await api.post('/mantenimientos', payload);
-  const backendData = res.data?.data || res.data;
-  const nuevoTicket = adaptBackendTicket(backendData);
-
-  // Vincular tareas y productos en paralelo después de crear el ticket
-  await Promise.allSettled([
-    vincularTareas(nuevoTicket.dbId, ticket.tareas),
-    vincularProductos(nuevoTicket.dbId, ticket.productos || []),
-  ]);
-
-  return nuevoTicket;
-}
-
-// ─── Sincronizar tareas al actualizar ticket (diff inteligente) ───────────────
-async function sincronizarTareas(mantenimientoEquipoId, tareasNuevas) {
-  try {
-    const res = await api.get(`/mantenimientos/${mantenimientoEquipoId}/tareas`);
-    const raw = res.data?.data ?? res.data;
-    const existentes = Array.isArray(raw) ? raw : [];
-
+    const existentes = respExistentes.success ? (respExistentes.data || []) : [];
     const safeTareasNuevas = Array.isArray(tareasNuevas) ? tareasNuevas : [];
-    const procesadosExistentesIds = new Set();
+    const procesadosIds = new Set();
 
     for (const t of safeTareasNuevas) {
-      const tareaId = t.tareaId || t.value || t.id;
-      if (!tareaId) continue;
+        const tareaId = t.tareaId || t.value || t.id;
+        if (!tareaId) continue;
 
-      const estadoNuevo = t.realizada ? 'Realizado' : 'Pendiente';
-      const existente = existentes.find(x => String(x.tareaId || x.tarea_id) === String(tareaId));
+        const estadoNuevo = t.realizada ? "Realizado" : "Pendiente";
+        const existente = existentes.find(
+            (x) => String(x.tarea_id) === String(tareaId) && x.activo === 1
+        );
 
-      if (existente) {
-        procesadosExistentesIds.add(existente.id);
-        const estadoActual = existente.estadoTarea || existente.estado_tarea;
-        if (estadoActual !== estadoNuevo) {
-          await api.put(`/mantenimientos/tareas/${existente.id}`, { estadoTarea: estadoNuevo })
-            .catch(err => console.warn(`sincronizarTareas PUT failed for ${existente.id}:`, err?.message));
+        if (existente) {
+            procesadosIds.add(existente.id);
+            if (existente.estado_tarea !== estadoNuevo) {
+                await localApi.mantenimientoEquipoTareas.actualizar(existente.id, {
+                    estado_tarea: estadoNuevo,
+                });
+            }
+        } else {
+            await localApi.mantenimientoEquipoTareas.crear({
+                ...auditoria,
+                mantenimiento_equipo_id: mantenimientoId,
+                tarea_id: Number(tareaId),
+                estado_tarea: estadoNuevo,
+            });
         }
-      } else {
-        await api.post('/mantenimientos/tareas', {
-          mantenimientoEquipoId,
-          tareaId: Number(tareaId),
-          estadoTarea: estadoNuevo,
-        }).catch(err => console.warn(`sincronizarTareas POST failed for tarea ${tareaId}:`, err?.message));
-      }
     }
 
+    // Eliminar (soft delete) tareas que ya no están
     for (const ex of existentes) {
-      if (!procesadosExistentesIds.has(ex.id)) {
-        await api.delete(`/mantenimientos/tareas/${ex.id}`)
-          .catch(err => console.warn(`sincronizarTareas DELETE failed for ${ex.id}:`, err?.message));
-      }
+        if (ex.activo === 1 && !procesadosIds.has(ex.id)) {
+            await localApi.mantenimientoEquipoTareas.eliminar(ex.id);
+        }
     }
-  } catch (e) {
-    console.warn('sincronizarTareas falló:', e?.message || e);
-  }
 }
 
-// ─── Sincronizar productos al actualizar ticket (diff inteligente) ────────────
-async function sincronizarProductos(mantenimientoEquipoId, productosNuevos) {
-  try {
-    const res = await api.get(`/mantenimientos/${mantenimientoEquipoId}/productos`);
-    const raw = res.data?.data ?? res.data;
-    const existentes = Array.isArray(raw) ? raw : [];
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES DE JUNCTION — PRODUCTOS
+//////////////////////////////////////////////////////////
+*/
 
+/**
+ * Crea los registros de junction mantenimiento_equipo_productos.
+ * @param {number} mantenimientoId - ID local del ticket.
+ * @param {Array} productos - Productos del formulario.
+ * @param {object} auditoria - Campos de auditoria.
+ */
+async function crearProductosVinculados(mantenimientoId, productos, auditoria) {
+    if (!Array.isArray(productos) || productos.length === 0) return;
+
+    for (const p of productos) {
+        const productoId = p.productoId || p.id;
+        if (!productoId) continue;
+
+        const cantidad = Number(p.cantidad) || 1;
+        const costoUnitario = Number(p.precioUnidad || p.precio || p.costoUnitario) || 0;
+        const subtotal = cantidad * costoUnitario;
+
+        await localApi.mantenimientoEquipoProductos.crear({
+            ...auditoria,
+            mantenimiento_equipo_id: mantenimientoId,
+            producto_id: Number(productoId),
+            cantidad,
+            costo_unitario: costoUnitario,
+            subtotal,
+        });
+    }
+}
+
+/**
+ * Sincroniza (diff) los productos vinculados a un ticket existente.
+ * @param {number} mantenimientoId - ID local del ticket.
+ * @param {Array} productosNuevos - Productos actuales del formulario.
+ * @param {object} auditoria - Campos de auditoria.
+ */
+async function sincronizarProductosLocal(mantenimientoId, productosNuevos, auditoria) {
+    const respExistentes = await localApi.mantenimientoEquipoProductos.obtenerTodos({
+        mantenimiento_equipo_id: mantenimientoId,
+        incluirInactivos: true,
+    });
+
+    const existentes = respExistentes.success ? (respExistentes.data || []) : [];
     const safeProductosNuevos = Array.isArray(productosNuevos) ? productosNuevos : [];
-    const procesadosExistentesIds = new Set();
+    const procesadosIds = new Set();
 
     for (const p of safeProductosNuevos) {
-      const productoId = p.productoId || p.id;
-      if (!productoId) continue;
+        const productoId = p.productoId || p.id;
+        if (!productoId) continue;
 
-      const cantidad = Number(p.cantidad) || 1;
-      const costoUnitario = Number(p.precioUnidad || p.precio || p.costoUnitario) || 0;
-      const subtotal = cantidad * costoUnitario;
+        const cantidad = Number(p.cantidad) || 1;
+        const costoUnitario = Number(p.precioUnidad || p.precio || p.costoUnitario) || 0;
+        const subtotal = cantidad * costoUnitario;
 
-      const existente = existentes.find(x => String(x.productoId || x.producto_id) === String(productoId));
+        const existente = existentes.find(
+            (x) => String(x.producto_id) === String(productoId) && x.activo === 1
+        );
 
-      if (existente) {
-        procesadosExistentesIds.add(existente.id);
-        const cantActual = Number(existente.cantidad);
-        const costoActual = Number(existente.costoUnitario || existente.costo_unitario);
-        if (cantActual !== cantidad || costoActual !== costoUnitario) {
-          await api.put(`/mantenimientos/productos/${existente.id}`, {
-            cantidad,
-            costoUnitario,
-            subtotal,
-          }).catch(err => console.warn(`sincronizarProductos PUT failed for ${existente.id}:`, err?.message));
+        if (existente) {
+            procesadosIds.add(existente.id);
+            const cantActual = Number(existente.cantidad);
+            const costoActual = Number(existente.costo_unitario);
+            if (cantActual !== cantidad || costoActual !== costoUnitario) {
+                await localApi.mantenimientoEquipoProductos.actualizar(existente.id, {
+                    cantidad,
+                    costo_unitario: costoUnitario,
+                    subtotal,
+                });
+            }
+        } else {
+            await localApi.mantenimientoEquipoProductos.crear({
+                ...auditoria,
+                mantenimiento_equipo_id: mantenimientoId,
+                producto_id: Number(productoId),
+                cantidad,
+                costo_unitario: costoUnitario,
+                subtotal,
+            });
         }
-      } else {
-        await api.post('/mantenimientos/productos', {
-          mantenimientoEquipoId,
-          productoId: Number(productoId),
-          cantidad,
-          costoUnitario,
-          subtotal,
-        }).catch(err => console.warn(`sincronizarProductos POST failed for producto ${productoId}:`, err?.message));
-      }
     }
 
+    // Eliminar (soft delete) productos que ya no están
     for (const ex of existentes) {
-      if (!procesadosExistentesIds.has(ex.id)) {
-        await api.delete(`/mantenimientos/productos/${ex.id}`)
-          .catch(err => console.warn(`sincronizarProductos DELETE failed for ${ex.id}:`, err?.message));
-      }
+        if (ex.activo === 1 && !procesadosIds.has(ex.id)) {
+            await localApi.mantenimientoEquipoProductos.eliminar(ex.id);
+        }
     }
-  } catch (e) {
-    console.warn('sincronizarProductos falló:', e?.message || e);
-  }
 }
 
-// ─── ACTUALIZAR ticket ─────────────────────────────────────────────────────────
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES — TICKETS
+//////////////////////////////////////////////////////////
+*/
+
+/**
+ * Obtiene todos los tickets de mantenimiento desde SQLite.
+ * Enriquece cada ticket con sus tareas y productos vinculados.
+ * @returns {Promise<Array>} Lista de tickets mapeados.
+ */
+export async function obtenerTickets() {
+    const respTickets = await localApi.mantenimientoEquipo.obtenerTodos();
+
+    if (!respTickets.success) {
+        throw new Error(respTickets.message || "Error al obtener tickets.");
+    }
+
+    const tickets = respTickets.data || [];
+    const result = [];
+
+    for (const item of tickets) {
+        const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
+            mantenimiento_equipo_id: item.id,
+        });
+        const respProductos = await localApi.mantenimientoEquipoProductos.obtenerTodos({
+            mantenimiento_equipo_id: item.id,
+        });
+
+        const tareasMapeadas = (respTareas.data || []).map((t) => mapTareaVinculada(t));
+        const productosMapeados = (respProductos.data || []).map(mapProductoVinculado);
+
+        result.push(mapTicketLocal(item, tareasMapeadas, productosMapeados));
+    }
+
+    return result;
+}
+
+/**
+ * Obtiene un ticket por su ID local con tareas y productos enriquecidos.
+ * @param {number|string} id - ID local del ticket.
+ * @returns {Promise<object>} Ticket mapeado con tareas y productos.
+ */
+export async function obtenerTicketPorId(id) {
+    const numericId = Number(String(id).replace(/\D/g, ""));
+
+    if (!numericId) {
+        throw new Error(`obtenerTicketPorId: ID invalido: "${id}"`);
+    }
+
+    const respTicket = await localApi.mantenimientoEquipo.obtenerPorId(numericId);
+
+    if (!respTicket.success || !respTicket.data) {
+        throw new Error(`Ticket con ID "${id}" no encontrado.`);
+    }
+
+    const item = respTicket.data;
+
+    // Obtener catalogo de tareas para enriquecer nombres
+    let catalogoTareas = [];
+    try {
+        catalogoTareas = await obtenerTareas();
+    } catch {
+        catalogoTareas = [];
+    }
+
+    const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
+        mantenimiento_equipo_id: numericId,
+    });
+    const respProductos = await localApi.mantenimientoEquipoProductos.obtenerTodos({
+        mantenimiento_equipo_id: numericId,
+    });
+
+    const tareasMapeadas = (respTareas.data || []).map((t) =>
+        mapTareaVinculada(t, catalogoTareas)
+    );
+    const productosMapeados = (respProductos.data || []).map(mapProductoVinculado);
+
+    return mapTicketLocal(item, tareasMapeadas, productosMapeados);
+}
+
+/**
+ * Actualiza el estado operativo del equipo asociado a un ticket.
+ * @param {string|number} equipoId - ID local del equipo.
+ * @param {string} nuevoEstado - Estado frontend (activo/inactivo/mantenimiento).
+ */
+export async function actualizarEstadoEquipo(equipoId, nuevoEstado) {
+    if (!equipoId || !nuevoEstado) return;
+    try {
+        const equipo = await equiposService.getEquipoById(equipoId);
+        if (!equipo) return;
+        await equiposService.updateEquipo(equipoId, { ...equipo, estado: nuevoEstado });
+    } catch (err) {
+        console.warn("actualizarEstadoEquipo:", err?.message || err);
+    }
+}
+
+/**
+ * Reinicia el estado operativo del equipo a Activo.
+ * @param {string|number} equipoId - ID local del equipo.
+ */
+export function reiniciarHorasEquipo(equipoId) {
+    if (!equipoId) return;
+    equiposService
+        .updateEquipo(equipoId, { estadoOperativo: "Activo" })
+        .catch((err) => console.warn("reiniciarHorasEquipo:", err?.message || err));
+}
+
+/**
+ * Crea un nuevo ticket de mantenimiento en SQLite local.
+ * Inserta en mantenimiento_equipo, luego vincula tareas y productos.
+ * @param {object} ticket - Datos del formulario de ticket.
+ * @returns {Promise<object>} Ticket creado mapeado.
+ */
+export async function agregarTicket(ticket) {
+    const auditoria = await obtenerCamposAuditoria();
+    const payload = buildPayloadLocal(ticket, auditoria);
+
+    const respTicket = await localApi.mantenimientoEquipo.crear(payload);
+
+    if (!respTicket.success) {
+        const msg = respTicket.error ? `${respTicket.message} (${respTicket.error})` : respTicket.message;
+        throw new Error(msg || "Error al crear el ticket.");
+    }
+
+    const nuevoId = respTicket.data.id;
+
+    // Vincular tareas y productos en secuencia
+    await crearTareasVinculadas(nuevoId, ticket.tareas || [], auditoria);
+    await crearProductosVinculados(nuevoId, ticket.productos || [], auditoria);
+
+    return await obtenerTicketPorId(nuevoId);
+}
+
+/**
+ * Actualiza un ticket existente en SQLite local.
+ * Realiza diff inteligente de tareas y productos vinculados.
+ * @param {object} ticket - Datos actualizados del ticket.
+ * @returns {Promise<object>} Ticket actualizado mapeado.
+ */
 export async function actualizarTicket(ticket) {
-  const targetId = ticket.dbId || String(ticket.id).replace(/\D/g, '');
-  if (!targetId) throw new Error('actualizarTicket: no se puede determinar el ID del ticket');
+    const targetId = Number(ticket.dbId || String(ticket.id).replace(/\D/g, ""));
 
-  const payload = buildPayload(ticket);
-  await api.put(`/mantenimientos/${targetId}`, payload);
+    if (!targetId) {
+        throw new Error("actualizarTicket: no se puede determinar el ID del ticket.");
+    }
 
-  // Sincronización inteligente por diffing de tareas y productos
-  await Promise.allSettled([
-    sincronizarTareas(Number(targetId), ticket.tareas),
-    sincronizarProductos(Number(targetId), ticket.productos),
-  ]);
+    const auditoria = await obtenerCamposAuditoria();
+    const payload = buildPayloadLocal(ticket, auditoria);
 
-  // Re-obtener el ticket actualizado para asegurar sincronización con la BD
-  return await obtenerTicketPorId(targetId);
+    const respUpdate = await localApi.mantenimientoEquipo.actualizar(targetId, payload);
+
+    if (!respUpdate.success) {
+        const msg = respUpdate.error ? `${respUpdate.message} (${respUpdate.error})` : respUpdate.message;
+        throw new Error(msg || "Error al actualizar el ticket.");
+    }
+
+    // Diff inteligente de tareas y productos
+    await sincronizarTareasLocal(targetId, ticket.tareas, auditoria);
+    await sincronizarProductosLocal(targetId, ticket.productos, auditoria);
+
+    return await obtenerTicketPorId(targetId);
 }
 
-// ─── ELIMINAR ticket ───────────────────────────────────────────────────────────
+/**
+ * Elimina logicamente un ticket en SQLite local (soft delete).
+ * @param {number|string} id - ID local del ticket.
+ */
 export async function eliminarTicket(id) {
-  const targetId = String(id).replace(/\D/g, '');
-  if (!targetId) throw new Error('eliminarTicket: ID inválido');
-  await api.delete(`/mantenimientos/${targetId}`);
+    const targetId = Number(String(id).replace(/\D/g, ""));
+
+    if (!targetId) {
+        throw new Error("eliminarTicket: ID invalido.");
+    }
+
+    const respuesta = await localApi.mantenimientoEquipo.eliminar(targetId);
+
+    if (!respuesta.success) {
+        throw new Error(respuesta.message || "Error al eliminar el ticket.");
+    }
 }
 
-// ─── Actualizar estado de una tarea en el ticket ──────────────────────────────
+/**
+ * Actualiza el estado de una tarea vinculada en el ticket.
+ * @param {number} vinculoId - ID local del registro de junction.
+ * @param {string} estadoTarea - "Pendiente" | "Realizado".
+ * @returns {Promise<object>} Registro actualizado.
+ */
 export async function actualizarEstadoTareaEnTicket(vinculoId, estadoTarea) {
-  // estadoTarea: 'Pendiente' | 'Realizado'
-  const res = await api.put(`/mantenimientos/tareas/${vinculoId}`, { estadoTarea });
-  return res.data?.data || res.data;
+    const respuesta = await localApi.mantenimientoEquipoTareas.actualizar(
+        Number(vinculoId),
+        { estado_tarea: estadoTarea }
+    );
+
+    if (!respuesta.success) {
+        throw new Error(respuesta.message || "Error al actualizar estado de tarea.");
+    }
+
+    return respuesta.data;
 }
 
-// ─── Eliminar una tarea del ticket ────────────────────────────────────────────
+/**
+ * Elimina logicamente una tarea del ticket.
+ * @param {number} vinculoId - ID local del registro de junction.
+ */
 export async function eliminarTareaDelTicket(vinculoId) {
-  await api.delete(`/mantenimientos/tareas/${vinculoId}`);
+    const respuesta = await localApi.mantenimientoEquipoTareas.eliminar(Number(vinculoId));
+
+    if (!respuesta.success) {
+        throw new Error(respuesta.message || "Error al eliminar tarea del ticket.");
+    }
 }
 
-// ─── Eliminar un producto del ticket ─────────────────────────────────────────
+/**
+ * Elimina logicamente un producto del ticket.
+ * @param {number} vinculoId - ID local del registro de junction.
+ */
 export async function eliminarProductoDelTicket(vinculoId) {
-  await api.delete(`/mantenimientos/productos/${vinculoId}`);
+    const respuesta = await localApi.mantenimientoEquipoProductos.eliminar(Number(vinculoId));
+
+    if (!respuesta.success) {
+        throw new Error(respuesta.message || "Error al eliminar producto del ticket.");
+    }
 }
