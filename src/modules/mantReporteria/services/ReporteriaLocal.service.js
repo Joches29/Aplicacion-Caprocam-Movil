@@ -9,6 +9,10 @@
  */
 
 import { localApi } from "../../../database/local/localApi.service";
+import {
+  getLecturasLocal,
+  eliminarLecturaLocal,
+} from "../../mantAgua/services/FisicoQuimicaLocalService";
 
 /*
 ============================================================
@@ -23,7 +27,6 @@ const SECCION_POR_TIPO = {
   raleo: "raleos",
   alimentacion: "alimentaciones",
   densidad_poblacional: "densidadPoblacional",
-  fisico_quimico: "fisicoQuimico",
 };
 
 /*
@@ -188,6 +191,29 @@ OPERACIONES LOCALES
  * Orden: más recientes primero.
  */
 export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId }) {
+  // Caso especial: fisico_quimico no vive en localApi[seccion] genérico,
+  // porque sus mediciones estan en una tabla de detalle aparte que hay
+  // que unir y agrupar por lectura (igual que web usa getLecturas() en
+  // vez del flujo generico con los demas tipos).
+  if (tipoRegistro === "fisico_quimico") {
+    try {
+      const registrosFq = await getLecturasLocal();
+      const normalizadosFq = (Array.isArray(registrosFq) ? registrosFq : [])
+        .map(normalizarRegistro)
+        .filter(Boolean);
+
+      return ordenarRecientesPrimero(
+        filtrarPorFincaEstanque(normalizadosFq, fincaId, estanqueId)
+      );
+    } catch (error) {
+      console.error(
+        "Error al obtener detalle local de fisico_quimico:",
+        error?.message || error
+      );
+      throw error;
+    }
+  }
+
   const seccion = SECCION_POR_TIPO[tipoRegistro];
 
   if (!seccion) {
@@ -213,6 +239,13 @@ export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId 
  * Elimina un registro local por tipo e id.
  */
 export async function eliminarRegistroLocal(tipoRegistro, id) {
+  // Caso especial: fisico_quimico necesita borrar tambien sus filas
+  // de fisico_quimico_detalle (mediciones), no solo la cabecera.
+  // eliminarLecturaLocal ya hace ese borrado completo.
+  if (tipoRegistro === "fisico_quimico") {
+    return eliminarLecturaLocal(id);
+  }
+
   const seccion = SECCION_POR_TIPO[tipoRegistro];
 
   if (!seccion) {
