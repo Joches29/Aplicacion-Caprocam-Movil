@@ -9,8 +9,6 @@ export default function TrazabilidadStackLayout() {
 
       <Stack.Screen name="agregar" options={{ title: "Registrar Trazabilidad", headerShown: true }} />
 
-      <Stack.Screen name="detalle" options={{ title: "Detalle Trazabilidad", headerShown: true }} />
-
       <Stack.Screen name="[id]" options={{ title: "Detalle de Trazabilidad", headerShown: true }} />
 
     </Stack>
