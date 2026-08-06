@@ -60,12 +60,24 @@ function obtenerValor(objeto, llaves, valorDefecto = null) {
   return valorDefecto;
 }
 
+function snakeACamel(texto) {
+  return texto.replace(/_([a-z])/g, (_, letra) => letra.toUpperCase());
+}
+
 /**
  * Normaliza un registro local a un shape amigable para la UI
  * (camelCase + aliases comunes del backend anterior).
  */
 function normalizarRegistro(registro) {
   if (!registro) return null;
+
+  // Genera automáticamente el alias camelCase de CADA campo snake_case
+  const aliasCamel = {};
+  Object.keys(registro).forEach((llave) => {
+    if (llave.includes("_")) {
+      aliasCamel[snakeACamel(llave)] = registro[llave];
+    }
+  });
 
   const fincaId = convertirNumero(
     obtenerValor(registro, ["finca_id", "fincaId", "finca", "idFinca"], null)
@@ -82,6 +94,7 @@ function normalizarRegistro(registro) {
 
   return {
     ...registro,
+    ...aliasCamel,
     id: obtenerValor(registro, ["id"], null),
     servidorId: obtenerValor(registro, ["servidor_id", "servidorId"], null),
     uuid: obtenerValor(registro, ["uuid"], ""),

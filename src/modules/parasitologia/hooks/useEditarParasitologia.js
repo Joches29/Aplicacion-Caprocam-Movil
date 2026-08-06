@@ -17,6 +17,8 @@ import { useError } from "../../../shared/context/ErrorContext";
 import { localApi } from "../../../database/local/localApi.service";
 import ParasitologiaLocalService from "../services/ParasitologiaLocal.service";
 
+import { COLORS } from "../../../theme/colors";
+
 /*
 ============================================================
 CONSTANTES
@@ -358,17 +360,32 @@ export default function useEditarParasitologia(registroId, onGuardado) {
   const muestreadosN = Number(camaronesMuestreados) || 0;
   const infectadosN = Number(camaronesInfectados) || 0;
 
-  const gradoCalculado =
-    muestreadosN > 0
-      ? ((infectadosN / muestreadosN) * 100).toFixed(1)
-      : "0.0";
+  const porcentajeCalculado = muestreadosN > 0
+    ? ((infectadosN / muestreadosN) * 100).toFixed(1)
+    : "0.0";
+
+  const porcentajeNum = Number(porcentajeCalculado)
+
+  const nombreGrado =
+    porcentajeNum >= 50 ? "Alto" :
+      porcentajeNum >= 20 ? "Medio" :
+        "Bajo";
+
+  const descripcionGrado =
+    porcentajeNum >= 50 ? "El nivel de infeccion requiere atencion inmediata." :
+      porcentajeNum >= 20 ? "El nivel de infeccion requiere monitoreo cercano." :
+        "El nivel de infeccion esta dentro de un rango aceptable.";
 
   const colorGrado =
-    Number(gradoCalculado) >= 60
-      ? "error"
-      : Number(gradoCalculado) >= 30
-        ? "warning"
-        : "success";
+    porcentajeNum >= 50 ? COLORS.error :
+      porcentajeNum >= 20 ? COLORS.warning :
+        COLORS.success;
+
+  const gradoCalculado = {
+    porcentaje: porcentajeCalculado,
+    nombre: nombreGrado,
+    descripcion: descripcionGrado,
+  };
 
   const opcionesFincas = useMemo(
     () =>
