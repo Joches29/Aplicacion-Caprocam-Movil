@@ -47,31 +47,13 @@ import {
   obtenerFincas,
 } from "./fincaEstanqueLocal";
 
-import { getSiembraById, updateSiembra } from "../services/siembra.service";
-import {
-  getPrecriaById,
-  updatePrecria,
-  finalizarPrecria,
-} from "../services/precria.service";
-import { getLoteById } from "../services/lote.service";
-import {
-  getProveedoresLarva,
-  createProveedorLarva,
-  updateProveedorLarva,
-  eliminarProveedorLarva,
-} from "../services/proveedorLarva.service";
-import {
-  getLaboratorios,
-  createLaboratorio,
-  updateLaboratorio,
-  eliminarLaboratorio,
-} from "../services/laboratorio.service";
-import {
-  getProcedencias,
-  createProcedencia,
-  updateProcedencia,
-  eliminarProcedencia,
-} from "../services/procedencia.service";
+import SiembraLocalService from "../services/SiembraLocal.services";
+import PrecriaLocalService from "../services/PrecriaLocal.service";
+import LoteLarvaLocalService from "../services/LoteLarvaLocal.service";
+import { localApi } from "../../../database/local/localApi.service";
+import ProveedorLarvaLocalService from "../services/ProveedorLarvaLocal.service";
+import LaboratorioLocalService from "../services/LaboratorioLocal.service";
+import ProcedenciaLocalService from "../services/ProcedenciaLocal.service";
 import {
   SiembraDTO,
   PrecriaDTO,
@@ -82,9 +64,61 @@ function mapCatalogo(items) {
   return (items || []).map((item) => ({ label: item.nombre, value: item.id }));
 }
 
-// El backend guarda proveedor/laboratorio/procedencia/código en la
-// tabla del Lote de Larva, no en Siembra ni Pre-Cría - por eso el
-// detalle necesita esta segunda petición y este mapeo aparte.
+function adaptarSiembraLocal(s) {
+  if (!s) return null;
+  return {
+    ...s,
+    id: s.id,
+    lote_larva_id: s.loteLarvaId,
+    precria_id: s.precriaId,
+    finca_id: s.fincaId,
+    estanque_id: s.estanqueId,
+    fecha_siembra: s.fechaSiembra,
+    tecnica_cultivo: s.tecnicaCultivo,
+    densidad_poblacional: s.densidadPoblacional,
+    cantidad_sembrada: s.cantidadSembrada,
+    pl_siembra: s.plSiembra,
+    duracion_ciclo: s.duracionCiclo,
+    estado: s.estado,
+  };
+}
+
+function adaptarPrecriaLocal(p) {
+  if (!p) return null;
+  return {
+    ...p,
+    id: p.id,
+    lote_larva_id: p.loteLarvaId,
+    finca_id: p.fincaId,
+    estanque_id: p.estanqueId,
+    fecha_inicio: p.fechaInicio,
+    fecha_fin: p.fechaFin,
+    duracion_dias: p.duracionDias,
+    cantidad_inicial: p.cantidadInicial,
+    cantidad_final: p.cantidadFinal,
+    pl_inicial: p.plInicial,
+    pl_final: p.plFinal,
+    estado: p.estado,
+  };
+}
+
+function adaptarLoteLocal(l) {
+  if (!l) return null;
+  return {
+    ...l,
+    id: l.id,
+    codigo_lote: l.codigoLote,
+    proveedor_larva_id: l.proveedorLarvaId,
+    laboratorio_id: l.laboratorioId,
+    procedencia_id: l.procedenciaId,
+    certificado_larva: l.certificadoLarva,
+    pl_inicial: l.plInicial,
+    cantidad_inicial: l.cantidadInicial,
+    fecha_ingreso: l.fechaIngreso,
+    estado_lote: l.estadoLote,
+  };
+}
+
 function mapLoteAFormData(lote) {
   if (!lote) return {};
   return {
@@ -96,7 +130,7 @@ function mapLoteAFormData(lote) {
   };
 }
 
-function mapSiembraAFormData(siembra, lote, precriaOrigen) {
+function mapSiembraAFormData(siembra, lote, precriaOrigen, areahectareas) {
   return {
     tipoRegistro: "siembra",
     loteId: siembra.lote_larva_id,
@@ -104,6 +138,8 @@ function mapSiembraAFormData(siembra, lote, precriaOrigen) {
     precriaId: siembra.precria_id ? String(siembra.precria_id) : "",
     finca: siembra.finca_id || "",
     estanque: siembra.estanque_id || "",
+    areaHectareas: areahectareas || "",
+    diasMaduracion: siembra.duracion_ciclo != null ? String(siembra.duracion_ciclo) : "",
     estado: siembra.estado === "FINALIZADA" ? "Finalizada" : "Activa",
     fechaSiembra: formatearFechaDesdeISO(siembra.fecha_siembra),
     tecnicaCultivo: siembra.tecnica_cultivo || "",
@@ -126,12 +162,13 @@ function mapSiembraAFormData(siembra, lote, precriaOrigen) {
   };
 }
 
-function mapPrecriaAFormData(precria, lote) {
+function mapPrecriaAFormData(precria, lote, areahectareas) {
   return {
     tipoRegistro: "precria",
     loteId: precria.lote_larva_id,
     finca: precria.finca_id || "",
     estanque: precria.estanque_id || "",
+    areaHectareas: areahectareas || "",
     estado: precria.estado || "Activa",
     fechaInicio: formatearFechaDesdeISO(precria.fecha_inicio),
     fechaFin: formatearFechaDesdeISO(precria.fecha_fin),
@@ -211,28 +248,35 @@ export default function useDetalleSiembra(id) {
   const cargarDetalle = useCallback(async () => {
     try {
       setCargando(true);
+      await localApi.inicializar();
+
       let registro;
       if (tipoRegistroParam === "precria") {
-        registro = await getPrecriaById(id);
+        registro = adaptarPrecriaLocal(await PrecriaLocalService.getById(id));
       } else {
-        registro = await getSiembraById(id);
+        registro = adaptarSiembraLocal(await SiembraLocalService.getById(id));
       }
 
       const lote = registro?.lote_larva_id
-        ? await getLoteById(registro.lote_larva_id)
+        ? adaptarLoteLocal(await LoteLarvaLocalService.getById(registro.lote_larva_id))
         : null;
 
       // Si esta Siembra vino de una Pre-Cría, hay que traerla también
       // para poder mostrar sus datos heredados en modo lectura.
       const precriaOrigen =
         tipoRegistroParam !== "precria" && registro?.precria_id
-          ? await getPrecriaById(registro.precria_id)
+          ? adaptarPrecriaLocal(await PrecriaLocalService.getById(registro.precria_id))
           : null;
+      
+      const estanqueGuardado = registro?.estanque_id
+        ? obtenerEstanquePorCodigo(registro.finca_id, registro.estanque_id)
+        : null;
+      const areahectareas = estanqueGuardado?.areaHectareas || "";
 
       const mapeado =
         tipoRegistroParam === "precria"
-          ? mapPrecriaAFormData(registro, lote)
-          : mapSiembraAFormData(registro, lote, precriaOrigen);
+          ? mapPrecriaAFormData(registro, lote, areahectareas)
+          : mapSiembraAFormData(registro, lote, precriaOrigen, areahectareas);
 
       setSiembra(mapeado);
       setFormData(mapeado);
@@ -352,14 +396,14 @@ export default function useDetalleSiembra(id) {
   useEffect(() => {
     async function cargarCatalogos() {
       try {
-        const [proveedores, laboratorios, procedencias] = await Promise.all([
-          getProveedoresLarva(),
-          getLaboratorios(),
-          getProcedencias(),
+        const [rProv, rLab, rProc] = await Promise.all([
+          ProveedorLarvaLocalService.getAll(),
+          LaboratorioLocalService.getAll(),
+          ProcedenciaLocalService.getAll(),
         ]);
-        setProveedoresLarva(mapCatalogo(proveedores));
-        setLaboratoriosLarva(mapCatalogo(laboratorios));
-        setProcedenciasLarva(mapCatalogo(procedencias));
+        setProveedoresLarva(mapCatalogo(rProv || []));
+        setLaboratoriosLarva(mapCatalogo(rLab || []));
+        setProcedenciasLarva(mapCatalogo(rProc || []));
       } catch (err) {
         // no bloquea el detalle si esto falla
       }
@@ -369,7 +413,7 @@ export default function useDetalleSiembra(id) {
 
   const handleAgregarProveedorLarva = useCallback(
     async (nombre) => {
-      const nuevo = await createProveedorLarva(nombre);
+      const nuevo = await ProveedorLarvaLocalService.create(nombre);
       setProveedoresLarva((previo) => [
         ...previo,
         { label: nuevo.nombre, value: nuevo.id },
@@ -381,7 +425,7 @@ export default function useDetalleSiembra(id) {
 
   const handleAgregarLaboratorioLarva = useCallback(
     async (nombre) => {
-      const nuevo = await createLaboratorio(nombre);
+      const nuevo = await LaboratorioLocalService.create(nombre);
       setLaboratoriosLarva((previo) => [
         ...previo,
         { label: nuevo.nombre, value: nuevo.id },
@@ -393,7 +437,7 @@ export default function useDetalleSiembra(id) {
 
   const handleAgregarProcedenciaLarva = useCallback(
     async (nombre) => {
-      const nuevo = await createProcedencia(nombre);
+      const nuevo = await ProcedenciaLocalService.create(nombre);
       setProcedenciasLarva((previo) => [
         ...previo,
         { label: nuevo.nombre, value: nuevo.id },
@@ -404,7 +448,7 @@ export default function useDetalleSiembra(id) {
   );
 
   const handleEditarProveedorLarva = useCallback(async (value, nombre) => {
-    const actualizado = await updateProveedorLarva(value, nombre);
+    const actualizado = await ProveedorLarvaLocalService.update(value, nombre);
     setProveedoresLarva((previo) =>
       previo.map((item) =>
         item.value === value
@@ -415,7 +459,7 @@ export default function useDetalleSiembra(id) {
   }, []);
 
   const handleEditarLaboratorioLarva = useCallback(async (value, nombre) => {
-    const actualizado = await updateLaboratorio(value, nombre);
+    const actualizado = await LaboratorioLocalService.update(value, nombre);
     setLaboratoriosLarva((previo) =>
       previo.map((item) =>
         item.value === value
@@ -426,7 +470,7 @@ export default function useDetalleSiembra(id) {
   }, []);
 
   const handleEditarProcedenciaLarva = useCallback(async (value, nombre) => {
-    const actualizado = await updateProcedencia(value, nombre);
+    const actualizado = await ProcedenciaLocalService.update(value, nombre);
     setProcedenciasLarva((previo) =>
       previo.map((item) =>
         item.value === value
@@ -437,7 +481,7 @@ export default function useDetalleSiembra(id) {
   }, []);
 
   const handleEliminarProveedorLarva = useCallback(async (value) => {
-    await eliminarProveedorLarva(value);
+    await ProveedorLarvaLocalService.deleteById(value);
     setProveedoresLarva((previo) =>
       previo.filter((item) => item.value !== value),
     );
@@ -449,7 +493,7 @@ export default function useDetalleSiembra(id) {
   }, []);
 
   const handleEliminarLaboratorioLarva = useCallback(async (value) => {
-    await eliminarLaboratorio(value);
+    await LaboratorioLocalService.deleteById(value);
     setLaboratoriosLarva((previo) =>
       previo.filter((item) => item.value !== value),
     );
@@ -461,7 +505,7 @@ export default function useDetalleSiembra(id) {
   }, []);
 
   const handleEliminarProcedenciaLarva = useCallback(async (value) => {
-    await eliminarProcedencia(value);
+    await ProcedenciaLocalService.deleteById(value);
     setProcedenciasLarva((previo) =>
       previo.filter((item) => item.value !== value),
     );
@@ -551,17 +595,23 @@ export default function useDetalleSiembra(id) {
     setErrors({});
     setGuardando(true);
     try {
+      await localApi.inicializar();
+
       let actualizado;
       if (formData.tipoRegistro === "precria") {
-        actualizado = await updatePrecria(
-          id,
-          new PrecriaDTO(formData, formData.loteId),
+        actualizado = adaptarPrecriaLocal(
+          await PrecriaLocalService.update(
+            id,
+            new PrecriaDTO(formData, formData.loteId),
+          ),
         );
         actualizado = mapPrecriaAFormData(actualizado, null);
       } else {
-        actualizado = await updateSiembra(
-          id,
-          new SiembraDTO(formData, formData.loteId),
+        actualizado = adaptarSiembraLocal(
+          await SiembraLocalService.update(
+            id,
+            new SiembraDTO(formData, formData.loteId),
+          ),
         );
         actualizado = mapSiembraAFormData(actualizado, null);
       }
@@ -638,9 +688,13 @@ export default function useDetalleSiembra(id) {
     setErrors({});
     setGuardando(true);
     try {
-      const registro = await finalizarPrecria(
-        id,
-        new FinalizarPrecriaDTO(formData),
+      await localApi.inicializar();
+
+      const registro = adaptarPrecriaLocal(
+        await PrecriaLocalService.finalizar(
+          id,
+          new FinalizarPrecriaDTO(formData),
+        ),
       );
       const mapeado = mapPrecriaAFormData(registro, null);
       const conLote = {

@@ -47,31 +47,18 @@ import {
   obtenerFincas,
 } from "./fincaEstanqueLocal";
 
-import {
-  getPrecrias,
-  getPrecriaById,
-  createPrecria,
-} from "../services/precria.service";
-import { createSiembra } from "../services/siembra.service";
-import { getLoteById, createLote } from "../services/lote.service";
-import {
-  getProveedoresLarva,
-  createProveedorLarva,
-  updateProveedorLarva,
-  eliminarProveedorLarva,
-} from "../services/proveedorLarva.service";
-import {
-  getLaboratorios,
-  createLaboratorio,
-  updateLaboratorio,
-  eliminarLaboratorio,
-} from "../services/laboratorio.service";
-import {
-  getProcedencias,
-  createProcedencia,
-  updateProcedencia,
-  eliminarProcedencia,
-} from "../services/procedencia.service";
+// Catalogos de larva - operaciones locales (SQLite), no pegan
+// directo al backend, para que "Agregar nuevo" funcione offline.
+// Los *.service.js (create/updateProveedorLarva, etc.) solo los
+// usa el Sync (ProveedorLarvaSync.service.js y compañía) para
+// subir estos registros cuando hay conexión.
+import ProveedorLarvaLocalService from "../services/ProveedorLarvaLocal.service";
+import LaboratorioLocalService from "../services/LaboratorioLocal.service";
+import ProcedenciaLocalService from "../services/ProcedenciaLocal.service";
+import PrecriaLocalService from "../services/PrecriaLocal.service";
+import SiembraLocalService from "../services/SiembraLocal.services";
+import LoteLarvaLocalService from "../services/LoteLarvaLocal.service";
+import { localApi } from "../../../database/local/localApi.service";
 import { LoteLarvaDTO, PrecriaDTO, SiembraDTO } from "../dtos/siembra.dto";
 
 // El backend devuelve {id, nombre}; los Select del proyecto esperan
@@ -175,14 +162,14 @@ export default function useNuevaSiembra() {
     async function cargarCatalogos() {
       try {
         setCargandoCatalogos(true);
-        const [proveedores, laboratorios, procedencias] = await Promise.all([
-          getProveedoresLarva(),
-          getLaboratorios(),
-          getProcedencias(),
+        const [rProv, rLab, rProc] = await Promise.all([
+          ProveedorLarvaLocalService.getAll(),
+          LaboratorioLocalService.getAll(),
+          ProcedenciaLocalService.getAll(),
         ]);
-        setProveedoresLarva(mapCatalogo(proveedores));
-        setLaboratoriosLarva(mapCatalogo(laboratorios));
-        setProcedenciasLarva(mapCatalogo(procedencias));
+        setProveedoresLarva(mapCatalogo(rProv || []));
+        setLaboratoriosLarva(mapCatalogo(rLab || []));
+        setProcedenciasLarva(mapCatalogo(rProc || []));
       } catch (err) {
         setMensaje("No fue posible cargar los catálogos de larva.");
         setMensajeVariant("danger");
@@ -203,7 +190,8 @@ export default function useNuevaSiembra() {
   useEffect(() => {
     async function cargarPrecriasDisponibles() {
       try {
-        const precrias = await getPrecrias();
+        await localApi.inicializar();
+        const precrias = await PrecriaLocalService.getAll();
         setPreCriasDisponibles(
           precrias
             .filter((p) => p.estado === "Finalizada")
@@ -290,11 +278,11 @@ export default function useNuevaSiembra() {
     }
 
     try {
-      const precria = await getPrecriaById(precriaId);
+      const precria = await PrecriaLocalService.getById(precriaId);
       if (!precria) return;
 
-      const lote = precria.lote_larva_id
-        ? await getLoteById(precria.lote_larva_id)
+      const lote = precria.loteLarvaId
+        ? await LoteLarvaLocalService.getById(precria.loteLarvaId)
         : null;
 
       setFormData((previo) => {
@@ -302,23 +290,23 @@ export default function useNuevaSiembra() {
         const area = previo.areaHectareas || "";
         const actualizado = {
           ...previo,
-          finca: precria.finca_id || previo.finca,
-          estanque: precria.estanque_id || previo.estanque,
-          cantidadSobrevivientePrecria: precria.cantidad_final || "",
-          duracionPrecria: precria.duracion_dias || "",
-          fechaSalidaPrecria: formatearFechaDesdeISO(precria.fecha_fin),
+          finca: precria.fincaId || previo.finca,
+          estanque: precria.estanqueId || previo.estanque,
+          cantidadSobrevivientePrecria: precria.cantidadFinal || "",
+          duracionPrecria: precria.duracionDias || "",
+          fechaSalidaPrecria: formatearFechaDesdeISO(precria.fechaFin),
           pasoPorPrecria: "si",
           precriaId: String(precriaId),
           densidadPoblacional: densidad,
           areaHectareas: area,
           cantidadSembrada: calcularCantidadSembrada(area, densidad),
-          loteId: precria.lote_larva_id,
-          codigoLoteLarva: lote?.codigo_lote || "",
-          proveedorLarva: lote?.proveedor_larva_id || "",
-          laboratorioLarva: lote?.laboratorio_id || "",
-          procedenciaLarva: lote?.procedencia_id || "",
-          certificadoLarva: lote?.certificado_larva || "",
-          plSiembra: precria.pl_final != null ? `PL${precria.pl_final}` : "",
+          loteId: precria.loteLarvaId,
+          codigoLoteLarva: lote?.codigoLote || "",
+          proveedorLarva: lote?.proveedorLarvaId || "",
+          laboratorioLarva: lote?.laboratorioId || "",
+          procedenciaLarva: lote?.procedenciaId || "",
+          certificadoLarva: lote?.certificadoLarva || "",
+          plSiembra: precria.plFinal != null ? `PL${precria.plFinal}` : "",
         };
         return actualizado;
       });
@@ -336,7 +324,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleAgregarProveedorLarva(nombre) {
-    const nuevo = await createProveedorLarva(nombre);
+    const nuevo = await ProveedorLarvaLocalService.create(nombre);
     setProveedoresLarva((previo) => [
       ...previo,
       { label: nuevo.nombre, value: nuevo.id },
@@ -345,7 +333,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleAgregarLaboratorioLarva(nombre) {
-    const nuevo = await createLaboratorio(nombre);
+    const nuevo = await LaboratorioLocalService.create(nombre);
     setLaboratoriosLarva((previo) => [
       ...previo,
       { label: nuevo.nombre, value: nuevo.id },
@@ -354,7 +342,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleAgregarProcedenciaLarva(nombre) {
-    const nuevo = await createProcedencia(nombre);
+    const nuevo = await ProcedenciaLocalService.create(nombre);
     setProcedenciasLarva((previo) => [
       ...previo,
       { label: nuevo.nombre, value: nuevo.id },
@@ -363,7 +351,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEditarProveedorLarva(value, nombre) {
-    const actualizado = await updateProveedorLarva(value, nombre);
+    const actualizado = await ProveedorLarvaLocalService.update(value, nombre);
     setProveedoresLarva((previo) =>
       previo.map((item) =>
         item.value === value
@@ -374,7 +362,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEditarLaboratorioLarva(value, nombre) {
-    const actualizado = await updateLaboratorio(value, nombre);
+    const actualizado = await LaboratorioLocalService.update(value, nombre);
     setLaboratoriosLarva((previo) =>
       previo.map((item) =>
         item.value === value
@@ -385,7 +373,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEditarProcedenciaLarva(value, nombre) {
-    const actualizado = await updateProcedencia(value, nombre);
+    const actualizado = await ProcedenciaLocalService.update(value, nombre);
     setProcedenciasLarva((previo) =>
       previo.map((item) =>
         item.value === value
@@ -396,7 +384,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEliminarProveedorLarva(value) {
-    await eliminarProveedorLarva(value);
+    await ProveedorLarvaLocalService.deleteById(value);
     setProveedoresLarva((previo) =>
       previo.filter((item) => item.value !== value),
     );
@@ -408,7 +396,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEliminarLaboratorioLarva(value) {
-    await eliminarLaboratorio(value);
+    await LaboratorioLocalService.deleteById(value);
     setLaboratoriosLarva((previo) =>
       previo.filter((item) => item.value !== value),
     );
@@ -420,7 +408,7 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEliminarProcedenciaLarva(value) {
-    await eliminarProcedencia(value);
+    await ProcedenciaLocalService.deleteById(value);
     setProcedenciasLarva((previo) =>
       previo.filter((item) => item.value !== value),
     );
@@ -464,18 +452,20 @@ export default function useNuevaSiembra() {
 
     setGuardando(true);
     try {
+      await localApi.inicializar();
+
       let loteId;
       if (formData.pasoPorPrecria === "si" && formData.loteId) {
         loteId = formData.loteId;
       } else {
-        const lote = await createLote(new LoteLarvaDTO(formData));
+        const lote = await LoteLarvaLocalService.create(new LoteLarvaDTO(formData));
         loteId = lote.id;
       }
 
       if (formData.tipoRegistro === "precria") {
-        await createPrecria(new PrecriaDTO(formData, loteId));
+        await PrecriaLocalService.create(new PrecriaDTO(formData, loteId));
       } else {
-        await createSiembra(new SiembraDTO(formData, loteId));
+        await SiembraLocalService.create(new SiembraDTO(formData, loteId));
       }
 
       setMensaje(

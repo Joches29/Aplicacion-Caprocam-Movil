@@ -42,10 +42,10 @@ export class LoteLarvaDTO {
   constructor(formData) {
     this.codigo_lote = String(formData.codigoLoteLarva || "").trim();
     this.proveedor_id = formData.proveedorLarva ? Number(formData.proveedorLarva) : null;
-    this.laboratorio = formData.laboratorioLarva ? String(formData.laboratorioLarva).trim() : null;
-    this.procedencia = formData.procedenciaLarva ? String(formData.procedenciaLarva).trim() : null;
+    this.laboratorio_id = formData.laboratorioLarva ? String(formData.laboratorioLarva).trim() : null;
+    this.procedencia_id = formData.procedenciaLarva ? String(formData.procedenciaLarva).trim() : null;
     this.certificado_larva = String(formData.certificadoLarva || "").trim();
-    this.pl_inicial = Number(formData.plInicial || formData.plSiembra || 0);
+    this.pl_inicial = numeroDesdePL(formData.plInicial || formData.plSiembra);
     this.cantidad_inicial = Number(formData.cantidadInicial || formData.cantidadSembrada || 0);
     this.fecha_ingreso = aFechaISO(formData.fechaInicio || formData.fechaSiembra || "");
   }
@@ -57,7 +57,7 @@ export class PrecriaDTO {
     this.finca_id = Number(formData.fincaId || formData.finca || 0);
     this.estanque_id = Number(formData.estanque || 0);
     this.fecha_inicio = aFechaISO(formData.fechaInicio || "");
-    this.duracion_dias = Number(formData.duracionDias || 0);
+    this.duracion_dias = Number(formData.duracionDias || formData.diasMaduracion || 0);
     this.cantidad_inicial = Number(formData.cantidadInicial || 0);
     this.pl_inicial = numeroDesdePL(formData.plInicial) ?? Number(formData.plInicial || 0);
     // El backend acepta estos tres desde el update normal, no solo
@@ -87,6 +87,7 @@ export class SiembraDTO {
     this.densidad_poblacional = formData.densidadPoblacional ? Number(formData.densidadPoblacional) : null;
     this.cantidad_sembrada = Number(formData.cantidadSembrada || 0);
     this.pl_siembra = numeroDesdePL(formData.plSiembra);
+    this.duracion_ciclo = Number(formData.duracionCiclo || formData.diasMaduracion || formData.duracionDias || 0);
     this.estado = formData.estado === "Finalizada" ? "FINALIZADA" : "ACTIVA";
   }
 }
