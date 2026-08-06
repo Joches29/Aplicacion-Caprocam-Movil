@@ -37,7 +37,7 @@ import { useEffect, useState } from "react";
 
 import useAlimentacion from "./useAlimentacion";
 import useAlimentacionForm from "./useAlimentacionForm";
-import alimentacionService from "../services/Alimentacion.service";
+import { localApi } from "../../../database/local/localApi.service";
 
 const extraerMensajeAlimentacion = (error) => {
   const data = error?.response?.data;
@@ -201,7 +201,33 @@ export default function useAlimentacionScreen(navigation) {
     }
 
     try {
-      await alimentacionService.create(form);
+      await localApi.inicializar();
+
+const alimentacion =
+    await localApi.alimentaciones.crear({
+        grupo_datos: 1001,
+        finca_id: Number(form.finca),
+        estanque_id: Number(form.estanque),
+        colaborador_id: Number(form.idColaborador),
+        proveedor_id: Number(form.idProveedor),
+        producto_id: Number(form.idProducto),
+        fecha: form.fecha,
+        hora: form.hora,
+        metodo: form.metodo,
+        cantidad_kg: Number(form.cantidadKg),
+        presentacion: form.presentacion,
+        proveedor: form.proveedor,
+        tipo_alimento: form.tipoAlimento,
+        observaciones: form.observaciones,
+        raciones_dia: Number(form.racionesDia),
+        total_kg: Number(form.totalKg),
+        tasa_alimentacion: Number(form.tasaAlimentacion),
+        lectura_am: Number(form.lecturaAM),
+        lectura_pm: Number(form.lecturaPM),
+        creado_por_colaborador_id: Number(form.idColaborador)
+    });
+      
+    console.log("ALIMENTACION SQLITE:",alimentacion);
 
       /*
        * No se utiliza router.back() ni navigation.goBack().

@@ -31,7 +31,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, ScrollView } from "react-native";
 
-import AlimentacionStats from "../components/AlimentacionStats";
 import AlimentacionForm from "../components/AlimentacionForm";
 
 import Text from "../../../shared/components/Text";
@@ -92,9 +91,6 @@ export default function GestionAlimentacion({
       keyboardShouldPersistTaps="handled"
     >
       <View style={STYLE.contentWrapper}>
-        <AlimentacionStats
-          {...calcularStats(alimentaciones)}
-        />
 
         <AlimentacionForm
           form={form}
