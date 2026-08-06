@@ -3,12 +3,13 @@
  * HOOK DE FÍSICO-QUÍMICO
  * ============================================================
  *
- * Autocontenido: carga, eliminación y alert.
+ * Autocontenido: carga, eliminación y alert (SQLite / local).
  * Enriquece: nombreFinca, codigoEstanque, nombreColaborador, nombreCreadoPor
+ * Adaptado al patrón offline de EnfermedadesLocal.
  */
 import { useState, useEffect } from "react";
-import { eliminarLectura } from "../../mantAgua/services/FisicoQuimicaServices.js";
 import { obtenerDetalleReporte } from "../services/detalleReporte.service.js";
+import { eliminarRegistroLocal } from "../services/ReporteriaLocal.service.js";
 import useModalEliminar from "../hooks/useModalEliminar.js";
 import { cargarYEnriquecerRegistros } from "../utils/enriquecerRegistros.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
@@ -45,8 +46,8 @@ export default function useFisicoQuimico(fincaId, estanqueId, onAlertChange) {
     }
   }, [fincaId, estanqueId]);
 
-  async function eliminarRegistro(id) {
-    await eliminarLectura(id);
+  async function eliminarLectura(id) {
+    await eliminarRegistroLocal("fisico_quimico", id);
     await cargarLecturas();
     setAlert("deleted");
   }
@@ -58,7 +59,7 @@ export default function useFisicoQuimico(fincaId, estanqueId, onAlertChange) {
     abrirModalEliminar,
     cancelarEliminar,
     confirmarEliminar,
-  } = useModalEliminar(eliminarRegistro);
+  } = useModalEliminar(eliminarLectura);
 
   useEffect(() => {
     onAlertChange?.(alert);

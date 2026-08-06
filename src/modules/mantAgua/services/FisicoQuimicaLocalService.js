@@ -164,7 +164,9 @@ function mapearLecturaLocal(filaLectura, filasDetalle) {
         salinidad: mediciones.salinidad,
         temperatura: mediciones.temperatura,
         oxigenoDisuelto: mediciones.oxigenoDisuelto,
-        sincronizado: Boolean(filaLectura.sincronizado)
+        sincronizado: Boolean(filaLectura.sincronizado),
+        creadoPorColaboradorId: filaLectura.creado_por_colaborador_id ?? null,
+        creadoPorUsuarioId: filaLectura.creado_por_usuario_id ?? null
     };
 }
 
@@ -259,6 +261,36 @@ export async function getLecturaPorIdLocal(id) {
     });
 
     return mapearLecturaLocal(respuesta.data, detalles.success ? detalles.data : []);
+}
+
+/**
+ * Obtiene TODAS las lecturas fisico quimicas locales, con sus
+ * mediciones (ph/salinidad/temperatura/oxigenoDisuelto) ya
+ * agrupadas por lectura. Equivalente local de getLecturas()
+ * (web), usado por Reporteria para listar los registros sin
+ * un id o fecha especifica.
+ * @returns {Promise<Array<object>>} Lecturas en formato de la app.
+ */
+export async function getLecturasLocal() {
+    const respuesta = await localApi.fisicoQuimico.obtenerTodos();
+
+    if (!respuesta.success) {
+        return [];
+    }
+
+    const cabeceras = respuesta.data || [];
+
+    const lecturas = await Promise.all(
+        cabeceras.map(async (cabecera) => {
+            const detalles = await localApi.fisicoQuimicoDetalle.obtenerTodos({
+                lectura_id: cabecera.id
+            });
+
+            return mapearLecturaLocal(cabecera, detalles.success ? detalles.data : []);
+        })
+    );
+
+    return lecturas;
 }
 
 /**
