@@ -105,7 +105,7 @@ async function obtenerContextoLocal() {
 
   const colaboradorId = obtenerValor(
     colaborador,
-    ["id", "colaboradorId", "colaborador_id"],
+    ["id", "colaboradorId"],
     null
   );
 
@@ -174,7 +174,18 @@ function mapearParasitologiaDesdeLocal(registro) {
 
         fincaId: obtenerValor(registro, ["finca_id", "fincaId"], null),
         estanqueId: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
-        colaboradorId: obtenerValor(registro, ["colaborador_id", "colaboradorId"], null),
+
+        creadoPorUsuarioId: obtenerValor(
+          registro,
+          ["creado_por_usuario_id", "creadoPorUsuarioId"],
+          null
+        ),
+
+        creadoPorColaboradorId: obtenerValor(
+          registro,
+          ["creado_por_colaborador_id", "creadoPorColaboradorId"],
+          null
+        ),
 
         tipoRegistro: obtenerValor(registro, ["tipo_registro", "tipoRegistro"], ""),
         fechaReporte: obtenerValor(registro, ["fecha_reporte", "fechaReporte", "fecha"], ""),
@@ -284,7 +295,6 @@ async function mapearParasitologiaParaLocal(parasitologiaDTO) {
     ),
     finca_id: convertirNumero(fincaId, null),
     estanque_id: convertirNumero(estanqueId, null),
-    colaborador_id: contexto.colaboradorId,
     tipo_registro: convertirTexto(parasitologiaDTO.tipoRegistro, "parasitologia"),
     fecha_reporte: convertirTexto(fechaReporte),
     responsable: convertirTexto(responsable),

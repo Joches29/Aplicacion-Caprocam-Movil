@@ -169,7 +169,7 @@ GUARDADO LOCAL
 const guardarEstanqueDesdeBackend = async (estanqueLocal) => {
   return await localApi.sync.guardarDesdeServidor(
     TABLA_ESTANQUES,
-    estanqueLocal
+    [estanqueLocal]
   );
 };
 
