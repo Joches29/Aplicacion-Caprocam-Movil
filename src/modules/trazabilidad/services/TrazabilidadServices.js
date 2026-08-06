@@ -182,7 +182,7 @@ export function filtrarRegistrosTrazabilidad(registros, texto, filtros) {
             ].some((valor) => String(valor ?? "").toLowerCase().includes(textoBusqueda));
 
         const keyResponsable =
-            registro.colaboradorId ??
+            registro.creadoPorColaboradorId ??
             (registro.creadoPorUsuarioId ? `user_${registro.creadoPorUsuarioId}` : registro.colaboradorNombre);
 
         const coincideFiltros =
@@ -192,7 +192,6 @@ export function filtrarRegistrosTrazabilidad(registros, texto, filtros) {
                 filtros.estanques.includes(registro.estanqueDestinoId)) &&
             (filtros.colaboradores.length === 0 ||
                 filtros.colaboradores.includes(keyResponsable) ||
-                filtros.colaboradores.includes(registro.colaboradorId) ||
                 filtros.colaboradores.includes(registro.colaboradorNombre)) &&
             (filtros.fecha === "" || registro.fecha === filtros.fecha);
 
@@ -467,10 +466,7 @@ export function enriquecerRegistro(registro = {}, mapas = {}) {
     let responsableNombre = "";
     let tipoResponsable = "Colaborador";
 
-    if (registro.colaboradorId && colaboradoresMap.has(registro.colaboradorId)) {
-        responsableNombre = colaboradoresMap.get(registro.colaboradorId);
-        tipoResponsable = "Colaborador";
-    } else if (registro.creadoPorColaboradorId && colaboradoresMap.has(registro.creadoPorColaboradorId)) {
+    if (registro.creadoPorColaboradorId && colaboradoresMap.has(registro.creadoPorColaboradorId)) {
         responsableNombre = colaboradoresMap.get(registro.creadoPorColaboradorId);
         tipoResponsable = "Colaborador";
     } else if (registro.creadoPorColaboradorId) {

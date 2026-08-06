@@ -30,7 +30,17 @@ para el PR, pendientes de opinion del equipo):
    actualizarRegistroLocal/eliminarRegistroLocal de este archivo
    estan bloqueados a proposito, no solo ausentes.
 
-3. Este service depende de infraestructura de sesion que, al
+3. Cambio de schema (Gerald, 05/08/2026): la columna
+   colaborador_id se elimino de trazabilidad (y de
+   movimientos_inventario, crecimientos, ventas,
+   alimentaciones, densidad_poblacional, raleos). El
+   "responsable" del registro ya no es un campo de negocio
+   aparte -- pasa a resolverse 100% con las columnas de
+   auditoria normales (creado_por_usuario_id /
+   creado_por_colaborador_id), igual que el resto del backend.
+   Por eso crearRegistroLocal ya NO guarda colaborador_id.
+
+4. Este service depende de infraestructura de sesion que, al
    momento de escribir esto (05/08/2026), existe pero todavia
    no se llena en ningun lado del login (ver sessionUtils.js:
    nadie llama AsyncStorage.setItem para 'caprocam_colaborador
@@ -93,7 +103,6 @@ const mapearRegistroAVista = (registro) => {
         fincaId: registro.finca_id,
         estanqueOrigenId: registro.estanque_origen_id,
         estanqueDestinoId: registro.estanque_destino_id,
-        colaboradorId: registro.colaborador_id,
         fecha: registro.fecha,
         tamano: registro.tamano,
         dias: registro.dias,
@@ -184,7 +193,6 @@ export async function crearRegistroLocal(datos = {}) {
         finca_id: Number(datos.fincaId),
         estanque_origen_id: Number(datos.estanqueOrigenId),
         estanque_destino_id: Number(datos.estanqueDestinoId),
-        colaborador_id: datos.colaboradorId ? Number(datos.colaboradorId) : null,
         fecha: datos.fecha,
         tamano: Number(datos.tamano),
         dias: Number(datos.dias),

@@ -18,6 +18,13 @@ borra un movimiento ya creado, ni fisica ni logicamente). Por
 eso este archivo no valida "actualizar" ni "eliminar": esas
 acciones estan bloqueadas explicitamente en TrazabilidadLocal
 .service.js, no solo omitidas por falta de pantalla.
+
+Cambio de schema ya no se valida
+colaboradorId como campo de negocio, porque la columna
+colaborador_id se elimino de la tabla trazabilidad. Quien
+crea el registro se resuelve por auditoria (creado_por_
+usuario_id / creado_por_colaborador_id), no por un campo
+del formulario.
 //////////////////////////////////////////////////////////
 */
 
@@ -133,7 +140,6 @@ export function validarCamposRegistro(datos = {}) {
         fincaId,
         estanqueOrigenId,
         estanqueDestinoId,
-        colaboradorId,
         fecha,
         tamano,
         dias,
@@ -160,10 +166,6 @@ export function validarCamposRegistro(datos = {}) {
         errores.push(
             "El estanque de origen no puede ser igual al de destino."
         );
-    }
-
-    if (!isEmpty(colaboradorId) && !isIdValido(colaboradorId)) {
-        errores.push("El colaboradorId no es valido.");
     }
 
     if (!isFechaValida(fecha)) {

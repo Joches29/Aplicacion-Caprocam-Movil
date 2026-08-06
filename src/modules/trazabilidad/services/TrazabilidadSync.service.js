@@ -94,7 +94,6 @@ const mapearRegistroParaBackend = (registro) => {
         fincaId: obtenerValor(registro, ["finca_id", "fincaId"]),
         estanqueOrigenId: obtenerValor(registro, ["estanque_origen_id", "estanqueOrigenId"]),
         estanqueDestinoId: obtenerValor(registro, ["estanque_destino_id", "estanqueDestinoId"]),
-        colaboradorId: obtenerValor(registro, ["colaborador_id", "colaboradorId"], null),
         fecha: obtenerValor(registro, ["fecha"]),
         tamano: obtenerValor(registro, ["tamano"]),
         dias: obtenerValor(registro, ["dias"]),
