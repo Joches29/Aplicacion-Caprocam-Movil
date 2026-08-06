@@ -32,7 +32,7 @@ import React, { useState } from "react";
 import { View, ScrollView, Pressable } from "react-native";
 import useAlimentacionForm from "../hooks/useAlimentacionForm";
 import AlimentacionForm from "../components/AlimentacionForm";
-import alimentacionService from "../services/Alimentacion.service";
+import { localApi } from "../../../database/local/localApi.service";
 import Text from "../../../shared/components/Text";
 import Modal from "../../../shared/components/Modal";
 import Alert from "../../../shared/components/Alert";
