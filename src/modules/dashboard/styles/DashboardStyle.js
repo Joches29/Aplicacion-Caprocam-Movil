@@ -210,6 +210,7 @@ export const styles = StyleSheet.create({
 
   alertDropdownHeader: {
     marginTop: 0,
+    marginBottom: 10,
     minHeight: 44,
     borderRadius: 12,
     borderWidth: 1,

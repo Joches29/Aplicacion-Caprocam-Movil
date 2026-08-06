@@ -12,15 +12,15 @@ componentes separados y datos preparados desde el hook.
 //////////////////////////////////////////////////////////
 */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import DashboardHeader from "../components/DashboardHeader";
 import DashboardAlertas from "../components/DashboardAlertas";
 import DashboardEstadisticas from "../components/DashboardEstadisticas";
 import DashboardEstanquesPanel from "../components/DashboardEstanquesPanel";
 import DashboardFincasPanel from "../components/DashboardFincasPanel";
-import DashboardHeader from "../components/DashboardHeader";
 import DashboardSanidadPanel from "../components/DashboardSanidadPanel";
 import DashboardUltimosRegistros from "../components/DashboardUltimosRegistros";
 
