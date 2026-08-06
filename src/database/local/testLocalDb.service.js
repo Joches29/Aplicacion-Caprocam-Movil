@@ -189,6 +189,20 @@ export const probarBaseLocal = async () => {
 
     console.log("Alimentacion creada:", alimentacion);
 
+    const comprador = await localApi.compradores.crear ({
+      grupo_datos: 1001,
+      nombre: "Distribuidora del Mar R.L.",
+      cedula: "3101998877",
+      telefono: "87654321",
+      correo: "compras@distribuidoradelmar.com",
+      direccion: "San José, Costa Rica",
+      notas: "Comprador de camarón",
+      estado: "ACTIVO",
+      creado_por_usuario_id: null,
+      creado_por_colaborador_id: colaborador.data.id,
+      });
+    console.log("Comprador creado:", comprador);
+    
     const estanques = await localApi.estanques.obtenerTodos({
       finca_id: finca.data.id,
     });
@@ -211,6 +225,7 @@ export const probarBaseLocal = async () => {
         productoBodega: productoBodega.data,
         inventario: inventario.data,
         alimentacion: alimentacion.data,
+        comprador: comprador.data,
         estanques: estanques.data,
         pendientes: pendientes.data,
       },
