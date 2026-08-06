@@ -133,7 +133,7 @@ async function obtenerContextoLocal() {
 async function ejecutarMetodoDensidad(tipoMetodo, argumentos = []) {
 
     const apiDensidad =
-        localApi.densidad_poblacional;
+        localApi.densidadPoblacional;
 
 
     if (!apiDensidad) {
