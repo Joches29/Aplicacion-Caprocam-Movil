@@ -252,7 +252,6 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "inventario_id INTEGER NOT NULL",
         "producto_id INTEGER NOT NULL",
-        "colaborador_id INTEGER NULL",
         "tipo_movimiento TEXT NOT NULL",
         "cantidad REAL NOT NULL",
         "observacion TEXT NULL",
@@ -352,7 +351,6 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NOT NULL",
         "estanque_id INTEGER NOT NULL",
-        "colaborador_id INTEGER NULL",
         "fecha_registro TEXT NOT NULL",
         "peso_actual REAL NOT NULL",
         "creado_por_usuario_id INTEGER NULL",
@@ -380,7 +378,6 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NOT NULL",
         "estanque_id INTEGER NOT NULL",
-        "colaborador_id INTEGER NULL",
         "comprador_id INTEGER NULL",
         "peso_promedio REAL NULL",
         "tamano_promedio REAL NULL",
@@ -434,7 +431,6 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NOT NULL",
         "estanque_id INTEGER NOT NULL",
-        "colaborador_id INTEGER NULL",
         "proveedor_id INTEGER NULL",
         "producto_id INTEGER NULL",
         "fecha TEXT NOT NULL",
@@ -455,7 +451,6 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NOT NULL",
         "estanque_id INTEGER NOT NULL",
-        "colaborador_id INTEGER NULL",
         "fecha TEXT NOT NULL",
         "cantidad_siembra INTEGER NULL",
         "area_estanque REAL NULL",
@@ -476,7 +471,6 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NOT NULL",
         "estanque_id INTEGER NOT NULL",
-        "colaborador_id INTEGER NULL",
         "fecha TEXT NOT NULL",
         "porcentaje TEXT NULL",
         "peso_estimado REAL NULL",
@@ -517,7 +511,6 @@ export const ESQUEMA_TABLAS = {
         "finca_id INTEGER NOT NULL",
         "estanque_origen_id INTEGER NULL",
         "estanque_destino_id INTEGER NULL",
-        "colaborador_id INTEGER NULL",
         "fecha TEXT NOT NULL",
         "tamano REAL NULL",
         "dias INTEGER NULL",
@@ -629,10 +622,6 @@ const crearIndicesGeneralesTabla = (tabla) => {
 
     if (tablaTieneColumna(tabla, "estanque_id")) {
         indices.push(`CREATE INDEX IF NOT EXISTS idx_${tabla}_estanque_id ON ${tabla}(estanque_id);`);
-    }
-
-    if (tablaTieneColumna(tabla, "colaborador_id")) {
-        indices.push(`CREATE INDEX IF NOT EXISTS idx_${tabla}_colaborador_id ON ${tabla}(colaborador_id);`);
     }
 
     if (tablaTieneColumna(tabla, "creado_por_usuario_id")) {

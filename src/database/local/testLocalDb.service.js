@@ -23,9 +23,11 @@ import bcrypt from "bcryptjs";
 
 bcrypt.setRandomFallback((len) => {
   const buf = new Uint8Array(len);
+
   for (let i = 0; i < len; i++) {
     buf[i] = Math.floor(Math.random() * 256);
   }
+
   return buf;
 });
 
@@ -62,8 +64,7 @@ export const probarBaseLocal = async () => {
     });
 
     console.log("Rol creado:", rol);
-    // PIN de prueba: 1234 — hasheado con bcrypt para que validarPinOffline
-    // (que usa bcrypt.compare) pueda validarlo correctamente.
+
     const pinHashDemo = bcrypt.hashSync("1234", 10);
 
     const colaborador = await localApi.colaboradores.crear({
@@ -78,6 +79,7 @@ export const probarBaseLocal = async () => {
       nombre_usuario: "gerald_demo",
       pin_hash: pinHashDemo,
       tipo_colaborador: "external_collab",
+      creado_por_usuario_id: null,
       creado_por_colaborador_id: null,
     });
 
@@ -96,12 +98,13 @@ export const probarBaseLocal = async () => {
       telefono: "88888888",
       area_total: 10,
       espejos_agua: 8,
+      creado_por_usuario_id: null,
       creado_por_colaborador_id: colaborador.data.id,
     });
 
     console.log("Finca creada:", finca);
 
-    const estanque = await localApi.estanques.crear({
+    const estanqueUno = await localApi.estanques.crear({
       grupo_datos: 1001,
       finca_id: finca.data.id,
       codigo: "EST-001",
@@ -113,10 +116,29 @@ export const probarBaseLocal = async () => {
       fuente_agua: "Pozo",
       fecha_mantenimiento: null,
       precria: 0,
+      creado_por_usuario_id: null,
       creado_por_colaborador_id: colaborador.data.id,
     });
 
-    console.log("Estanque creado:", estanque);
+    console.log("Estanque 1 creado:", estanqueUno);
+
+    const estanqueDos = await localApi.estanques.crear({
+      grupo_datos: 1001,
+      finca_id: finca.data.id,
+      codigo: "EST-002",
+      tipo_estanque: "Precria",
+      estado: "Activo",
+      largo: 15,
+      ancho: 8,
+      profundidad: 1.2,
+      fuente_agua: "Canal",
+      fecha_mantenimiento: null,
+      precria: 1,
+      creado_por_usuario_id: null,
+      creado_por_colaborador_id: colaborador.data.id,
+    });
+
+    console.log("Estanque 2 creado:", estanqueDos);
 
     const productoBodega = await localApi.productos.crear({
       codigo: "P-0001",
@@ -129,6 +151,7 @@ export const probarBaseLocal = async () => {
       fecha_caducidad: "2026-12-31",
       estado: "ACTIVO",
       grupo_datos: 1001,
+      creado_por_usuario_id: null,
       creado_por_colaborador_id: colaborador.data.id,
     });
 
@@ -140,6 +163,7 @@ export const probarBaseLocal = async () => {
       proveedor_id: null,
       cantidad: 24,
       stock_minimo: 6,
+      creado_por_usuario_id: null,
       creado_por_colaborador_id: colaborador.data.id,
     });
 
@@ -148,8 +172,7 @@ export const probarBaseLocal = async () => {
     const alimentacion = await localApi.alimentaciones.crear({
       grupo_datos: 1001,
       finca_id: finca.data.id,
-      estanque_id: estanque.data.id,
-      colaborador_id: colaborador.data.id,
+      estanque_id: estanqueUno.data.id,
       proveedor_id: null,
       producto_id: null,
       fecha: "2026-08-03",
@@ -160,6 +183,7 @@ export const probarBaseLocal = async () => {
       proveedor: "Proveedor Demo",
       tipo_alimento: "Alimento demo",
       observaciones: "Registro creado offline",
+      creado_por_usuario_id: null,
       creado_por_colaborador_id: colaborador.data.id,
     });
 
@@ -182,10 +206,12 @@ export const probarBaseLocal = async () => {
         rol: rol.data,
         colaborador: colaborador.data,
         finca: finca.data,
-        estanque: estanque.data,
+        estanqueUno: estanqueUno.data,
+        estanqueDos: estanqueDos.data,
         productoBodega: productoBodega.data,
         inventario: inventario.data,
         alimentacion: alimentacion.data,
+        estanques: estanques.data,
         pendientes: pendientes.data,
       },
     };
