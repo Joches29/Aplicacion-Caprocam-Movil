@@ -1,14 +1,15 @@
 /**
  * ============================================================
- * HOOK DE ENFERMEDADES
+ * HOOK DE ENFERMEDADES (REPORTERÍA)
  * ============================================================
  *
- * Autocontenido: carga, eliminación y alert.
+ * Autocontenido: carga, eliminación y alert (SQLite / local).
  * Enriquece: nombreFinca, codigoEstanque, nombreColaborador, nombreCreadoPor
+ * 
  */
 import { useState, useEffect } from "react";
-import enfermedadesService from "../../enfermedades/services/EnfermedadesService.js";
 import { obtenerDetalleReporte } from "../services/detalleReporte.service.js";
+import { eliminarRegistroLocal } from "../services/ReporteriaLocal.service.js";
 import useModalEliminar from "../hooks/useModalEliminar.js";
 import { cargarYEnriquecerRegistros } from "../utils/enriquecerRegistros.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
@@ -46,7 +47,7 @@ export default function useEnfermedad(fincaId, estanqueId, onAlertChange) {
   }, [fincaId, estanqueId]);
 
   async function eliminarEnfermedad(id) {
-    await enfermedadesService.deleteById(id);
+    await eliminarRegistroLocal("enfermedades", id);
     await cargarEnfermedades();
     setAlert("deleted");
   }
