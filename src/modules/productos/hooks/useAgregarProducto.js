@@ -200,14 +200,17 @@ export function useAgregarProducto() {
     }
     setGuardando(false);
 
- 
     setGuardadoExitoso(true);
 
     setTimeout(() => {
       setGuardadoExitoso(false);
       setForm(initialForm);
       setIntentoGuardar(false);
-    }, 3000);
+      router.replace({
+        pathname: "/(drawer)/inventarios",
+        params: { alertaProducto: "guardado" },
+      });
+    }, 900);
   }
 
   function handleBack() {

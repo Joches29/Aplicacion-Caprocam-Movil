@@ -101,7 +101,10 @@ export function useDetalleProducto() {
       setModalEliminarVisible(false);
       setEliminado(true);
       setTimeout(() => {
-        router.replace("/(drawer)/inventarios");
+        router.replace({
+          pathname: "/(drawer)/inventarios",
+          params: { alertaProducto: "eliminado" },
+        });
       }, 900);
     } catch (err) {
       setModalEliminarVisible(false);

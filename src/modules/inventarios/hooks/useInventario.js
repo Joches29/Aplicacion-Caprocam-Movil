@@ -25,16 +25,29 @@
  *
  * Navegación:
  * Recarga los productos de la API automáticamente cada vez que la
- * pantalla recibe foco gracias a useFocusEffect.
+ * pantalla recibe foco gracias a useFocusEffect. Además lee el
+ * parámetro alertaProducto ("guardado" | "eliminado") que envía
+ * Productos al volver, y arma el feedback de éxito correspondiente
+ * durante 3 segundos.
  *
  * Dependencias:
  * services/InventarioService.js.
  */
 
-import { useCallback, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { getProductosInventario } from "../services/InventarioService.js";
+
+/**
+ * Mensajes del Alert de feedback que se muestra cuando Productos
+ * navega de vuelta a esta pantalla tras guardar o eliminar un
+ * producto (parámetro de navegación alertaProducto).
+ */
+const mensajesAlertaProducto = {
+  guardado: "Producto guardado correctamente.",
+  eliminado: "Producto eliminado correctamente.",
+};
 
 /**
  * Convierte un string "dd/mm/aaaa" a Date para poder comparar fechas.
@@ -54,9 +67,11 @@ function parsearFechaDDMMAAAA(fecha) {
 
 export function useInventario() {
   const flatListRef = useRef(null);
+  const { alertaProducto } = useLocalSearchParams();
 
   const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
+  const [feedback, setFeedback] = useState(null);
 
   const [filtros, setFiltros] = useState({
     categories: [],
@@ -87,6 +102,15 @@ export function useInventario() {
       };
     }, []),
   );
+
+  useEffect(() => {
+    const mensaje = mensajesAlertaProducto[alertaProducto];
+    if (mensaje) {
+      setFeedback({ variant: "success", message: mensaje });
+      const t = setTimeout(() => setFeedback(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [alertaProducto]);
 
   const categorias = Array.isArray(productos)
     ? [...new Set(productos.map((p) => p.categoria).filter(Boolean))]
@@ -157,5 +181,6 @@ export function useInventario() {
     unidades,
     productosFiltrados,
     cantidadStockBajo,
+    feedback,
   };
 }

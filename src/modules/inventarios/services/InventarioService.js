@@ -68,8 +68,8 @@ function mapearProductoInventarioLocal(registroInventario, catalogoProductos = [
 
 async function obtenerProductosInventarioLocal() {
   const [respInventario, respProductos] = await Promise.all([
-    localApi.inventario.obtenerTodos({ incluirInactivos: true }),
-    localApi.productos.obtenerTodos({ incluirInactivos: true }),
+    localApi.inventario.obtenerTodos({ incluirInactivos: false }),
+    localApi.productos.obtenerTodos({ incluirInactivos: false }),
   ]);
 
   const inventario = respInventario.success ? (respInventario.data || []) : [];

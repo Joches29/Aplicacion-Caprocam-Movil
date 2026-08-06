@@ -38,13 +38,19 @@ export const styles = StyleSheet.create({
 
   searchBarContainer: {
     flex: 1,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 0,
   },
 
   filterButton: {
+    width: 120,
     alignItems: "center",
-    height: 43,
-    marginBottom: 8.5,
-    flexShrink: 0,
+    justifyContent: "center",
+    height: 46,
+    marginTop: 0,
+    marginBottom: 0,
   },
 
   alertaBanner: {
@@ -64,14 +70,6 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
 
-  filaContadorBoton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-    gap: 8,
-  },
-
   contadorResultados: {
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     flexShrink: 1,
@@ -81,20 +79,38 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    height: 38,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
+    alignSelf: "stretch",
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 0,
+    marginBottom: 0,
     backgroundColor: COLORS.white,
-    paddingHorizontal: 14,
-    paddingVertical: 0,
-    flexShrink: 0,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
+  floatingButtonWrapper: {
+    position: "absolute",
+    bottom: 72,
+    left: 16,
+    right: 16,
+    alignItems: "center",
   },
 
   lista: {
     ...STYLE.contentWrapper,
-    paddingBottom: 24,
+    paddingBottom: 130,
   },
 
   tarjeta: {
@@ -139,36 +155,15 @@ export const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
 
-  filaCategoriaBoton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-    marginTop: 2,
-    flexWrap: "wrap",
-    gap: 8,
-  },
-
   badgeCategoria: {
     fontFamily: TYPOGRAPHY.fontFamily.medium,
-    flexShrink: 1,
+    alignSelf: "flex-start",
+    marginBottom: 12,
+    marginTop: 2,
   },
 
   badgeTexto: {
     fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
-
-  botonDetalle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    backgroundColor: COLORS.white,
-    flexShrink: 0,
   },
 
   filasDetalle: {
