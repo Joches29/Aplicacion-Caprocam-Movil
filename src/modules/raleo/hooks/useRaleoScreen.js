@@ -38,7 +38,7 @@
 
 import { useEffect, useState } from "react";
 import useRaleo from "./useRaleo";
-import raleoService from "../services/Raleo.service";
+import raleoLocalService from "../services/RaleoLocal.service.js";
 
 function convertirFecha(fecha) {
   const [dia, mes, anio] = fecha.split("/");
@@ -100,7 +100,7 @@ export default function useRaleoScreen() {
           ? form.observaciones
           : "No se realizan observaciones",
       };
-      await raleoService.create(registro);
+      await raleoLocalService.create(registro);
       setAlerta({ visible: true, variant: "success", mensaje: "Raleo registrado correctamente" });
     } catch (error) {
       onError?.(error);
