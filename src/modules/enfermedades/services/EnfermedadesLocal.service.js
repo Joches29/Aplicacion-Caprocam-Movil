@@ -113,7 +113,7 @@ async function obtenerContextoLocal() {
 
     const colaboradorId = obtenerValor(
         colaborador,
-        ["id", "colaboradorId", "colaborador_id"],
+        ["id", "colaboradorId"],
         null
     );
 
@@ -159,6 +159,18 @@ function mapearEnfermedadDesdeLocal(registro) {
 
             fincaId: obtenerValor(registro, ["finca_id", "fincaId"], null),
             estanqueId: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+
+            creadoPorUsuarioId: obtenerValor(
+                registro,
+                ["creado_por_usuario_id", "creadoPorUsuarioId"],
+                null
+            ),
+
+            creadoPorColaboradorId: obtenerValor(
+                registro,
+                ["creado_por_colaborador_id", "creadoPorColaboradorId"],
+                null
+            ),
 
             fechaReporte: obtenerValor(
                 registro,
