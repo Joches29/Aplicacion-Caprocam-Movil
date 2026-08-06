@@ -77,7 +77,7 @@
 
 import { useState,useEffect } from "react";
 import { useDatosConteo } from "./useDatosConteo";
-import densidadPoblacionalService from "../services/DensidadPoblacional.service";
+import densidadPoblacionalLocalService from "../services/DensidadPoblacionalLocal.service.js";
 import { useFincaEstanqueDensidad } from "./useFincaEstanqueDensidad";
 import { toMysqlDate } from "../../../shared/utils/dateUtils";
 
@@ -182,7 +182,7 @@ export default function useDensidadPoblacional() {
     };
 
     try {
-      await densidadPoblacionalService.create(densidadDTO);
+      await densidadPoblacionalLocalService.create(densidadDTO);
       setAlerta({ visible: true, variant: "success", mensaje: "Modulo guardado exitosamente" });
     } catch (err) {
       setAlerta({ visible: true, variant: "danger", mensaje: extraerMensaje(err) });
