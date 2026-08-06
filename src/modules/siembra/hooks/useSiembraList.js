@@ -34,7 +34,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigation, useRouter } from "expo-router";
 import { calcularProgresoCiclo } from "./siembraCalculos";
 import SiembraLocalService from "../services/SiembraLocal.services";
-import { getPrecrias } from "../services/precria.service";
+import PrecriaLocalService from "../services/PrecriaLocal.service";
+import LoteLarvaLocalService from "../services/LoteLarvaLocal.service";
 import { obtenerFincas, obtenerEstanquesPorFinca } from "./fincaEstanqueLocal";
 import { formatearFechaDesdeISO } from "./dateUtils";
 import { localApi } from "../../../database/local/localApi.service";
@@ -51,6 +52,7 @@ function adaptarSiembraLocalABackend(s) {
     pl_siembra: s.plSiembra,
     precria_id: s.precriaId,
     lote_larva_id: s.loteLarvaId,
+    duracion_ciclo: s.duracionCiclo,
     estado: s.estado,
   };
 }
@@ -79,11 +81,11 @@ export default function useSiembraList() {
   const fincas = useMemo(() => obtenerFincas(), []);
 
   function obtenerNombresFincaEstanque(registro) {
-    const finca = fincas.find((f) => f.value === registro.finca_id);
-    // Los estanques están indexados por finca en el mock - buscamos
-    // dentro de los del finca_id correspondiente.
-    const estanque = obtenerEstanquesPorFinca(registro.finca_id).find(
-      (e) => e.value === registro.estanque_id,
+    const fincaId = registro.finca_id ?? registro.fincaId;
+    const estanqueId = registro.estanque_id ?? registro.estanqueId;
+    const finca = fincas.find((f) => f.value === fincaId);
+    const estanque = obtenerEstanquesPorFinca(fincaId).find(
+      (e) => e.value === estanqueId,
     );
     return {
       fincaLabel: finca?.label || "Sin finca",
@@ -91,7 +93,16 @@ export default function useSiembraList() {
     };
   }
 
-  function mapSiembraParaCard(s) {
+  function obtenerDatosLote(loteLarvaId, lotesPorId) {
+    const lote = lotesPorId ? lotesPorId[loteLarvaId] : null;
+    return {
+      codigoLoteLarva: lote?.codigoLote || "",
+      plLarva: lote?.plInicial != null ? `PL${lote.plInicial}` : "",
+    };
+  }
+
+
+  function mapSiembraParaCard(s, lotesPorId) {
     const base = {
       ...s,
       tipoRegistro: "siembra",
@@ -100,24 +111,28 @@ export default function useSiembraList() {
       fechaSiembra: formatearFechaDesdeISO(s.fecha_siembra),
       cantidadSembrada: s.cantidad_sembrada,
       plSiembra: s.pl_siembra != null ? `PL${s.pl_siembra}` : "",
-      diasMaduracion: s.duracion_dias ?? 90, // no hay columna real en "siembras"; se usa el default del formulario
+      diasMaduracion: s.duracion_dias || 90, 
+      ...obtenerDatosLote(s.lote_larva_id, lotesPorId),
     };
     const { diaActual, totalDias } = calcularProgresoCiclo(base);
     return { ...base, diasCultivo: diaActual, duracionDias: totalDias };
   }
 
-  function mapPrecriaParaCard(p) {
+  function mapPrecriaParaCard(p, lotesPorId) {
     const base = {
       ...p,
       tipoRegistro: "precria",
       siembraId: p.id,
-      estanque: p.estanque_id,
-      fechaInicio: formatearFechaDesdeISO(p.fecha_inicio),
-      cantidadInicial: p.cantidad_inicial,
-      cantidadFinal: p.cantidad_final,
-      plInicial: p.pl_inicial != null ? `PL${p.pl_inicial}` : "",
-      plFinal: p.pl_final != null ? `PL${p.pl_final}` : "",
-      duracionDias: p.duracion_dias,
+      finca_id: p.fincaId,
+      estanque_id: p.estanqueId,
+      estanque: p.estanqueId,
+      fechaInicio: formatearFechaDesdeISO(p.fechaInicio),
+      cantidadInicial: p.cantidadInicial,
+      cantidadFinal: p.cantidadFinal,
+      plInicial: p.plInicial != null ? `PL${p.plInicial}` : "",
+      plFinal: p.plFinal != null ? `PL${p.plFinal}` : "",
+      duracionDias: p.duracionDias,
+      ...obtenerDatosLote(p.loteLarvaId, lotesPorId),
     };
     const { diaActual, totalDias } = calcularProgresoCiclo(base);
     return { ...base, diasCultivo: diaActual, duracionDias: totalDias };
@@ -130,13 +145,20 @@ export default function useSiembraList() {
 
       await localApi.inicializar();
 
-      const [siembras, precrias] = await Promise.all([
+      const [siembras, precrias, lotes] = await Promise.all([
         SiembraLocalService.getAll(),
-        getPrecrias(),
+        PrecriaLocalService.getAll(),
+        LoteLarvaLocalService.getAll(),
       ]);
+
+      const lotesPorId = {};
+      (lotes || []).forEach((lote) => {
+        lotesPorId[lote.id] = lote;
+      });
+
       setRegistros([
-        ...siembras.map(adaptarSiembraLocalABackend).map(mapSiembraParaCard),
-        ...precrias.map(mapPrecriaParaCard),
+        ...siembras.map(adaptarSiembraLocalABackend).map((s) => mapSiembraParaCard(s, lotesPorId)),
+        ...precrias.map((p) => mapPrecriaParaCard(p, lotesPorId))
       ]);
     } catch (err) {
       console.error("Error al cargar siembras locales", err);

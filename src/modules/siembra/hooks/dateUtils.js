@@ -44,3 +44,27 @@ export function formatearFechaDesdeISO(fechaISO) {
   if (Number.isNaN(fecha.getTime())) return "";
   return formatearFecha(fecha);
 }
+
+export function calcularDiasTranscurridos(fechaDDMMAAAA) {
+
+  if (!fechaDDMMAAAA) return 0;
+
+  const  partes = fechaDDMMAAAA.split("/");
+  if (partes.length !== 3) return 0;
+
+  const [dia, mes, anio] = partes.map(Number);
+  if(!dia || !mes || !anio) return 0;
+
+  const inicio = new Date(anio, mes - 1, dia);
+  if (Number.isNaN(inicio.getTime())) return 0;
+
+  const hoy = new Date();
+
+  const inicioSinhora = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+  const hoySinhora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+  const diffMs = hoySinhora - inicioSinhora;
+  const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return dias < 0 ? 0 : dias;
+}
