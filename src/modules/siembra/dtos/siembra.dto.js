@@ -55,16 +55,17 @@ export class PrecriaDTO {
   constructor(formData, idLoteLarva) {
     this.lote_larva_id = idLoteLarva;
     this.finca_id = Number(formData.fincaId || formData.finca || 0);
-    this.estanque_id = Number(formData.estanque || 0);
+    this.estanque_id = Number(formData.estanqueId || formData.estanque || 0);
     this.fecha_inicio = aFechaISO(formData.fechaInicio || "");
     this.duracion_dias = Number(formData.duracionDias || formData.diasMaduracion || 0);
     this.cantidad_inicial = Number(formData.cantidadInicial || 0);
-    this.pl_inicial = numeroDesdePL(formData.plInicial) ?? Number(formData.plInicial || 0);
+    this.pl_inicial = numeroDesdePL(formData.plInicial || formData.plSiembra);
     // El backend acepta estos tres desde el update normal, no solo
     // desde /finalizar - si no se mandan aquí, "Guardar" los borra.
     this.fecha_fin = formData.fechaFin ? aFechaISO(formData.fechaFin) : null;
     this.cantidad_final = formData.cantidadFinal ? Number(formData.cantidadFinal) : null;
     this.pl_final = formData.plFinal ? numeroDesdePL(formData.plFinal) : null;
+    this.estado = formData.estado || "En Proceso";
   }
 }
 
@@ -81,13 +82,13 @@ export class SiembraDTO {
     this.lote_larva_id = idLoteLarva;
     this.precria_id = formData.precriaId ? Number(formData.precriaId) : null;
     this.finca_id = Number(formData.fincaId || formData.finca || 0);
-    this.estanque_id = Number(formData.estanque || 0);
+    this.estanque_id = Number(formData.estanqueId || formData.estanque || 0);
     this.fecha_siembra = aFechaISO(formData.fechaSiembra || "");
     this.tecnica_cultivo = formData.tecnicaCultivo || null;
     this.densidad_poblacional = formData.densidadPoblacional ? Number(formData.densidadPoblacional) : null;
     this.cantidad_sembrada = Number(formData.cantidadSembrada || 0);
     this.pl_siembra = numeroDesdePL(formData.plSiembra);
-    this.duracion_ciclo = Number(formData.duracionCiclo || formData.diasMaduracion || formData.duracionDias || 0);
+    this.duracion_ciclo = Number(formData.diasMaduracion || 0);
     this.estado = formData.estado === "Finalizada" ? "FINALIZADA" : "ACTIVA";
   }
 }

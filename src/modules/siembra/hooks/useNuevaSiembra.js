@@ -41,11 +41,8 @@ import {
 import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
 import { calcularCantidadSembrada } from "./siembraCalculos";
 import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
-import {
-  obtenerEstanquePorCodigo,
-  obtenerEstanquesPorFinca,
-  obtenerFincas,
-} from "./fincaEstanqueLocal";
+import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
+import FincaLocalService from "../../../modules/finca/services/fincaLocal.service";
 
 // Catalogos de larva - operaciones locales (SQLite), no pegan
 // directo al backend, para que "Agregar nuevo" funcione offline.
@@ -79,6 +76,7 @@ const initialFormData = {
 
   fechaSiembra: "",
   tecnicaCultivo: "",
+  especie: "camaron_blanco",
   densidadPoblacional: "8",
   cantidadSembrada: "",
   plSiembra: "",
@@ -132,13 +130,51 @@ export default function useNuevaSiembra() {
     }));
   }, []);
 
-  const estanques = obtenerEstanquesPorFinca(formData.finca);
-  const fincas = useMemo(() => obtenerFincas(), []);
+  const [fincas, setFincas] = useState([]);
+  const [todosEstanques, setTodosEstanques] = useState([]);
+
+  const estanques = useMemo(() => {
+    if (!formData.finca) return [];
+
+    const fincaObj = fincas.find(
+      (f) => String(f.value) === String(formData.finca) || String(f.id) === String(formData.finca)
+    );
+
+    const fincaLocalId = fincaObj ? String(fincaObj.id || fincaObj.value) : String(formData.finca);
+    const fincaServidorId = fincaObj && fincaObj.servidorId ? String(fincaObj.servidorId) : "";
+
+    return todosEstanques
+      .filter((e) => {
+        const estanqueFincaId = String(e.fincaId || e.idFinca || e.finca_id || "");
+        return (
+          estanqueFincaId === fincaLocalId ||
+          (fincaServidorId !== "" && estanqueFincaId === fincaServidorId)
+        );
+      })
+      .map((e) => ({
+        label: e.codigo
+          ? e.codigo.toLowerCase().startsWith("estanque") || e.codigo.toLowerCase().startsWith("tanque")
+            ? e.codigo
+            : `Estanque ${e.codigo}`
+          : e.nombre
+          ? e.nombre
+          : `Estanque #${e.id}`,
+        value: String(e.id),
+        ...e,
+      }));
+  }, [formData.finca, todosEstanques, fincas]);
+
   const tecnicasCultivo = useMemo(
     () => [
       { label: "Extensiva", value: "extensiva" },
       { label: "Semi-intensiva", value: "semi" },
       { label: "Intensiva", value: "intensiva" },
+    ],
+    [],
+  );
+  const especies = useMemo(
+    () => [
+      { label: "Camarón blanco (Litopenaeus vannamei)", value: "camaron_blanco" },
     ],
     [],
   );
@@ -151,8 +187,7 @@ export default function useNuevaSiembra() {
     [],
   );
 
-  // Catálogos de larva reales - se cargan del backend, ya no son
-  // arrays en memoria.
+  // Catálogos de larva y fincas/estanques reales - se cargan de SQLite.
   const [proveedoresLarva, setProveedoresLarva] = useState([]);
   const [laboratoriosLarva, setLaboratoriosLarva] = useState([]);
   const [procedenciasLarva, setProcedenciasLarva] = useState([]);
@@ -162,16 +197,27 @@ export default function useNuevaSiembra() {
     async function cargarCatalogos() {
       try {
         setCargandoCatalogos(true);
-        const [rProv, rLab, rProc] = await Promise.all([
+        const [rProv, rLab, rProc, rFincas, rEstanques] = await Promise.all([
           ProveedorLarvaLocalService.getAll(),
           LaboratorioLocalService.getAll(),
           ProcedenciaLocalService.getAll(),
+          FincaLocalService.getFincas(),
+          EstanqueLocalService.getEstanques(),
         ]);
         setProveedoresLarva(mapCatalogo(rProv || []));
         setLaboratoriosLarva(mapCatalogo(rLab || []));
         setProcedenciasLarva(mapCatalogo(rProc || []));
+        setFincas(
+          (rFincas || []).map((f) => ({
+            label: f.nombreFinca || f.codigoCBO || `Finca #${f.id}`,
+            value: String(f.id),
+            id: f.id,
+            servidorId: f.servidorId || f.servidor_id,
+          }))
+        );
+        setTodosEstanques(rEstanques || []);
       } catch (err) {
-        setMensaje("No fue posible cargar los catálogos de larva.");
+        setMensaje("No fue posible cargar los catálogos.");
         setMensajeVariant("danger");
       } finally {
         setCargandoCatalogos(false);
@@ -237,15 +283,21 @@ export default function useNuevaSiembra() {
   }
 
   function handleChangeEstanque(value) {
-    const estanque = obtenerEstanquePorCodigo(formData.finca, value);
-    const area = estanque?.areaHectareas ?? "";
+    const estanqueObj = todosEstanques.find(
+      (e) => String(e.id) === String(value) || String(e.servidorId) === String(value)
+    );
+    let area = estanqueObj?.areaHectareas;
+    if (area == null && estanqueObj?.largo && estanqueObj?.ancho) {
+      area = (Number(estanqueObj.largo) * Number(estanqueObj.ancho)) / 10000;
+    }
+    const areaStr = area != null && area !== "" ? String(area) : "";
 
     setFormData((previousData) => {
       const updatedData = { ...previousData, estanque: value };
       if (previousData.tipoRegistro === "siembra") {
-        updatedData.areaHectareas = area;
+        updatedData.areaHectareas = areaStr;
         updatedData.cantidadSembrada = calcularCantidadSembrada(
-          area,
+          areaStr,
           previousData.densidadPoblacional,
         );
       }
@@ -290,8 +342,8 @@ export default function useNuevaSiembra() {
         const area = previo.areaHectareas || "";
         const actualizado = {
           ...previo,
-          finca: precria.fincaId || previo.finca,
-          estanque: precria.estanqueId || previo.estanque,
+          finca: precria.fincaId != null ? String(precria.fincaId) : previo.finca,
+          estanque: precria.estanqueId != null ? String(precria.estanqueId) : previo.estanque,
           cantidadSobrevivientePrecria: precria.cantidadFinal || "",
           duracionPrecria: precria.duracionDias || "",
           fechaSalidaPrecria: formatearFechaDesdeISO(precria.fechaFin),
@@ -475,11 +527,14 @@ export default function useNuevaSiembra() {
       );
       setMensajeVariant("success");
       setSubmitted(false);
+
+      setTimeout(() => {
+        router.replace("/siembra");
+      }, 3000);
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
       setMensaje(mensajeBackend || "No fue posible registrar el ciclo.");
       setMensajeVariant("danger");
-    } finally {
       setGuardando(false);
     }
   }
@@ -489,6 +544,7 @@ export default function useNuevaSiembra() {
     estanques,
     fincas,
     tecnicasCultivo,
+    especies,
     proveedoresLarva,
     laboratoriosLarva,
     procedenciasLarva,

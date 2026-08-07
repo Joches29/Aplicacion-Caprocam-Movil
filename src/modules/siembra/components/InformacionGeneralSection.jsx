@@ -33,6 +33,10 @@ import { ICONS } from "../../../theme/icons";
 import { styles } from "../styles/SiembraSectionStyles";
 import SectionTitle from "./SectionTitle";
 
+const OPCIONES_ESPECIE_DEFECTO = [
+  { label: "Camarón blanco (Litopenaeus vannamei)", value: "camaron_blanco" },
+];
+
 export default function InformacionGeneralSection({
   formData,
   onChange,
@@ -41,6 +45,7 @@ export default function InformacionGeneralSection({
   fincas,
   estanques,
   tecnicasCultivo,
+  especies = OPCIONES_ESPECIE_DEFECTO,
   mode = "edit",
   fieldHelpers,
 }) {
@@ -90,6 +95,17 @@ export default function InformacionGeneralSection({
         onChange={(value) => onChange("tecnicaCultivo", value)}
         labelStyle={styles.requiredLabel}
         selectStyle={hasError("tecnicaCultivo") ? styles.inputError : null}
+        disabled={isViewMode}
+      />
+
+      <Select
+        label={requiredLabel("Especie")}
+        placeholder="Seleccionar especie"
+        options={especies}
+        value={formData.especie || "camaron_blanco"}
+        onChange={(value) => onChange("especie", value)}
+        labelStyle={styles.requiredLabel}
+        selectStyle={hasError && hasError("especie") ? styles.inputError : null}
         disabled={isViewMode}
       />
 

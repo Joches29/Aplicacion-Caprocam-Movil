@@ -29,7 +29,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
 
 import {
   useFieldValidation,
@@ -41,11 +41,8 @@ import {
   calcularProgresoCiclo,
 } from "./siembraCalculos";
 import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
-import {
-  obtenerEstanquePorCodigo,
-  obtenerEstanquesPorFinca,
-  obtenerFincas,
-} from "./fincaEstanqueLocal";
+import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
+import FincaLocalService from "../../../modules/finca/services/fincaLocal.service";
 
 import SiembraLocalService from "../services/SiembraLocal.services";
 import PrecriaLocalService from "../services/PrecriaLocal.service";
@@ -69,15 +66,13 @@ function adaptarSiembraLocal(s) {
   return {
     ...s,
     id: s.id,
-    lote_larva_id: s.loteLarvaId,
-    precria_id: s.precriaId,
     finca_id: s.fincaId,
     estanque_id: s.estanqueId,
     fecha_siembra: s.fechaSiembra,
-    tecnica_cultivo: s.tecnicaCultivo,
-    densidad_poblacional: s.densidadPoblacional,
     cantidad_sembrada: s.cantidadSembrada,
     pl_siembra: s.plSiembra,
+    precria_id: s.precriaId,
+    lote_larva_id: s.loteLarvaId,
     duracion_ciclo: s.duracionCiclo,
     estado: s.estado,
   };
@@ -88,7 +83,6 @@ function adaptarPrecriaLocal(p) {
   return {
     ...p,
     id: p.id,
-    lote_larva_id: p.loteLarvaId,
     finca_id: p.fincaId,
     estanque_id: p.estanqueId,
     fecha_inicio: p.fechaInicio,
@@ -98,6 +92,7 @@ function adaptarPrecriaLocal(p) {
     cantidad_final: p.cantidadFinal,
     pl_inicial: p.plInicial,
     pl_final: p.plFinal,
+    lote_larva_id: p.loteLarvaId,
     estado: p.estado,
   };
 }
@@ -122,72 +117,108 @@ function adaptarLoteLocal(l) {
 function mapLoteAFormData(lote) {
   if (!lote) return {};
   return {
-    codigoLoteLarva: lote.codigo_lote || "",
-    proveedorLarva: lote.proveedor_larva_id || "",
-    laboratorioLarva: lote.laboratorio_id || "",
-    procedenciaLarva: lote.procedencia_id || "",
-    certificadoLarva: lote.certificado_larva || "",
+    codigoLoteLarva: lote.codigo_lote || lote.codigoLoteLarva || "",
+    proveedorLarva: lote.proveedor_id || lote.proveedorLarva || "",
+    laboratorioLarva: lote.laboratorio || lote.laboratorioLarva || "",
+    procedenciaLarva: lote.procedencia || lote.procedenciaLarva || "",
+    certificadoLarva: lote.certificado_larva || lote.certificadoLarva || "",
   };
 }
 
-function mapSiembraAFormData(siembra, lote, precriaOrigen, areahectareas) {
+function mapSiembraAFormData(siembra, lote, precriaOrigen, areaHectareas = "") {
+  if (!siembra) return null;
+
   return {
+    id: siembra.id,
     tipoRegistro: "siembra",
-    loteId: siembra.lote_larva_id,
     pasoPorPrecria: siembra.precria_id ? "si" : "no",
-    precriaId: siembra.precria_id ? String(siembra.precria_id) : "",
-    finca: siembra.finca_id || "",
-    estanque: siembra.estanque_id || "",
-    areaHectareas: areahectareas || "",
-    diasMaduracion: siembra.duracion_ciclo != null ? String(siembra.duracion_ciclo) : "",
-    estado: siembra.estado === "FINALIZADA" ? "Finalizada" : "Activa",
+    precriaId: siembra.precria_id || "",
+
+    finca: siembra.finca_id != null ? String(siembra.finca_id) : "",
+    estanque: siembra.estanque_id != null ? String(siembra.estanque_id) : "",
+    codigoLoteLarva: lote?.codigo_lote || "",
+    estado: siembra.estado || "Activa",
+
     fechaSiembra: formatearFechaDesdeISO(siembra.fecha_siembra),
-    tecnicaCultivo: siembra.tecnica_cultivo || "",
-    densidadPoblacional:
-      siembra.densidad_poblacional != null
-        ? String(siembra.densidad_poblacional)
-        : "",
-    cantidadSembrada:
-      siembra.cantidad_sembrada != null
-        ? String(siembra.cantidad_sembrada)
-        : "",
+    tecnicaCultivo: siembra.tecnica_cultivo || "semi",
+    densidadPoblacional: String(siembra.densidad_poblacional || 8),
+    cantidadSembrada: String(siembra.cantidad_sembrada || ""),
     plSiembra: siembra.pl_siembra != null ? `PL${siembra.pl_siembra}` : "",
-    // Heredado de la Pre-Cría de origen - antes nunca se llenaba.
-    duracionPrecria: precriaOrigen?.duracion_dias ?? "",
-    fechaSalidaPrecria: precriaOrigen
+    diasMaduracion: String(siembra.duracion_ciclo || 90),
+    areaHectareas: String(areaHectareas),
+
+    fechaInicio: "",
+    fechaFin: "",
+    duracionDias: "15",
+    cantidadInicial: "",
+    cantidadFinal: "",
+    plInicial: "",
+    plFinal: "",
+
+    loteId: siembra.lote_larva_id || null,
+    proveedorLarva: lote?.proveedor_larva_id || "",
+    laboratorioLarva: lote?.laboratorio_id || "",
+    procedenciaLarva: lote?.procedencia_id || "",
+    certificadoLarva: lote?.certificado_larva || "",
+
+    duracionPrecria: precriaOrigen?.duracion_dias
+      ? String(precriaOrigen.duracion_dias)
+      : "",
+    fechaSalidaPrecria: precriaOrigen?.fecha_fin
       ? formatearFechaDesdeISO(precriaOrigen.fecha_fin)
       : "",
-    cantidadSobrevivientePrecria: precriaOrigen?.cantidad_final ?? "",
-    ...mapLoteAFormData(lote),
+    cantidadSobrevivientePrecria: precriaOrigen?.cantidad_final
+      ? String(precriaOrigen.cantidad_final)
+      : "",
   };
 }
 
-function mapPrecriaAFormData(precria, lote, areahectareas) {
+function mapPrecriaAFormData(precria, lote, areaHectareas = "") {
+  if (!precria) return null;
+
   return {
+    id: precria.id,
     tipoRegistro: "precria",
-    loteId: precria.lote_larva_id,
-    finca: precria.finca_id || "",
-    estanque: precria.estanque_id || "",
-    areaHectareas: areahectareas || "",
-    estado: precria.estado || "Activa",
+    pasoPorPrecria: "no",
+    precriaId: "",
+
+    finca: precria.finca_id != null ? String(precria.finca_id) : "",
+    estanque: precria.estanque_id != null ? String(precria.estanque_id) : "",
+    codigoLoteLarva: lote?.codigo_lote || "",
+    estado: precria.estado || "En Proceso",
+
+    fechaSiembra: "",
+    tecnicaCultivo: "semi",
+    densidadPoblacional: "8",
+    cantidadSembrada: "",
+    plSiembra: "",
+    diasMaduracion: "90",
+    areaHectareas: String(areaHectareas),
+
     fechaInicio: formatearFechaDesdeISO(precria.fecha_inicio),
     fechaFin: formatearFechaDesdeISO(precria.fecha_fin),
-    duracionDias:
-      precria.duracion_dias != null ? String(precria.duracion_dias) : "",
-    cantidadInicial:
-      precria.cantidad_inicial != null ? String(precria.cantidad_inicial) : "",
-    cantidadFinal:
-      precria.cantidad_final != null ? String(precria.cantidad_final) : "",
+    duracionDias: String(precria.duracion_dias || 15),
+    cantidadInicial: String(precria.cantidad_inicial || ""),
+    cantidadFinal: String(precria.cantidad_final || ""),
     plInicial: precria.pl_inicial != null ? `PL${precria.pl_inicial}` : "",
     plFinal: precria.pl_final != null ? `PL${precria.pl_final}` : "",
-    ...mapLoteAFormData(lote),
+
+    loteId: precria.lote_larva_id || null,
+    proveedorLarva: lote?.proveedor_larva_id || "",
+    laboratorioLarva: lote?.laboratorio_id || "",
+    procedenciaLarva: lote?.procedencia_id || "",
+    certificadoLarva: lote?.certificado_larva || "",
+
+    duracionPrecria: "",
+    fechaSalidaPrecria: "",
+    cantidadSobrevivientePrecria: "",
   };
 }
 
 function obtenerNumeroPL(pl) {
-  if (!pl) return NaN;
-  const coincidencia = String(pl).match(/\d+/);
-  return coincidencia ? parseInt(coincidencia[0], 10) : NaN;
+  if (pl == null || pl === "") return null;
+  const match = String(pl).match(/\d+/);
+  return match ? Number(match[0]) : null;
 }
 
 function validarCoherenciaCierrePrecria(formData) {
@@ -223,9 +254,10 @@ function calcularEtapa(progreso) {
   return 1;
 }
 
-export default function useDetalleSiembra(id) {
+export default function useDetalleSiembra() {
   const router = useRouter();
-  const { tipoRegistro: tipoRegistroParam } = useLocalSearchParams();
+  const navigation = useNavigation();
+  const { id, tipoRegistro: tipoRegistroParam } = useLocalSearchParams();
 
   const [siembra, setSiembra] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -235,6 +267,9 @@ export default function useDetalleSiembra(id) {
 
   const [mensaje, setMensaje] = useState("");
   const [mensajeVariant, setMensajeVariant] = useState("info");
+
+  const [fincas, setFincas] = useState([]);
+  const [todosEstanques, setTodosEstanques] = useState([]);
 
   const {
     submitted,
@@ -250,6 +285,21 @@ export default function useDetalleSiembra(id) {
       setCargando(true);
       await localApi.inicializar();
 
+      // Cargar catálogos
+      const [listaFincas, listaEstanques] = await Promise.all([
+        FincaLocalService.getFincas(),
+        EstanqueLocalService.getEstanques(),
+      ]);
+      setFincas(
+        (listaFincas || []).map((f) => ({
+          label: f.nombreFinca || f.codigoCBO || `Finca #${f.id}`,
+          value: String(f.id),
+          id: f.id,
+          servidorId: f.servidorId || f.servidor_id,
+        }))
+      );
+      setTodosEstanques(listaEstanques || []);
+
       let registro;
       if (tipoRegistroParam === "precria") {
         registro = adaptarPrecriaLocal(await PrecriaLocalService.getById(id));
@@ -261,27 +311,29 @@ export default function useDetalleSiembra(id) {
         ? adaptarLoteLocal(await LoteLarvaLocalService.getById(registro.lote_larva_id))
         : null;
 
-      // Si esta Siembra vino de una Pre-Cría, hay que traerla también
-      // para poder mostrar sus datos heredados en modo lectura.
       const precriaOrigen =
         tipoRegistroParam !== "precria" && registro?.precria_id
           ? adaptarPrecriaLocal(await PrecriaLocalService.getById(registro.precria_id))
           : null;
       
       const estanqueGuardado = registro?.estanque_id
-        ? obtenerEstanquePorCodigo(registro.finca_id, registro.estanque_id)
+        ? await EstanqueLocalService.getEstanqueById(registro.estanque_id)
         : null;
-      const areahectareas = estanqueGuardado?.areaHectareas || "";
+      let areahectareas = estanqueGuardado?.areaHectareas;
+      if (areahectareas == null && estanqueGuardado?.largo && estanqueGuardado?.ancho) {
+        areahectareas = (Number(estanqueGuardado.largo) * Number(estanqueGuardado.ancho)) / 10000;
+      }
+      const areaHectareasStr = areahectareas != null && areahectareas !== "" ? String(areahectareas) : "";
 
       const mapeado =
         tipoRegistroParam === "precria"
-          ? mapPrecriaAFormData(registro, lote, areahectareas)
-          : mapSiembraAFormData(registro, lote, precriaOrigen, areahectareas);
+          ? mapPrecriaAFormData(registro, lote, areaHectareasStr)
+          : mapSiembraAFormData(registro, lote, precriaOrigen, areaHectareasStr);
 
       setSiembra(mapeado);
       setFormData(mapeado);
     } catch (err) {
-      setMensaje("No fue posible cargar el registro.");
+      setMensaje(err.response?.data?.message || err.message || "No fue posible cargar el registro.");
       setMensajeVariant("danger");
     } finally {
       setCargando(false);
@@ -290,7 +342,14 @@ export default function useDetalleSiembra(id) {
 
   useEffect(() => {
     cargarDetalle();
-  }, [cargarDetalle]);
+    // Vuelve a consultar la base local cada vez que esta pantalla
+    // recupera el foco (ej. al volver de Editar con router.back()).
+    // Sin esto, la pantalla de Detalle -que queda montada debajo de
+    // Editar en el stack- se queda con los datos viejos en memoria
+    // aunque el guardado en Editar sí haya actualizado la base local.
+    const unsubscribe = navigation.addListener("focus", cargarDetalle);
+    return unsubscribe;
+  }, [navigation, cargarDetalle]);
 
   useEffect(() => {
     if (!isEditing || !formData || formData.tipoRegistro !== "precria") return;
@@ -354,24 +413,67 @@ export default function useDetalleSiembra(id) {
 
   const handleChangeEstanque = useCallback(
     (value) => {
-      const estanque = obtenerEstanquePorCodigo(formData.finca, value);
-      const area = estanque?.areaHectareas ?? "";
+      const estanqueObj = todosEstanques.find(
+        (e) => String(e.id) === String(value) || String(e.servidorId) === String(value)
+      );
+      let area = estanqueObj?.areaHectareas;
+      if (area == null && estanqueObj?.largo && estanqueObj?.ancho) {
+        area = (Number(estanqueObj.largo) * Number(estanqueObj.ancho)) / 10000;
+      }
+      const areaStr = area != null && area !== "" ? String(area) : "";
 
       setFormData((previousData) => ({
         ...previousData,
         estanque: value,
-        areaHectareas: area,
+        areaHectareas: areaStr,
         cantidadSembrada: calcularCantidadSembrada(
-          area,
+          areaStr,
           previousData.densidadPoblacional,
         ),
       }));
     },
-    [formData],
+    [todosEstanques],
   );
 
-  const estanques = formData ? obtenerEstanquesPorFinca(formData.finca) : [];
-  const fincas = useMemo(() => obtenerFincas(), []);
+  const estanques = useMemo(() => {
+    const mapEstanque = (e) => ({
+      label: e.codigo
+        ? e.codigo.toLowerCase().startsWith("estanque") || e.codigo.toLowerCase().startsWith("tanque")
+          ? e.codigo
+          : `Estanque ${e.codigo}`
+        : e.nombre
+        ? e.nombre
+        : `Estanque #${e.id}`,
+      value: String(e.id),
+      ...e,
+    });
+
+    if (!formData?.finca) {
+      return todosEstanques.map(mapEstanque);
+    }
+
+    const fincaObj = fincas.find(
+      (f) =>
+        String(f.id) === String(formData.finca) ||
+        String(f.value) === String(formData.finca) ||
+        String(f.servidorId) === String(formData.finca)
+    );
+
+    const fincaLocalId = fincaObj ? String(fincaObj.id || fincaObj.value) : String(formData.finca);
+    const fincaServidorId = fincaObj ? String(fincaObj.servidorId || fincaObj.servidor_id || "") : "";
+
+    return todosEstanques
+      .filter((e) => {
+        const estanqueFincaId = String(e.fincaId || e.idFinca || e.finca_id || "");
+        return (
+          estanqueFincaId === fincaLocalId ||
+          (fincaServidorId !== "" && estanqueFincaId === fincaServidorId)
+        );
+      })
+      .map(mapEstanque);
+  }, [formData?.finca, todosEstanques, fincas]);
+
+  const fincasList = useMemo(() => mapCatalogo(fincas), [fincas]);
   const tecnicasCultivo = useMemo(
     () => [
       { label: "Extensiva", value: "extensiva" },
@@ -644,8 +746,8 @@ export default function useDetalleSiembra(id) {
       setMensaje("Registro actualizado correctamente.");
       setMensajeVariant("success");
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible guardar los cambios.");
+      const mensajeError = err.response?.data?.message || err.message;
+      setMensaje(mensajeError || "No fue posible guardar los cambios.");
       setMensajeVariant("danger");
     } finally {
       setGuardando(false);
@@ -716,8 +818,8 @@ export default function useDetalleSiembra(id) {
       setMensajeVariant("success");
       return conLote;
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible finalizar la Pre-Cría.");
+      const mensajeError = err.response?.data?.message || err.message;
+      setMensaje(mensajeError || "No fue posible finalizar la Pre-Cría.");
       setMensajeVariant("danger");
       return null;
     } finally {
@@ -749,10 +851,12 @@ export default function useDetalleSiembra(id) {
     const registroFinalizado = await finalizarPreCria();
     if (!registroFinalizado) return;
 
-    router.replace({
-      pathname: "/(drawer)/siembra/nueva",
-      params: construirParamsSiembraDesdePrecria(),
-    });
+    setTimeout(() => {
+      router.replace({
+        pathname: "/siembra/nueva",
+        params: construirParamsSiembraDesdePrecria(),
+      });
+    }, 3000);
   }, [finalizarPreCria, construirParamsSiembraDesdePrecria, router]);
 
   const handleCrearSiembraDesdePrecria = useCallback(() => {
@@ -766,6 +870,7 @@ export default function useDetalleSiembra(id) {
     siembra,
     formData,
     estanques,
+    todosEstanques,
     fincas,
     tecnicasCultivo,
     proveedoresLarva,

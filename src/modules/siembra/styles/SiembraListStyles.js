@@ -103,23 +103,30 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.secondary,
     backgroundColor: COLORS.surface,
+    overflow: "hidden",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 8,
     marginBottom: 12,
+  },
+  cardTitleGroup: {
+    flex: 1,
+    marginRight: 4,
   },
   cardTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    flexShrink: 1,
   },
   cardTitle: {
     color: COLORS.textPrimary,
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+    flexShrink: 1,
   },
   cardSubtitleRow: {
     flexDirection: "row",
@@ -129,8 +136,9 @@ export const styles = StyleSheet.create({
   },
   cardSubtitle: {
     color: COLORS.textTertiary,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
+    flexShrink: 1,
   },
   infoRowLabel: {
     flexDirection: "row",
@@ -140,16 +148,44 @@ export const styles = StyleSheet.create({
   cardBadges: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    flexShrink: 0,
+  },
+  typeBadgeSiembra: {
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  typeBadgeSiembraText: {
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: 11,
+  },
+  typeBadgePreCria: {
+    backgroundColor: COLORS.warningLight,
+    borderWidth: 1,
+    borderColor: COLORS.warning,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  typeBadgePreCriaText: {
+    color: COLORS.warning,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: 11,
   },
   statusBadge: {
     backgroundColor: COLORS.successLight,
     borderWidth: 1,
     borderColor: COLORS.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   statusText: {
     color: COLORS.success,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: 11,
   },
   cardBody: {
     gap: 8,

@@ -90,6 +90,8 @@ export default function NuevaSiembraScreen() {
 
     tecnicasCultivo,
 
+    especies,
+
     proveedoresLarva,
 
     laboratoriosLarva,
@@ -261,6 +263,7 @@ export default function NuevaSiembraScreen() {
                 fincas={fincas}
                 estanques={estanques}
                 tecnicasCultivo={tecnicasCultivo}
+                especies={especies}
                 fieldHelpers={fieldHelpers}
               />
 
