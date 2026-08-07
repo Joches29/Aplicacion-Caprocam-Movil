@@ -95,30 +95,30 @@ async function obtenerJsonStorage(llave) {
             ? JSON.parse(valor)
             : null;
 
-    } catch(error) {
-        console.error("Error al leer storage local",error);
+    } catch (error) {
+        console.error("Error al leer storage local", error);
         return null;
     }
 }
 
 async function obtenerContextoLocal() {
 
-    const colaborador =await obtenerJsonStorage(STORAGE_COLABORADOR_ACTUAL);
+    const colaborador = await obtenerJsonStorage(STORAGE_COLABORADOR_ACTUAL);
     const grupoStorage = await AsyncStorage.getItem(STORAGE_GRUPO_DATOS);
 
     const grupoColaborador = obtenerValor(
-            colaborador,
-            ["grupoDatos","grupo_datos"],
-            null
-        );
+        colaborador,
+        ["grupoDatos", "grupo_datos"],
+        null
+    );
 
     const grupoDatos = grupoColaborador || grupoStorage || 1;
 
     const colaboradorId = obtenerValor(
         colaborador,
-        ["id","colaboradorId","colaborador_id"],
+        ["id", "colaboradorId", "colaborador_id"],
         null
-        );
+    );
 
 
     return {
@@ -194,7 +194,7 @@ function mapearDensidadDesdeLocal(registro) {
             servidorId:
                 obtenerValor(
                     registro,
-                    ["servidor_id","servidorId"],
+                    ["servidor_id", "servidorId"],
                     null
                 ),
 
@@ -208,28 +208,28 @@ function mapearDensidadDesdeLocal(registro) {
             grupoDatos:
                 obtenerValor(
                     registro,
-                    ["grupo_datos","grupoDatos"],
+                    ["grupo_datos", "grupoDatos"],
                     null
                 ),
 
             fincaId:
                 obtenerValor(
                     registro,
-                    ["finca_id","fincaId"],
+                    ["finca_id", "fincaId"],
                     null
                 ),
 
             estanqueId:
                 obtenerValor(
                     registro,
-                    ["estanque_id","estanqueId"],
+                    ["estanque_id", "estanqueId"],
                     null
                 ),
 
             colaboradorId:
                 obtenerValor(
                     registro,
-                    ["colaborador_id","colaboradorId"],
+                    ["colaborador_id", "colaboradorId"],
                     null
                 ),
 
@@ -381,7 +381,8 @@ async function mapearDensidadParaLocal(densidadDTO) {
                     densidadDTO,
                     [
                         "fincaId",
-                        "finca_id"
+                        "finca_id",
+                        "idFinca"
                     ],
                     null
                 ),
@@ -395,7 +396,8 @@ async function mapearDensidadParaLocal(densidadDTO) {
                     densidadDTO,
                     [
                         "estanqueId",
-                        "estanque_id"
+                        "estanque_id",
+                        "idEstanque"
                     ],
                     null
                 ),
@@ -524,17 +526,32 @@ async function mapearDensidadParaLocal(densidadDTO) {
             ),
 
 
-        densidad:
-            convertirNumero(
-                obtenerValor(
-                    densidadDTO,
-                    [
-                        "densidad"
-                    ],
-                    0
-                ),
+        densidad: (() => {
+            const valorDirecto = obtenerValor(
+                densidadDTO,
+                ["densidad"],
+                null
+            );
+
+            if (valorDirecto !== null && valorDirecto !== undefined && valorDirecto !== "") {
+                return convertirNumero(valorDirecto, 0);
+            }
+
+            const numeroCamarones = convertirNumero(
+                obtenerValor(densidadDTO, ["numeroCamarones", "numero_camarones"], 0),
                 0
-            ),
+            );
+            const areaEstanque = convertirNumero(
+                obtenerValor(densidadDTO, ["areaEstanque", "area_estanque"], 0),
+                0
+            );
+
+            if (areaEstanque > 0) {
+                return convertirNumero(numeroCamarones / areaEstanque, 0);
+            }
+
+            return 0;
+        })(),
 
 
         notas_conteo:
@@ -561,21 +578,21 @@ function aplicarFiltros(registros, filtros = {}) {
     const fincaId =
         obtenerValor(
             filtros,
-            ["fincaId","finca_id"],
+            ["fincaId", "finca_id"],
             null
         );
 
     const estanqueId =
         obtenerValor(
             filtros,
-            ["estanqueId","estanque_id"],
+            ["estanqueId", "estanque_id"],
             null
         );
 
     const colaboradorId =
         obtenerValor(
             filtros,
-            ["colaboradorId","colaborador_id"],
+            ["colaboradorId", "colaborador_id"],
             null
         );
 
@@ -642,7 +659,7 @@ async function getAll(filtros = {}) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al obtener densidades locales",
@@ -670,7 +687,7 @@ async function getById(id) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al obtener densidad local",
@@ -706,7 +723,7 @@ async function create(densidadDTO) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al crear densidad local",
@@ -743,7 +760,7 @@ async function update(id, densidadDTO) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al actualizar densidad local",
@@ -773,7 +790,7 @@ async function deleteById(id) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al eliminar densidad local",
