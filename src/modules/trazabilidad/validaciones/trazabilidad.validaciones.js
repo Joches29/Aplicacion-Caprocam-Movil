@@ -19,7 +19,7 @@ eso este archivo no valida "actualizar" ni "eliminar": esas
 acciones estan bloqueadas explicitamente en TrazabilidadLocal
 .service.js, no solo omitidas por falta de pantalla.
 
-Cambio de schema ya no se valida
+Cambio de schema (Gerald, 05/08/2026): ya no se valida
 colaboradorId como campo de negocio, porque la columna
 colaborador_id se elimino de la tabla trazabilidad. Quien
 crea el registro se resuelve por auditoria (creado_por_
@@ -93,9 +93,18 @@ export function isNumeroPositivo(valor) {
 
 /**
  * Valida que una fecha tenga formato YYYY-MM-DD, sea real y
- * no sea posterior a la fecha actual. Mismo criterio que
- * isFechaValida usado en Fisico-Quimica, para mantener el
- * mismo estandar de validacion de fecha en todo el proyecto.
+ * no sea posterior a la fecha actual (se permiten fechas
+ * pasadas, no futuras). Mismo criterio que isFechaValida
+ * usado en Fisico-Quimica, para mantener el mismo estandar de
+ * validacion de fecha en todo el proyecto.
+ *
+ * NOTA (06/08/2026): se probo restringir esto a "solo hoy"
+ * por pedido inicial, pero se revirtio -- la regla real es
+ * "no futura", igual que el resto del proyecto. El problema
+ * de que la fecha de hoy no se guardaba solo no era de esta
+ * validacion: era el bug cosmetico de DateInput.jsx (ver
+ * TrazabilidadData.js, que ya arranca con getCurrentDate()
+ * real en vez de "").
  * @param {string} fecha - Fecha a validar (YYYY-MM-DD).
  * @returns {boolean} true si es valida.
  */

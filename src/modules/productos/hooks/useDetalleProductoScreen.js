@@ -11,13 +11,12 @@
  * 2. Calcula si el producto tiene stock bajo (cantidad < stock mínimo).
  * 3. Resuelve el color de la categoría para pintar el badge.
  * 4. Formatea precio unitario y valor total en stock en colones (₡).
- * 5. Controla la apertura/cierre del modal de confirmación de eliminar.
- * 6. Expone la navegación hacia Editar y hacia atrás (Inventarios).
+ * 5. Expone la navegación hacia atrás (Inventarios).
  *
  * IMPORTANTE:
- * - Si no existe un producto con ese id, "producto" llega null 
- * - confirmarEliminar() borra el producto de forma inmediata al
- *   confirmar (no hay deshacer).
+ * - Si no existe un producto con ese id, "producto" llega null.
+ * - Detalle de solo lectura: sin edición ni borrado desde móvil
+ *   (Minuta 05/08/2026) -- alta/edición/baja se maneja desde web.
  * ============================================================
  */
 
@@ -37,10 +36,6 @@ export function useDetalleProducto() {
   const [producto, setProducto] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
-
-  const [modalEliminarVisible, setModalEliminarVisible] = useState(false);
-  const [eliminado, setEliminado] = useState(false);
-  const [eliminando, setEliminando] = useState(false);
 
   // Carga el producto activo desde la API por su id, y resuelve el
   // nombre real del proveedor a partir de su proveedorId.
@@ -83,44 +78,8 @@ export function useDetalleProducto() {
   const precioFormateado = producto ? `₡${producto.precioUnidad.toLocaleString("es-CR")}` : "";
   const stockTotalFormateado = producto ? `₡${(producto.precioUnidad * producto.cantidad).toLocaleString("es-CR")}` : "";
 
-  function handleEditar() {
-    router.replace({ pathname: "/(drawer)/inventarios/editarProducto", params: { productoParam: JSON.stringify(producto) } });
-  }
-
-  function handleEliminar() {
-    setModalEliminarVisible(true);
-  }
-
-  // Confirma la eliminación: desactiva el producto en el back y vuelve al listado
-  async function confirmarEliminar() {
-    if (!producto) return;
-    setEliminando(true);
-    setError(null);
-    try {
-      await productoService.desactivarProducto(producto.id);
-      setModalEliminarVisible(false);
-      setEliminado(true);
-      setTimeout(() => {
-        router.replace({
-          pathname: "/(drawer)/inventarios",
-          params: { alertaProducto: "eliminado" },
-        });
-      }, 900);
-    } catch (err) {
-      setModalEliminarVisible(false);
-      setError("No se pudo eliminar el producto. Intenta de nuevo.");
-      mostrarError(err);
-    } finally {
-      setEliminando(false);
-    }
-  }
-
   function handleBack() {
     router.replace("/(drawer)/inventarios");
-  }
-
-  function handleCerrarModal() {
-    setModalEliminarVisible(false);
   }
 
   return {
@@ -131,13 +90,6 @@ export function useDetalleProducto() {
     colores,
     precioFormateado,
     stockTotalFormateado,
-    modalEliminarVisible,
-    eliminado,
-    eliminando,
-    handleEditar,
-    handleEliminar,
-    confirmarEliminar,
     handleBack,
-    handleCerrarModal,
   };
 }

@@ -14,12 +14,12 @@
  *    total en stock (precio x cantidad).
  * 4. Marca con un badge cuando el producto tiene stock bajo
  *    (cantidad menor al stock mínimo).
- * 5. Botón "Editar" navega al formulario con el producto cargado.
- * 6. Botón "Eliminar" abre un modal de confirmación antes de
- *    borrar el producto definitivamente.
  *
  * IMPORTANTE:
  * - No modifica rutas existentes ni la estructura del proyecto.
+ * - Botones "Editar" y "Eliminar" quitados por acuerdo de reunión
+ *   (Minuta 05/08/2026): en móvil el detalle es solo de lectura,
+ *   alta/edición/baja de productos se maneja desde web.
  * ============================================================
  */
 
@@ -35,7 +35,6 @@ import Card from "../../../shared/components/Card";
 import Button from "../../../shared/components/Button";
 import Text from "../../../shared/components/Text";
 import Title from "../../../shared/components/Title";
-import ModalEliminar from "../../../shared/components/ModalEliminar";
 import Badge from "../../../shared/components/Badge";
 import Modal from "../../../shared/components/Modal";
 import Alert from "../../../shared/components/Alert";
@@ -70,18 +69,11 @@ export default function DetalleProductoScreen() {
     producto,
     cargando,
     error,
-    eliminando,
     tieneStockBajo,
     colores,
     precioFormateado,
     stockTotalFormateado,
-    modalEliminarVisible,
-    handleEditar,
-    handleEliminar,
-    confirmarEliminar,
     handleBack,
-    handleCerrarModal,
-    eliminado,
   } = useDetalleProducto();
 
   if (cargando) {
@@ -169,29 +161,8 @@ export default function DetalleProductoScreen() {
                     </View>
                 </Card>
 
-        <View style={styles.botonesSeccion}>
-                    <Button variant="outline" style={[styles.botonAccion, styles.botonEditar]} onPress={handleEditar}>
-                        <Icon icon={ICONS.edit} size={20} color={COLORS.primary} />
-                        <Text color={COLORS.primary} weight="600" size={14}>Editar</Text>
-                        </Button>
-                        
-                    <Button variant="outline" style={[styles.botonAccion, styles.botonEliminar]} onPress={handleEliminar}>
-                        <Icon icon={ICONS.delete} size={20} color={COLORS.error} />
-                        <Text color={COLORS.error} weight="600" size={14}>Eliminar</Text>
-                    </Button>
-                </View>
-
-                {/* Alert de éxito al pie de la pantalla, igual que al guardar un producto */}
-                {eliminado && (
-                    <Alert
-                        variant="success"
-                        message="Producto eliminado correctamente."
-                        style={styles.alertEliminado}
-                    />
-                )}
-
-                {/* Si falla la desactivación en el back, se muestra el error aquí */}
-                {!!error && !eliminado && (
+                {/* Si falla la carga del producto, se muestra el error aquí */}
+                {!!error && (
                     <Alert
                         variant="danger"
                         message={error}
@@ -199,15 +170,6 @@ export default function DetalleProductoScreen() {
                     />
                 )}
             </ScrollView>
-
-            <ModalEliminar
-                visible={modalEliminarVisible}
-                title="producto"
-                message={producto.nombre}
-                onCancel={handleCerrarModal}
-                onConfirm={confirmarEliminar}
-            />
         </View>        
     );
 }
-

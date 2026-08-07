@@ -70,8 +70,7 @@ export default function AgregarTrazabilidadScreen() {
             <Alert
               variant="danger"
               message={errorCarga}
-              style={styles.infoBanner}
-              textStyle={styles.errorAlertText}
+              style={styles.errorBanner}
             />
           )}
 
@@ -104,8 +103,7 @@ export default function AgregarTrazabilidadScreen() {
                 mensajeError ||
                 "Revisa los campos obligatorios marcados con * antes de guardar."
               }
-              style={styles.infoBanner}
-              textStyle={styles.errorAlertText}
+              style={styles.errorBanner}
             />
           )}
         </View>
