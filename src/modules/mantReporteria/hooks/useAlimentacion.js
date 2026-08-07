@@ -3,12 +3,12 @@
  * HOOK DE ALIMENTACIÓN
  * ============================================================
  *
- * Autocontenido: carga, eliminación y alert.
- * Enriquece: nombreFinca, codigoEstanque, nombreColaborador, nombreCreadoPor
+ * Autocontenido: carga, eliminación y alert (SQLite / local).
+ * Enriquece: nombreFinca, codigoEstanque, nombreColaborador, nombreCreadoPor  
  */
 import { useState, useEffect } from "react";
-import alimentacionService from "../../alimentacion/services/Alimentacion.service.js";
 import { obtenerDetalleReporte } from "../services/detalleReporte.service.js";
+import { eliminarRegistroLocal } from "../services/ReporteriaLocal.service.js";
 import useModalEliminar from "../hooks/useModalEliminar.js";
 import { cargarYEnriquecerRegistros } from "../utils/enriquecerRegistros.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
@@ -46,7 +46,7 @@ export default function useAlimentacion(fincaId, estanqueId, onAlertChange) {
   }, [fincaId, estanqueId]);
 
   async function eliminarAlimentacion(id) {
-    await alimentacionService.deleteById(id);
+    await eliminarRegistroLocal("alimentacion", id);
     await cargarAlimentaciones();
     setAlert("deleted");
   }
