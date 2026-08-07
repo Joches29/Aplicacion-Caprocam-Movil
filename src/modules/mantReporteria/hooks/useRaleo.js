@@ -3,12 +3,12 @@
  * HOOK DE RALEO
  * ============================================================
  *
- * Autocontenido: carga, eliminación y alert.
+ * Autocontenido: carga, eliminación y alert (SQLite / local).
  * Enriquece: nombreFinca, codigoEstanque, nombreColaborador, nombreCreadoPor
  */
 import { useState, useEffect } from "react";
-import raleoService from "../../raleo/services/Raleo.service.js";
 import { obtenerDetalleReporte } from "../services/detalleReporte.service.js";
+import { eliminarRegistroLocal } from "../services/ReporteriaLocal.service.js";
 import useModalEliminar from "../hooks/useModalEliminar.js";
 import { cargarYEnriquecerRegistros } from "../utils/enriquecerRegistros.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
@@ -46,7 +46,7 @@ export default function useRaleo(fincaId, estanqueId, onAlertChange) {
   }, [fincaId, estanqueId]);
 
   async function eliminarRaleo(id) {
-    await raleoService.deleteById(id);
+    await eliminarRegistroLocal("raleo", id);
     await cargarRaleos();
     setAlert("deleted");
   }
