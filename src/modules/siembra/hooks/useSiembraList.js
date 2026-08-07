@@ -85,14 +85,31 @@ export default function useSiembraList() {
     const fincaId = registro.finca_id ?? registro.fincaId;
     const estanqueId = registro.estanque_id ?? registro.estanqueId;
     const finca = fincas.find(
-      (f) => String(f.id) === String(fincaId) || String(f.servidorId) === String(fincaId)
+      (f) =>
+        String(f.id) === String(fincaId) ||
+        String(f.servidorId) === String(fincaId) ||
+        String(f.value) === String(fincaId)
     );
     const estanque = estanques.find(
-      (e) => String(e.id) === String(estanqueId) || String(e.servidorId) === String(estanqueId)
+      (e) =>
+        String(e.id) === String(estanqueId) ||
+        String(e.servidorId) === String(estanqueId) ||
+        String(e.value) === String(estanqueId)
     );
+    const estanqueCodigo = estanque?.codigo;
+    const estanqueFormatted = estanqueCodigo
+      ? estanqueCodigo.toLowerCase().startsWith("estanque") || estanqueCodigo.toLowerCase().startsWith("tanque")
+        ? estanqueCodigo
+        : `Estanque ${estanqueCodigo}`
+      : estanque?.nombre || (estanqueId ? `Estanque #${estanqueId}` : "Sin estanque");
+
     return {
-      fincaLabel: finca?.nombreFinca || finca?.codigoCBO || (fincaId ? `Finca #${fincaId}` : "Sin finca"),
-      estanqueLabel: estanque?.codigo || (estanqueId ? `Estanque #${estanqueId}` : "Sin estanque"),
+      fincaLabel:
+        finca?.nombreFinca ||
+        finca?.codigoCBO ||
+        finca?.label ||
+        (fincaId ? `Finca #${fincaId}` : "Sin finca"),
+      estanqueLabel: estanqueFormatted,
     };
   }
 

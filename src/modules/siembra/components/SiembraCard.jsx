@@ -38,22 +38,32 @@ export default function SiembraCard({ registro, fincaLabel, estanqueLabel, onVer
   return (
     <Card style={styles.card}>
       <View style={styles.cardHeader}>
-        <View>
+        <View style={styles.cardTitleGroup}>
           <View style={styles.cardTitleRow}>
             <Icon icon={ICONS.water} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>Estanque {estanqueLabel || registro.estanque}</Text>
+            <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+              {estanqueLabel
+                ? estanqueLabel.toLowerCase().startsWith("estanque") || estanqueLabel.toLowerCase().startsWith("tanque")
+                  ? estanqueLabel
+                  : `Estanque ${estanqueLabel}`
+                : registro.estanque
+                ? `Estanque ${registro.estanque}`
+                : "Sin estanque"}
+            </Text>
           </View>
           <View style={styles.cardSubtitleRow}>
-            <Text style={styles.cardSubtitle}>{fincaLabel}</Text>
+            <Text style={styles.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">
+              {fincaLabel}
+            </Text>
           </View>
         </View>
 
         <View style={styles.cardBadges}>
           <Badge
             label={esPreCria ? "Pre-Cría" : "Siembra"}
-            variant={esPreCria ? "warning" : undefined}
-            style={styles.statusBadge}
-            textStyle={styles.statusText}
+            variant={esPreCria ? "warning" : "info"}
+            style={esPreCria ? styles.typeBadgePreCria : styles.typeBadgeSiembra}
+            textStyle={esPreCria ? styles.typeBadgePreCriaText : styles.typeBadgeSiembraText}
           />
           <Badge
             label={registro.estado}

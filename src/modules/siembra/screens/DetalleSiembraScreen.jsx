@@ -4,32 +4,35 @@
  * =========================================================================
  *
  * Pantalla encargada de mostrar la información completa de una siembra
- * existente y permitir su edición.
+ * o pre-cría existente, en modo solo lectura.
  *
  * FUNCIONALIDAD:
  *
- * 1. Carga la información de una siembra seleccionada.
+ * 1. Carga la información de una siembra o pre-cría seleccionada.
  *
  * 2. Muestra el resumen del ciclo productivo:
  *      - Día actual.
  *      - Progreso del cultivo.
  *      - Etapa de la siembra.
  *
- * 3. Renderiza las secciones del formulario:
+ * 3. Renderiza las secciones del formulario, todas en modo lectura:
  *      - Información general.
  *      - Datos de larva.
  *      - Cálculo de población.
  *
- * 4. Permite editar, guardar y cancelar cambios realizados en la siembra.
+ * 4. No permite editar directamente: el botón "Editar Siembra/Pre-Cría"
+ *    navega a /siembra/editar, y el botón "Finalizar
+ *    Pre-Cría" navega a la misma ruta con el param "finalizar", según
+ *    el estándar de una ventana por operación CRUD (no combinar editar
+ *    y detalle en la misma pantalla).
  *
  * 5. Cuando la Siembra viene de una Pre-Cría (pasoPorPrecria === "si"),
- *    el resumen embebido de Pre-Cría y la sección "Datos de larva"
- *    quedan siempre en modo lectura (mode="view"), sin importar si el
- *    resto del formulario está en edición — son datos heredados, no
- *    propios de esta Siembra.
+ *    el resumen embebido de Pre-Cría y la sección "Datos de larva" se
+ *    muestran en modo lectura junto con el resto del formulario — son
+ *    datos heredados, no propios de esta Siembra.
  *
  * LÓGICA:
- * - La gestión del estado, validaciones y acciones se realiza mediante:
+ * - La gestión del estado y la carga de datos se realiza mediante:
  *  -useDetalleSiembra.
  *
  * COMPONENTES UTILIZADOS:
@@ -42,15 +45,17 @@
  * - Componentes de sección del módulo Siembra.
  *
  * NAVEGACIÓN:
+ * - /siembra/editar
+ *      Se navega hacia aquí al presionar "Editar Siembra/Pre-Cría" o
+ *      "Finalizar Pre-Cría" (este último agrega el param "finalizar").
+ *
  * - /(drawer)/siembra/nueva
- *      Se navega hacia aquí al finalizar una Pre-Cría o al crear una
- *      siembra a partir de una Pre-Cría, enviando los datos ya
- *      completados como parámetros.
+ *      Se navega hacia aquí al presionar "Registrar Siembra", cuando
+ *      la Pre-Cría ya fue finalizada previamente.
  *
  * DEPENDENCIAS PRINCIPALES:
  *
  * - useDetalleSiembra.
- * - SiembraService.
  * - InformacionGeneralSection.
  * - DatosLarvaSection.
  * - CalculoPoblacionSection.
@@ -62,6 +67,7 @@
  *
  * - No contiene reglas de negocio.
  * - No realiza cálculos directamente.
+ * - No modifica datos: toda edición ocurre en EditarSiembraScreen.
  * - Mantiene la separación entre presentación y lógica.
  *
  * =========================================================================
@@ -69,7 +75,7 @@
 
 import React from "react";
 
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { View, ScrollView } from "react-native";
 
 // Componentes compartidos
@@ -103,6 +109,7 @@ import useDetalleSiembra from "../hooks/useDetalleSiembra";
 
 export default function DetalleSiembraScreen() {
   const { id } = useLocalSearchParams();
+  const router = useRouter();
 
   const {
     siembra,
@@ -111,6 +118,7 @@ export default function DetalleSiembraScreen() {
 
     estanques,
 
+    todosEstanques,
     fincas,
 
     tecnicasCultivo,
@@ -122,8 +130,6 @@ export default function DetalleSiembraScreen() {
     procedenciasLarva,
 
     plLarva,
-
-    isEditing,
 
     mensaje,
 
@@ -137,43 +143,9 @@ export default function DetalleSiembraScreen() {
 
     progreso,
 
-    handleChange,
-
-    handleChangeFinca,
-
-    handleChangeEstanque,
-
-    iniciarEdicion,
-
-    cancelarEdicion,
-
-    guardar,
-
     guardando,
 
-    handleFinalizarPreCria,
-
     handleCrearSiembraDesdePrecria,
-
-    datosCierrePreCriaCompletos,
-
-    handleAgregarProveedorLarva,
-
-    handleAgregarLaboratorioLarva,
-
-    handleAgregarProcedenciaLarva,
-
-    handleEditarProveedorLarva,
-
-    handleEditarLaboratorioLarva,
-
-    handleEditarProcedenciaLarva,
-
-    handleEliminarProveedorLarva,
-
-    handleEliminarLaboratorioLarva,
-
-    handleEliminarProcedenciaLarva,
 
     fieldHelpers,
   } = useDetalleSiembra(id);
@@ -190,13 +162,30 @@ export default function DetalleSiembraScreen() {
     );
   }
 
-  // NUEVO: busca el nombre real en los catálogos, con fallback si no
-  // se encuentra (ej. mientras cargan, o si el id no calza con nada).
+  // Busca el nombre real en los catálogos con comparación flexible y fallback.
+  const fincaObj = fincas.find(
+    (f) => String(f.value) === String(formData.finca) || String(f.id) === String(formData.finca)
+  );
   const fincaLabel =
-    fincas.find((f) => f.value === formData.finca)?.label || "Sin finca";
+    fincaObj?.label || (formData.finca ? `Finca #${formData.finca}` : "Sin finca");
+
+  const estanqueObj =
+    estanques.find(
+      (e) => String(e.value) === String(formData.estanque) || String(e.id) === String(formData.estanque)
+    ) ||
+    (todosEstanques || []).find(
+      (e) => String(e.id) === String(formData.estanque) || String(e.value) === String(formData.estanque) || String(e.servidorId) === String(formData.estanque)
+    );
+
   const estanqueLabel =
-    estanques.find((e) => e.value === formData.estanque)?.label ||
-    "Sin estanque";
+    estanqueObj?.label ||
+    (estanqueObj?.codigo
+      ? estanqueObj.codigo.toLowerCase().startsWith("estanque") || estanqueObj.codigo.toLowerCase().startsWith("tanque")
+        ? estanqueObj.codigo
+        : `Estanque ${estanqueObj.codigo}`
+      : null) ||
+    (estanqueObj?.nombre ? estanqueObj.nombre : null) ||
+    (formData.estanque ? `Estanque #${formData.estanque}` : "Sin estanque");
 
   return (
     <>
@@ -276,34 +265,21 @@ export default function DetalleSiembraScreen() {
             <>
               <PreCriaSection
                 formData={formData}
-                onChange={handleChange}
-                onChangeFinca={handleChangeFinca}
-                onChangeEstanque={handleChangeEstanque}
                 fincas={fincas}
                 estanques={estanques}
-                mode={isEditing ? "edit" : "view"}
+                mode="view"
                 fieldHelpers={fieldHelpers}
                 isAutonomous={true}
                 plOptions={plLarva}
               />
               <DatosLarvaSection
                 formData={formData}
-                onChange={handleChange}
                 proveedoresLarva={proveedoresLarva}
                 laboratoriosLarva={laboratoriosLarva}
                 procedenciasLarva={procedenciasLarva}
                 plLarva={plLarva}
-                mode={isEditing ? "edit" : "view"}
+                mode="view"
                 fieldHelpers={fieldHelpers}
-                onAgregarProveedor={handleAgregarProveedorLarva}
-                onAgregarLaboratorio={handleAgregarLaboratorioLarva}
-                onAgregarProcedencia={handleAgregarProcedenciaLarva}
-                onEditarProveedor={handleEditarProveedorLarva}
-                onEditarLaboratorio={handleEditarLaboratorioLarva}
-                onEditarProcedencia={handleEditarProcedenciaLarva}
-                onEliminarProveedor={handleEliminarProveedorLarva}
-                onEliminarLaboratorio={handleEliminarLaboratorioLarva}
-                onEliminarProcedencia={handleEliminarProcedenciaLarva}
               />
             </>
           ) : (
@@ -312,20 +288,16 @@ export default function DetalleSiembraScreen() {
 
               <InformacionGeneralSection
                 formData={formData}
-                onChange={handleChange}
-                onChangeFinca={handleChangeFinca}
-                onChangeEstanque={handleChangeEstanque}
                 fincas={fincas}
                 estanques={estanques}
                 tecnicasCultivo={tecnicasCultivo}
-                mode={isEditing ? "edit" : "view"}
+                mode="view"
                 fieldHelpers={fieldHelpers}
               />
 
               {formData.pasoPorPrecria === "si" && formData.precriaId && (
                 <PreCriaSection
                   formData={formData}
-                  onChange={handleChange}
                   mode="view"
                   fieldHelpers={fieldHelpers}
                 />
@@ -335,34 +307,19 @@ export default function DetalleSiembraScreen() {
 
               <DatosLarvaSection
                 formData={formData}
-                onChange={handleChange}
                 proveedoresLarva={proveedoresLarva}
                 laboratoriosLarva={laboratoriosLarva}
                 procedenciasLarva={procedenciasLarva}
                 plLarva={plLarva}
-                mode={
-                  isEditing && formData.pasoPorPrecria !== "si"
-                    ? "edit"
-                    : "view"
-                }
+                mode="view"
                 fieldHelpers={fieldHelpers}
-                onAgregarProveedor={handleAgregarProveedorLarva}
-                onAgregarLaboratorio={handleAgregarLaboratorioLarva}
-                onAgregarProcedencia={handleAgregarProcedenciaLarva}
-                onEditarProveedor={handleEditarProveedorLarva}
-                onEditarLaboratorio={handleEditarLaboratorioLarva}
-                onEditarProcedencia={handleEditarProcedenciaLarva}
-                onEliminarProveedor={handleEliminarProveedorLarva}
-                onEliminarLaboratorio={handleEliminarLaboratorioLarva}
-                onEliminarProcedencia={handleEliminarProcedenciaLarva}
               />
 
               {/* Cálculo de población */}
 
               <CalculoPoblacionSection
                 formData={formData}
-                onChange={handleChange}
-                mode={isEditing ? "edit" : "view"}
+                mode="view"
                 fieldHelpers={fieldHelpers}
               />
             </>
@@ -380,89 +337,75 @@ export default function DetalleSiembraScreen() {
             />
           )}
 
-          {!isEditing ? (
-            <View style={styles.actions}>
-              {/*
-                Si la Pre-Cría ya fue finalizada previamente, se ofrece
-                un acceso directo para registrar la Siembra sin tener
-                que volver a entrar en modo edición.
-              */}
-              {formData.tipoRegistro === "precria" &&
-                formData.estado === "Finalizada" && (
-                  <Button
-                    style={styles.button}
-                    onPress={handleCrearSiembraDesdePrecria}
-                    textStyle={styles.textoBoton}
-                    variant="outline"
-                  >
-                    <View style={styles.buttonContent}>
-                      <Icon icon={ICONS.add} color={COLORS.primary} />
-                      <Text style={styles.textoBoton}>Registrar Siembra</Text>
-                    </View>
-                  </Button>
-                )}
+          <View style={styles.actions}>
+            {/*
+              Si la Pre-Cría ya fue finalizada previamente, se ofrece
+              un acceso directo para registrar la Siembra sin tener
+              que pasar por la pantalla de edición.
+            */}
+            {formData.tipoRegistro === "precria" &&
+              formData.estado === "Finalizada" && (
+                <Button
+                  style={styles.button}
+                  onPress={handleCrearSiembraDesdePrecria}
+                  textStyle={styles.textoBoton}
+                  variant="outline"
+                >
+                  <View style={styles.buttonContent}>
+                    <Icon icon={ICONS.add} color={COLORS.primary} />
+                    <Text style={styles.textoBoton}>Registrar Siembra</Text>
+                  </View>
+                </Button>
+              )}
 
+            {formData.estado !== "Finalizada" && (
               <Button
                 style={styles.button}
-                onPress={iniciarEdicion}
+                onPress={() =>
+                  router.push({
+                    pathname: "/siembra/editar",
+                    params: { id, tipoRegistro: formData.tipoRegistro },
+                  })
+                }
                 textStyle={styles.textoBoton}
                 variant="outline"
               >
                 <View style={styles.buttonContent}>
                   <Icon icon={ICONS.edit} color={COLORS.primary} />
-                  <Text style={styles.textoBoton}>Editar</Text>
-                </View>
-              </Button>
-
-              {formData.tipoRegistro === "precria" &&
-                formData.estado !== "Finalizada" && (
-                  <Button
-                    style={styles.button}
-                    onPress={handleFinalizarPreCria}
-                    disabled={guardando}
-                    textStyle={styles.textoBoton}
-                    variant="outline"
-                  >
-                    <View style={styles.buttonContent}>
-                      <Icon icon={ICONS.check} color={COLORS.primary} />
-                      <Text style={styles.textoBoton}>
-                        {guardando ? "Finalizando..." : "Finalizar Precria"}
-                      </Text>
-                    </View>
-                  </Button>
-                )}
-            </View>
-          ) : (
-            <View style={styles.actions}>
-              {/* EN MODO EDICIÓN QUEDAN LAS ACCIONES DE PERSISTENCIA */}
-              <Button
-                style={styles.button}
-                onPress={guardar}
-                disabled={guardando}
-                textStyle={styles.textoBoton}
-                variant="outline"
-              >
-                <View style={styles.buttonContent}>
-                  <Icon icon={ICONS.save} color={COLORS.primary} />
                   <Text style={styles.textoBoton}>
-                    {guardando ? "Guardando..." : "Guardar"}
+                    {formData.tipoRegistro === "precria"
+                      ? "Editar Pre-Cría"
+                      : "Editar Siembra"}
                   </Text>
                 </View>
               </Button>
+            )}
 
-              <Button
-                variant="outline"
-                style={styles.button}
-                onPress={cancelarEdicion}
-                textStyle={styles.textoBoton}
-              >
-                <View style={styles.buttonContent}>
-                  <Icon icon={ICONS.close} color={COLORS.primary} />
-                  <Text style={styles.textoBoton}>Cancelar</Text>
-                </View>
-              </Button>
-            </View>
-          )}
+            {formData.tipoRegistro === "precria" &&
+              formData.estado !== "Finalizada" && (
+                <Button
+                  style={styles.button}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/siembra/editar",
+                      params: {
+                        id,
+                        tipoRegistro: formData.tipoRegistro,
+                        finalizar: "1",
+                      },
+                    })
+                  }
+                  disabled={guardando}
+                  textStyle={styles.textoBoton}
+                  variant="outline"
+                >
+                  <View style={styles.buttonContent}>
+                    <Icon icon={ICONS.check} color={COLORS.primary} />
+                    <Text style={styles.textoBoton}>Finalizar Pre-Cría</Text>
+                  </View>
+                </Button>
+              )}
+          </View>
         </View>
       </ScrollView>
     </>

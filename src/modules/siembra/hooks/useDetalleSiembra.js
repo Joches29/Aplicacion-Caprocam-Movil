@@ -29,7 +29,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
 
 import {
   useFieldValidation,
@@ -114,6 +114,17 @@ function adaptarLoteLocal(l) {
   };
 }
 
+function mapLoteAFormData(lote) {
+  if (!lote) return {};
+  return {
+    codigoLoteLarva: lote.codigo_lote || lote.codigoLoteLarva || "",
+    proveedorLarva: lote.proveedor_id || lote.proveedorLarva || "",
+    laboratorioLarva: lote.laboratorio || lote.laboratorioLarva || "",
+    procedenciaLarva: lote.procedencia || lote.procedenciaLarva || "",
+    certificadoLarva: lote.certificado_larva || lote.certificadoLarva || "",
+  };
+}
+
 function mapSiembraAFormData(siembra, lote, precriaOrigen, areaHectareas = "") {
   if (!siembra) return null;
 
@@ -123,8 +134,8 @@ function mapSiembraAFormData(siembra, lote, precriaOrigen, areaHectareas = "") {
     pasoPorPrecria: siembra.precria_id ? "si" : "no",
     precriaId: siembra.precria_id || "",
 
-    finca: siembra.finca_id || "",
-    estanque: siembra.estanque_id || "",
+    finca: siembra.finca_id != null ? String(siembra.finca_id) : "",
+    estanque: siembra.estanque_id != null ? String(siembra.estanque_id) : "",
     codigoLoteLarva: lote?.codigo_lote || "",
     estado: siembra.estado || "Activa",
 
@@ -171,8 +182,8 @@ function mapPrecriaAFormData(precria, lote, areaHectareas = "") {
     pasoPorPrecria: "no",
     precriaId: "",
 
-    finca: precria.finca_id || "",
-    estanque: precria.estanque_id || "",
+    finca: precria.finca_id != null ? String(precria.finca_id) : "",
+    estanque: precria.estanque_id != null ? String(precria.estanque_id) : "",
     codigoLoteLarva: lote?.codigo_lote || "",
     estado: precria.estado || "En Proceso",
 
@@ -245,6 +256,7 @@ function calcularEtapa(progreso) {
 
 export default function useDetalleSiembra() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { id, tipoRegistro: tipoRegistroParam } = useLocalSearchParams();
 
   const [siembra, setSiembra] = useState(null);
@@ -282,6 +294,8 @@ export default function useDetalleSiembra() {
         (listaFincas || []).map((f) => ({
           label: f.nombreFinca || f.codigoCBO || `Finca #${f.id}`,
           value: String(f.id),
+          id: f.id,
+          servidorId: f.servidorId || f.servidor_id,
         }))
       );
       setTodosEstanques(listaEstanques || []);
@@ -319,7 +333,7 @@ export default function useDetalleSiembra() {
       setSiembra(mapeado);
       setFormData(mapeado);
     } catch (err) {
-      setMensaje("No fue posible cargar el registro.");
+      setMensaje(err.response?.data?.message || err.message || "No fue posible cargar el registro.");
       setMensajeVariant("danger");
     } finally {
       setCargando(false);
@@ -328,7 +342,14 @@ export default function useDetalleSiembra() {
 
   useEffect(() => {
     cargarDetalle();
-  }, [cargarDetalle]);
+    // Vuelve a consultar la base local cada vez que esta pantalla
+    // recupera el foco (ej. al volver de Editar con router.back()).
+    // Sin esto, la pantalla de Detalle -que queda montada debajo de
+    // Editar en el stack- se queda con los datos viejos en memoria
+    // aunque el guardado en Editar sí haya actualizado la base local.
+    const unsubscribe = navigation.addListener("focus", cargarDetalle);
+    return unsubscribe;
+  }, [navigation, cargarDetalle]);
 
   useEffect(() => {
     if (!isEditing || !formData || formData.tipoRegistro !== "precria") return;
@@ -415,15 +436,42 @@ export default function useDetalleSiembra() {
   );
 
   const estanques = useMemo(() => {
-    if (!formData?.finca) return [];
+    const mapEstanque = (e) => ({
+      label: e.codigo
+        ? e.codigo.toLowerCase().startsWith("estanque") || e.codigo.toLowerCase().startsWith("tanque")
+          ? e.codigo
+          : `Estanque ${e.codigo}`
+        : e.nombre
+        ? e.nombre
+        : `Estanque #${e.id}`,
+      value: String(e.id),
+      ...e,
+    });
+
+    if (!formData?.finca) {
+      return todosEstanques.map(mapEstanque);
+    }
+
+    const fincaObj = fincas.find(
+      (f) =>
+        String(f.id) === String(formData.finca) ||
+        String(f.value) === String(formData.finca) ||
+        String(f.servidorId) === String(formData.finca)
+    );
+
+    const fincaLocalId = fincaObj ? String(fincaObj.id || fincaObj.value) : String(formData.finca);
+    const fincaServidorId = fincaObj ? String(fincaObj.servidorId || fincaObj.servidor_id || "") : "";
+
     return todosEstanques
-      .filter((e) => String(e.fincaId) === String(formData.finca) || String(e.idFinca) === String(formData.finca))
-      .map((e) => ({
-        label: e.codigo ? `Estanque ${e.codigo}` : `Estanque #${e.id}`,
-        value: String(e.id),
-        ...e,
-      }));
-  }, [formData?.finca, todosEstanques]);
+      .filter((e) => {
+        const estanqueFincaId = String(e.fincaId || e.idFinca || e.finca_id || "");
+        return (
+          estanqueFincaId === fincaLocalId ||
+          (fincaServidorId !== "" && estanqueFincaId === fincaServidorId)
+        );
+      })
+      .map(mapEstanque);
+  }, [formData?.finca, todosEstanques, fincas]);
 
   const fincasList = useMemo(() => mapCatalogo(fincas), [fincas]);
   const tecnicasCultivo = useMemo(
@@ -698,8 +746,8 @@ export default function useDetalleSiembra() {
       setMensaje("Registro actualizado correctamente.");
       setMensajeVariant("success");
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible guardar los cambios.");
+      const mensajeError = err.response?.data?.message || err.message;
+      setMensaje(mensajeError || "No fue posible guardar los cambios.");
       setMensajeVariant("danger");
     } finally {
       setGuardando(false);
@@ -770,8 +818,8 @@ export default function useDetalleSiembra() {
       setMensajeVariant("success");
       return conLote;
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible finalizar la Pre-Cría.");
+      const mensajeError = err.response?.data?.message || err.message;
+      setMensaje(mensajeError || "No fue posible finalizar la Pre-Cría.");
       setMensajeVariant("danger");
       return null;
     } finally {
@@ -803,10 +851,12 @@ export default function useDetalleSiembra() {
     const registroFinalizado = await finalizarPreCria();
     if (!registroFinalizado) return;
 
-    router.replace({
-      pathname: "/(drawer)/siembra/nueva",
-      params: construirParamsSiembraDesdePrecria(),
-    });
+    setTimeout(() => {
+      router.replace({
+        pathname: "/siembra/nueva",
+        params: construirParamsSiembraDesdePrecria(),
+      });
+    }, 3000);
   }, [finalizarPreCria, construirParamsSiembraDesdePrecria, router]);
 
   const handleCrearSiembraDesdePrecria = useCallback(() => {
@@ -820,6 +870,7 @@ export default function useDetalleSiembra() {
     siembra,
     formData,
     estanques,
+    todosEstanques,
     fincas,
     tecnicasCultivo,
     proveedoresLarva,

@@ -76,6 +76,7 @@ const initialFormData = {
 
   fechaSiembra: "",
   tecnicaCultivo: "",
+  especie: "camaron_blanco",
   densidadPoblacional: "8",
   cantidadSembrada: "",
   plSiembra: "",
@@ -134,20 +135,46 @@ export default function useNuevaSiembra() {
 
   const estanques = useMemo(() => {
     if (!formData.finca) return [];
+
+    const fincaObj = fincas.find(
+      (f) => String(f.value) === String(formData.finca) || String(f.id) === String(formData.finca)
+    );
+
+    const fincaLocalId = fincaObj ? String(fincaObj.id || fincaObj.value) : String(formData.finca);
+    const fincaServidorId = fincaObj && fincaObj.servidorId ? String(fincaObj.servidorId) : "";
+
     return todosEstanques
-      .filter((e) => String(e.fincaId) === String(formData.finca) || String(e.idFinca) === String(formData.finca))
+      .filter((e) => {
+        const estanqueFincaId = String(e.fincaId || e.idFinca || e.finca_id || "");
+        return (
+          estanqueFincaId === fincaLocalId ||
+          (fincaServidorId !== "" && estanqueFincaId === fincaServidorId)
+        );
+      })
       .map((e) => ({
-        label: e.codigo ? `Estanque ${e.codigo}` : `Estanque #${e.id}`,
+        label: e.codigo
+          ? e.codigo.toLowerCase().startsWith("estanque") || e.codigo.toLowerCase().startsWith("tanque")
+            ? e.codigo
+            : `Estanque ${e.codigo}`
+          : e.nombre
+          ? e.nombre
+          : `Estanque #${e.id}`,
         value: String(e.id),
         ...e,
       }));
-  }, [formData.finca, todosEstanques]);
+  }, [formData.finca, todosEstanques, fincas]);
 
   const tecnicasCultivo = useMemo(
     () => [
       { label: "Extensiva", value: "extensiva" },
       { label: "Semi-intensiva", value: "semi" },
       { label: "Intensiva", value: "intensiva" },
+    ],
+    [],
+  );
+  const especies = useMemo(
+    () => [
+      { label: "Camarón blanco (Litopenaeus vannamei)", value: "camaron_blanco" },
     ],
     [],
   );
@@ -184,6 +211,8 @@ export default function useNuevaSiembra() {
           (rFincas || []).map((f) => ({
             label: f.nombreFinca || f.codigoCBO || `Finca #${f.id}`,
             value: String(f.id),
+            id: f.id,
+            servidorId: f.servidorId || f.servidor_id,
           }))
         );
         setTodosEstanques(rEstanques || []);
@@ -313,8 +342,8 @@ export default function useNuevaSiembra() {
         const area = previo.areaHectareas || "";
         const actualizado = {
           ...previo,
-          finca: precria.fincaId || previo.finca,
-          estanque: precria.estanqueId || previo.estanque,
+          finca: precria.fincaId != null ? String(precria.fincaId) : previo.finca,
+          estanque: precria.estanqueId != null ? String(precria.estanqueId) : previo.estanque,
           cantidadSobrevivientePrecria: precria.cantidadFinal || "",
           duracionPrecria: precria.duracionDias || "",
           fechaSalidaPrecria: formatearFechaDesdeISO(precria.fechaFin),
@@ -498,11 +527,14 @@ export default function useNuevaSiembra() {
       );
       setMensajeVariant("success");
       setSubmitted(false);
+
+      setTimeout(() => {
+        router.replace("/siembra");
+      }, 3000);
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
       setMensaje(mensajeBackend || "No fue posible registrar el ciclo.");
       setMensajeVariant("danger");
-    } finally {
       setGuardando(false);
     }
   }
@@ -512,6 +544,7 @@ export default function useNuevaSiembra() {
     estanques,
     fincas,
     tecnicasCultivo,
+    especies,
     proveedoresLarva,
     laboratoriosLarva,
     procedenciasLarva,
