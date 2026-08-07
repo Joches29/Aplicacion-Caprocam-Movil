@@ -29,7 +29,7 @@
  */
 
 import { useState, useEffect } from "react";
-import alimentacionService from "../services/Alimentacion.service";
+import alimentacionLocalService from "../services/AlimentacionLocal.service";
 
 function conAliasFincaEstanque(registro) {
     if (!registro) return registro;
@@ -49,7 +49,7 @@ const useAlimentacion = () => {
         setLoading(true);
         setError(null);
         try {
-            const datos = await alimentacionService.getAll();
+            const datos = await alimentacionLocalService.getAll();
             setAlimentaciones((datos || []).map(conAliasFincaEstanque));
         } catch {
             setError("No se pudieron cargar los registros.");
