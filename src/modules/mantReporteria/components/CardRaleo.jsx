@@ -89,7 +89,7 @@ export default function CardRaleo({ fincaId, estanqueId, onEditar, onAlertChange
 
                         <View style={styles.infoItem}>
                             <Text style={styles.label}>Metodo de Raleo</Text>
-                            <Text style={styles.value}>{registro.metodo}</Text>
+                            <Text style={styles.value}>{registro.metodos}</Text>
                         </View>
 
                         <View style={styles.infoItem}>
@@ -99,7 +99,7 @@ export default function CardRaleo({ fincaId, estanqueId, onEditar, onAlertChange
 
                         <View style={styles.infoItem}>
                             <Text style={styles.label}>Biomasa Estimada</Text>
-                            <Text style={styles.value}>{registro.biomasaEstimado} Kg</Text>
+                            <Text style={styles.value}>{registro.biomasaEstimada} Kg</Text>
                         </View>
 
                         <View style={styles.infoItem}>
