@@ -281,16 +281,7 @@ export default function InventarioScreen({ onDetail, onNew, onBack }) {
         contentContainerStyle={styles.lista}
       />
 
-      <View style={styles.floatingButtonWrapper} pointerEvents="box-none">
-        <View style={STYLE.contentWrapper}>
-          <Button variant="outline" onPress={onNew} style={styles.botonAgregar}>
-            <Icon icon={ICONS.add} color={COLORS.primary} />
-            <CustomText size={14} weight="600" color={COLORS.primary}>
-              Añadir Producto
-            </CustomText>
-          </Button>
-        </View>
-      </View>
+      
     </View>
   );
 }
