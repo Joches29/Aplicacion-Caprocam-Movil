@@ -36,7 +36,8 @@ import { calcularProgresoCiclo } from "./siembraCalculos";
 import SiembraLocalService from "../services/SiembraLocal.services";
 import PrecriaLocalService from "../services/PrecriaLocal.service";
 import LoteLarvaLocalService from "../services/LoteLarvaLocal.service";
-import { obtenerFincas, obtenerEstanquesPorFinca } from "./fincaEstanqueLocal";
+import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
+import FincaLocalService from "../../../modules/finca/services/fincaLocal.service";
 import { formatearFechaDesdeISO } from "./dateUtils";
 import { localApi } from "../../../database/local/localApi.service";
 
@@ -68,6 +69,8 @@ export default function useSiembraList() {
   const navigation = useNavigation();
 
   const [registros, setRegistros] = useState([]);
+  const [fincas, setFincas] = useState([]);
+  const [estanques, setEstanques] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState({ categories: [] });
   const [cargando, setCargando] = useState(true);
@@ -78,18 +81,18 @@ export default function useSiembraList() {
     { label: "Pre-Cría", value: "precria" },
   ];
 
-  const fincas = useMemo(() => obtenerFincas(), []);
-
   function obtenerNombresFincaEstanque(registro) {
     const fincaId = registro.finca_id ?? registro.fincaId;
     const estanqueId = registro.estanque_id ?? registro.estanqueId;
-    const finca = fincas.find((f) => f.value === fincaId);
-    const estanque = obtenerEstanquesPorFinca(fincaId).find(
-      (e) => e.value === estanqueId,
+    const finca = fincas.find(
+      (f) => String(f.id) === String(fincaId) || String(f.servidorId) === String(fincaId)
+    );
+    const estanque = estanques.find(
+      (e) => String(e.id) === String(estanqueId) || String(e.servidorId) === String(estanqueId)
     );
     return {
-      fincaLabel: finca?.label || "Sin finca",
-      estanqueLabel: estanque?.label || "Sin estanque",
+      fincaLabel: finca?.nombreFinca || finca?.codigoCBO || (fincaId ? `Finca #${fincaId}` : "Sin finca"),
+      estanqueLabel: estanque?.codigo || (estanqueId ? `Estanque #${estanqueId}` : "Sin estanque"),
     };
   }
 
@@ -111,7 +114,7 @@ export default function useSiembraList() {
       fechaSiembra: formatearFechaDesdeISO(s.fecha_siembra),
       cantidadSembrada: s.cantidad_sembrada,
       plSiembra: s.pl_siembra != null ? `PL${s.pl_siembra}` : "",
-      diasMaduracion: s.duracion_dias || 90, 
+      diasMaduracion: s.duracion_ciclo || 90, 
       ...obtenerDatosLote(s.lote_larva_id, lotesPorId),
     };
     const { diaActual, totalDias } = calcularProgresoCiclo(base);
@@ -145,11 +148,16 @@ export default function useSiembraList() {
 
       await localApi.inicializar();
 
-      const [siembras, precrias, lotes] = await Promise.all([
+      const [siembras, precrias, lotes, fincasRes, estanquesRes] = await Promise.all([
         SiembraLocalService.getAll(),
         PrecriaLocalService.getAll(),
         LoteLarvaLocalService.getAll(),
+        FincaLocalService.getFincas(),
+        EstanqueLocalService.getEstanques(),
       ]);
+
+      setFincas(fincasRes || []);
+      setEstanques(estanquesRes || []);
 
       const lotesPorId = {};
       (lotes || []).forEach((lote) => {
@@ -157,8 +165,8 @@ export default function useSiembraList() {
       });
 
       setRegistros([
-        ...siembras.map(adaptarSiembraLocalABackend).map((s) => mapSiembraParaCard(s, lotesPorId)),
-        ...precrias.map((p) => mapPrecriaParaCard(p, lotesPorId))
+        ...(siembras || []).map(adaptarSiembraLocalABackend).map((s) => mapSiembraParaCard(s, lotesPorId)),
+        ...(precrias || []).map((p) => mapPrecriaParaCard(p, lotesPorId))
       ]);
     } catch (err) {
       console.error("Error al cargar siembras locales", err);
@@ -192,7 +200,7 @@ export default function useSiembraList() {
 
         return coincideTexto && coincideTipo;
       });
-  }, [busqueda, filtros, registros, fincas]);
+  }, [busqueda, filtros, registros, fincas, estanques]);
 
   const handleNuevaSiembra = useCallback(
     () => router.push("/siembra/nueva"),

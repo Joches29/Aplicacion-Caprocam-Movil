@@ -41,11 +41,8 @@ import {
 import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
 import { calcularCantidadSembrada } from "./siembraCalculos";
 import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
-import {
-  obtenerEstanquePorCodigo,
-  obtenerEstanquesPorFinca,
-  obtenerFincas,
-} from "./fincaEstanqueLocal";
+import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
+import FincaLocalService from "../../../modules/finca/services/fincaLocal.service";
 
 // Catalogos de larva - operaciones locales (SQLite), no pegan
 // directo al backend, para que "Agregar nuevo" funcione offline.
@@ -132,8 +129,20 @@ export default function useNuevaSiembra() {
     }));
   }, []);
 
-  const estanques = obtenerEstanquesPorFinca(formData.finca);
-  const fincas = useMemo(() => obtenerFincas(), []);
+  const [fincas, setFincas] = useState([]);
+  const [todosEstanques, setTodosEstanques] = useState([]);
+
+  const estanques = useMemo(() => {
+    if (!formData.finca) return [];
+    return todosEstanques
+      .filter((e) => String(e.fincaId) === String(formData.finca) || String(e.idFinca) === String(formData.finca))
+      .map((e) => ({
+        label: e.codigo ? `Estanque ${e.codigo}` : `Estanque #${e.id}`,
+        value: String(e.id),
+        ...e,
+      }));
+  }, [formData.finca, todosEstanques]);
+
   const tecnicasCultivo = useMemo(
     () => [
       { label: "Extensiva", value: "extensiva" },
@@ -151,8 +160,7 @@ export default function useNuevaSiembra() {
     [],
   );
 
-  // Catálogos de larva reales - se cargan del backend, ya no son
-  // arrays en memoria.
+  // Catálogos de larva y fincas/estanques reales - se cargan de SQLite.
   const [proveedoresLarva, setProveedoresLarva] = useState([]);
   const [laboratoriosLarva, setLaboratoriosLarva] = useState([]);
   const [procedenciasLarva, setProcedenciasLarva] = useState([]);
@@ -162,16 +170,25 @@ export default function useNuevaSiembra() {
     async function cargarCatalogos() {
       try {
         setCargandoCatalogos(true);
-        const [rProv, rLab, rProc] = await Promise.all([
+        const [rProv, rLab, rProc, rFincas, rEstanques] = await Promise.all([
           ProveedorLarvaLocalService.getAll(),
           LaboratorioLocalService.getAll(),
           ProcedenciaLocalService.getAll(),
+          FincaLocalService.getFincas(),
+          EstanqueLocalService.getEstanques(),
         ]);
         setProveedoresLarva(mapCatalogo(rProv || []));
         setLaboratoriosLarva(mapCatalogo(rLab || []));
         setProcedenciasLarva(mapCatalogo(rProc || []));
+        setFincas(
+          (rFincas || []).map((f) => ({
+            label: f.nombreFinca || f.codigoCBO || `Finca #${f.id}`,
+            value: String(f.id),
+          }))
+        );
+        setTodosEstanques(rEstanques || []);
       } catch (err) {
-        setMensaje("No fue posible cargar los catálogos de larva.");
+        setMensaje("No fue posible cargar los catálogos.");
         setMensajeVariant("danger");
       } finally {
         setCargandoCatalogos(false);
@@ -237,15 +254,21 @@ export default function useNuevaSiembra() {
   }
 
   function handleChangeEstanque(value) {
-    const estanque = obtenerEstanquePorCodigo(formData.finca, value);
-    const area = estanque?.areaHectareas ?? "";
+    const estanqueObj = todosEstanques.find(
+      (e) => String(e.id) === String(value) || String(e.servidorId) === String(value)
+    );
+    let area = estanqueObj?.areaHectareas;
+    if (area == null && estanqueObj?.largo && estanqueObj?.ancho) {
+      area = (Number(estanqueObj.largo) * Number(estanqueObj.ancho)) / 10000;
+    }
+    const areaStr = area != null && area !== "" ? String(area) : "";
 
     setFormData((previousData) => {
       const updatedData = { ...previousData, estanque: value };
       if (previousData.tipoRegistro === "siembra") {
-        updatedData.areaHectareas = area;
+        updatedData.areaHectareas = areaStr;
         updatedData.cantidadSembrada = calcularCantidadSembrada(
-          area,
+          areaStr,
           previousData.densidadPoblacional,
         );
       }

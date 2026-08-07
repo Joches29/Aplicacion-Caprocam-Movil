@@ -59,7 +59,7 @@ export class PrecriaDTO {
     this.fecha_inicio = aFechaISO(formData.fechaInicio || "");
     this.duracion_dias = Number(formData.duracionDias || formData.diasMaduracion || 0);
     this.cantidad_inicial = Number(formData.cantidadInicial || 0);
-    this.pl_inicial = numeroDesdePL(formData.plInicial) ?? Number(formData.plInicial || 0);
+    this.pl_inicial = numeroDesdePL(formData.plInicial || formData.plSiembra);
     // El backend acepta estos tres desde el update normal, no solo
     // desde /finalizar - si no se mandan aquí, "Guardar" los borra.
     this.fecha_fin = formData.fechaFin ? aFechaISO(formData.fechaFin) : null;
@@ -87,7 +87,7 @@ export class SiembraDTO {
     this.densidad_poblacional = formData.densidadPoblacional ? Number(formData.densidadPoblacional) : null;
     this.cantidad_sembrada = Number(formData.cantidadSembrada || 0);
     this.pl_siembra = numeroDesdePL(formData.plSiembra);
-    this.duracion_ciclo = Number(formData.duracionCiclo || formData.diasMaduracion || formData.duracionDias || 0);
+    this.duracion_ciclo = Number(formData.diasMaduracion || 0);
     this.estado = formData.estado === "Finalizada" ? "FINALIZADA" : "ACTIVA";
   }
 }
