@@ -4,7 +4,7 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: offlineAuth.service.js
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 03/08/2026
+Fecha: 10/08/2026
 Modulo: Database Local
 Descripcion:
 Servicio para manejar el login movil offline mediante
@@ -74,6 +74,22 @@ const prepararColaboradorSesion = (colaborador) => {
     return colaboradorSesion;
 };
 
+/**
+ * Prepara un colaborador para mostrarse en el login offline.
+ * @param {object} colaborador - Colaborador local.
+ * @returns {object} Colaborador seguro para UI.
+ */
+const prepararColaboradorLogin = (colaborador) => {
+    const colaboradorLogin = prepararColaboradorSesion(colaborador);
+    const nombreCompleto = `${colaboradorLogin.nombre || ""} ${colaboradorLogin.apellidos || ""}`.trim();
+
+    return {
+        ...colaboradorLogin,
+        nombre_completo: nombreCompleto,
+        texto_busqueda: normalizarTexto(`${nombreCompleto} ${colaboradorLogin.cedula || ""} ${colaboradorLogin.nombre_usuario || ""}`)
+    };
+};
+
 /*
 //////////////////////////////////////////////////////////
 FUNCIONES PRINCIPALES
@@ -83,42 +99,49 @@ FUNCIONES PRINCIPALES
 /**
  * Obtiene la lista de colaboradores almacenados en SQLite para el login offline.
  *
- * @returns {Promise<object>} Respuesta local estandarizada con array de colaboradores.
+ * @returns {Promise} Respuesta local estandarizada con array de colaboradores.
  */
 export const obtenerColaboradoresLoginOffline = async () => {
-  try {
-    // 1. Inicializar tablas SQLite antes de consultar
-    if (localApi?.inicializar) {
-      await localApi.inicializar();
+    try {
+        if (localApi?.inicializar) {
+            await localApi.inicializar();
+        }
+
+        const resultado = await localApi.colaboradores.obtenerTodos();
+
+        if (!resultado || !resultado.success) {
+            return exitoLocal("Sin colaboradores locales guardados.", []);
+        }
+
+        const colaboradores = Array.isArray(resultado.data)
+            ? resultado.data.map((colaborador) => {
+                return prepararColaboradorLogin(colaborador);
+            })
+            : [];
+
+        return exitoLocal("Colaboradores locales obtenidos correctamente.", colaboradores);
+    } catch (err) {
+        const mensaje = String(err?.message || err);
+
+        if (mensaje.includes("no such table") || mensaje.includes("prepareAsync")) {
+            return exitoLocal("Base de datos inicial. Lista vacia.", []);
+        }
+
+        return errorLocal("Error al obtener colaboradores para login offline.", err);
     }
-
-    // 2. Consultar colaboradores almacenados localmente
-    const resultado = await localApi.colaboradores.obtenerTodos();
-
-    if (!resultado || !resultado.success) {
-      return exitoLocal("Sin colaboradores locales guardados.", []);
-    }
-
-    return resultado;
-  } catch (err) {
-    const mensaje = String(err?.message || err);
-
-    // Captura limpia en primera ejecución o cuando la base de datos está vacía
-    if (mensaje.includes("no such table") || mensaje.includes("prepareAsync")) {
-      return exitoLocal("Base de datos inicial. Lista vacía.", []);
-    }
-
-    return errorLocal("Error al obtener colaboradores para login offline.", err);
-  }
 };
 
 /**
  * Busca un colaborador por id local.
  * @param {number} colaboradorId - ID local del colaborador.
- * @returns {Promise<object>} Respuesta local.
+ * @returns {Promise} Respuesta local.
  */
 export const obtenerColaboradorLoginPorId = async (colaboradorId) => {
     try {
+        if (!colaboradorId) {
+            return errorLocal("Debe seleccionar un colaborador.", "Colaborador requerido.");
+        }
+
         const db = await obtenerBaseLocal();
 
         const colaborador = await db.getFirstAsync(
@@ -146,7 +169,7 @@ export const obtenerColaboradorLoginPorId = async (colaboradorId) => {
  * Valida el PIN del colaborador contra el pin_hash local.
  * @param {number} colaboradorId - ID local del colaborador.
  * @param {string} pin - PIN digitado.
- * @returns {Promise<object>} Respuesta local.
+ * @returns {Promise} Respuesta local.
  */
 export const validarPinOffline = async (colaboradorId, pin) => {
     try {
@@ -181,6 +204,8 @@ export const validarPinOffline = async (colaboradorId, pin) => {
 
         if (colaborador.finca_id !== null && colaborador.finca_id !== undefined) {
             await AsyncStorage.setItem(STORAGE_FINCA_ID, String(colaborador.finca_id));
+        } else {
+            await AsyncStorage.removeItem(STORAGE_FINCA_ID);
         }
 
         return exitoLocal("Login offline realizado correctamente.", colaboradorSesion);
@@ -191,7 +216,7 @@ export const validarPinOffline = async (colaboradorId, pin) => {
 
 /**
  * Obtiene la sesion offline guardada.
- * @returns {Promise<object>} Respuesta local.
+ * @returns {Promise} Respuesta local.
  */
 export const obtenerSesionOffline = async () => {
     try {
@@ -221,7 +246,7 @@ export const obtenerSesionOffline = async () => {
 
 /**
  * Cierra la sesion offline actual.
- * @returns {Promise<object>} Respuesta local.
+ * @returns {Promise} Respuesta local.
  */
 export const cerrarSesionOffline = async () => {
     try {
@@ -239,7 +264,7 @@ export const cerrarSesionOffline = async () => {
 
 /**
  * Verifica si existe sesion offline activa.
- * @returns {Promise<object>} Respuesta local.
+ * @returns {Promise} Respuesta local.
  */
 export const haySesionOffline = async () => {
     try {

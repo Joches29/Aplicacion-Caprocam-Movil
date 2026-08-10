@@ -4,7 +4,7 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: sqlite.schema.js
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 03/08/2026
+Fecha: 10/08/2026
 Modulo: Database Local
 Descripcion:
 Define el esquema local SQLite para la app movil de
@@ -53,18 +53,9 @@ export const ESQUEMA_TABLAS = {
         ...COLUMNAS_AUDITORIA_SYNC
     ],
 
-    roles: [
-        ...COLUMNAS_BASE,
-        "nombre TEXT NOT NULL",
-        "descripcion TEXT NULL",
-        "acceso_global INTEGER NOT NULL DEFAULT 0",
-        ...COLUMNAS_AUDITORIA_SYNC
-    ],
-
     usuarios: [
         ...COLUMNAS_BASE,
         "grupo_datos INTEGER NOT NULL",
-        "rol_id INTEGER NOT NULL",
         "nombre TEXT NOT NULL",
         "apellidos TEXT NOT NULL",
         "email TEXT NOT NULL",
@@ -77,7 +68,7 @@ export const ESQUEMA_TABLAS = {
         ...COLUMNAS_BASE,
         "grupo_datos INTEGER NOT NULL",
         "propietario_usuario_id INTEGER NULL",
-        "codigo_cbo TEXT NULL",
+        "codigo_cbo TEXT NOT NULL",
         "nombre_finca TEXT NOT NULL",
         "provincia TEXT NULL",
         "canton TEXT NULL",
@@ -88,7 +79,6 @@ export const ESQUEMA_TABLAS = {
         "area_total REAL NULL",
         "espejos_agua REAL NULL",
         "creado_por_usuario_id INTEGER NULL",
-        "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
     ],
 
@@ -96,7 +86,6 @@ export const ESQUEMA_TABLAS = {
         ...COLUMNAS_BASE,
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NULL",
-        "rol_id INTEGER NOT NULL",
         "nombre TEXT NOT NULL",
         "apellidos TEXT NOT NULL",
         "cedula TEXT NULL",
@@ -106,7 +95,6 @@ export const ESQUEMA_TABLAS = {
         "pin_hash TEXT NOT NULL",
         "tipo_colaborador TEXT NOT NULL DEFAULT 'external_collab'",
         "creado_por_usuario_id INTEGER NULL",
-        "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
     ],
 
@@ -155,7 +143,6 @@ export const ESQUEMA_TABLAS = {
         "descripcion TEXT NULL",
         "categoria TEXT NULL",
         "horas REAL NULL",
-        "estado TEXT NOT NULL DEFAULT 'Pendiente'",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
@@ -340,6 +327,7 @@ export const ESQUEMA_TABLAS = {
         "cantidad_sembrada INTEGER NOT NULL",
         "pl_siembra INTEGER NULL",
         "duracion_ciclo INTEGER NULL",
+        "produccion_kg REAL NOT NULL DEFAULT 0",
         "estado TEXT NOT NULL DEFAULT 'Activa'",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
@@ -353,6 +341,18 @@ export const ESQUEMA_TABLAS = {
         "estanque_id INTEGER NOT NULL",
         "fecha_registro TEXT NOT NULL",
         "peso_actual REAL NOT NULL",
+        "creado_por_usuario_id INTEGER NULL",
+        "creado_por_colaborador_id INTEGER NULL",
+        ...COLUMNAS_AUDITORIA_SYNC
+    ],
+
+    calculos_crecimiento: [
+        ...COLUMNAS_BASE,
+        "grupo_datos INTEGER NOT NULL",
+        "crecimiento_id INTEGER NOT NULL",
+        "cantidad_individuos INTEGER NOT NULL",
+        "peso_total REAL NOT NULL",
+        "peso_promedio_individual REAL NOT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
@@ -380,7 +380,6 @@ export const ESQUEMA_TABLAS = {
         "estanque_id INTEGER NOT NULL",
         "comprador_id INTEGER NULL",
         "peso_promedio REAL NULL",
-        "tamano_promedio REAL NULL",
         "cantidad_vendida REAL NOT NULL",
         "precio_kilo REAL NOT NULL",
         "total REAL NOT NULL",
@@ -399,10 +398,7 @@ export const ESQUEMA_TABLAS = {
         "fecha_reporte TEXT NOT NULL",
         "responsable TEXT NULL",
         "parasito TEXT NOT NULL",
-        "camarones_muestreados INTEGER NOT NULL",
-        "camarones_infectados INTEGER NOT NULL",
-        "porcentaje_infeccion REAL NULL",
-        "grado_infeccion TEXT NULL",
+        "grado_infeccion TEXT NOT NULL",
         "observaciones TEXT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
@@ -419,7 +415,6 @@ export const ESQUEMA_TABLAS = {
         "responsable TEXT NULL",
         "enfermedad TEXT NOT NULL",
         "severidad TEXT NOT NULL",
-        "mortalidad_registrada INTEGER NULL",
         "reporte TEXT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
@@ -454,13 +449,26 @@ export const ESQUEMA_TABLAS = {
         "fecha TEXT NOT NULL",
         "cantidad_siembra INTEGER NULL",
         "area_estanque REAL NULL",
-        "numero_camarones INTEGER NULL",
+        "total_camarones_muestra INTEGER NULL",
         "tiros_atarraya INTEGER NULL",
         "area_atarraya REAL NULL",
+        "area_muestreada REAL NULL",
         "promedio_por_tiro REAL NULL",
+        "poblacion_estimada INTEGER NULL",
         "sobrevivencia REAL NULL",
         "densidad REAL NULL",
         "notas_conteo TEXT NULL",
+        "creado_por_usuario_id INTEGER NULL",
+        "creado_por_colaborador_id INTEGER NULL",
+        ...COLUMNAS_AUDITORIA_SYNC
+    ],
+
+    densidad_detalle_tiros: [
+        ...COLUMNAS_BASE,
+        "grupo_datos INTEGER NOT NULL",
+        "densidad_id INTEGER NOT NULL",
+        "numero_tiro INTEGER NOT NULL",
+        "cantidad_camarones INTEGER NOT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
@@ -471,12 +479,12 @@ export const ESQUEMA_TABLAS = {
         "grupo_datos INTEGER NOT NULL",
         "finca_id INTEGER NOT NULL",
         "estanque_id INTEGER NOT NULL",
+        "siembra_id INTEGER NULL",
         "fecha TEXT NOT NULL",
-        "porcentaje TEXT NULL",
-        "peso_estimado REAL NULL",
+        "porcentaje REAL NULL",
+        "kg_retirados REAL NULL",
+        "biomasa_restante REAL NULL",
         "biomasa_estimada REAL NULL",
-        "objetivo TEXT NULL",
-        "metodos TEXT NULL",
         "observaciones TEXT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
@@ -668,9 +676,14 @@ const SENTENCIAS_INDICES_ESPECIFICOS = [
     "CREATE INDEX IF NOT EXISTS idx_mant_productos_ticket ON mantenimiento_equipo_productos(mantenimiento_equipo_id);",
     "CREATE INDEX IF NOT EXISTS idx_fq_estanque_fecha ON fisico_quimico(estanque_id, fecha_registro);",
     "CREATE INDEX IF NOT EXISTS idx_fq_detalle_lectura ON fisico_quimico_detalle(lectura_id);",
+    "CREATE INDEX IF NOT EXISTS idx_fq_detalle_tipo ON fisico_quimico_detalle(tipo_medicion);",
     "CREATE INDEX IF NOT EXISTS idx_trazabilidad_origen ON trazabilidad(estanque_origen_id);",
     "CREATE INDEX IF NOT EXISTS idx_trazabilidad_destino ON trazabilidad(estanque_destino_id);",
     "CREATE INDEX IF NOT EXISTS idx_ventas_comprador ON ventas(comprador_id);",
+    "CREATE INDEX IF NOT EXISTS idx_raleos_siembra ON raleos(siembra_id);",
+    "CREATE INDEX IF NOT EXISTS idx_densidad_detalle_tiros_densidad ON densidad_detalle_tiros(densidad_id);",
+    "CREATE INDEX IF NOT EXISTS idx_detalle_tiros_sync ON densidad_detalle_tiros(uuid, version);",
+    "CREATE INDEX IF NOT EXISTS idx_calculos_crecimiento_crecimiento_id ON calculos_crecimiento(crecimiento_id);",
     "CREATE INDEX IF NOT EXISTS idx_alertas_descartadas ON alertas_locales(descartada, leida);"
 ];
 

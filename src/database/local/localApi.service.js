@@ -4,7 +4,7 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: localApi.service.js
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 03/08/2026
+Fecha: 10/08/2026
 Modulo: Database Local
 Descripcion:
 Expone una API local para consultar SQLite con una forma
@@ -110,7 +110,6 @@ export const localApi = {
     },
 
     gruposDatos: crearServicioTabla("grupos_datos"),
-    roles: crearServicioTabla("roles"),
     usuarios: crearServicioTabla("usuarios"),
 
     fincas: crearServicioTabla("fincas"),
@@ -137,13 +136,18 @@ export const localApi = {
     siembras: crearServicioTabla("siembras"),
 
     crecimientos: crearServicioTabla("crecimientos"),
+    calculosCrecimiento: crearServicioTabla("calculos_crecimiento"),
+
     compradores: crearServicioTabla("compradores"),
     ventas: crearServicioTabla("ventas"),
 
     parasitologias: crearServicioTabla("parasitologias"),
     enfermedades: crearServicioTabla("enfermedades"),
     alimentaciones: crearServicioTabla("alimentaciones"),
+
     densidadPoblacional: crearServicioTabla("densidad_poblacional"),
+    densidadDetalleTiros: crearServicioTabla("densidad_detalle_tiros"),
+
     raleos: crearServicioTabla("raleos"),
 
     fisicoQuimico: crearServicioTabla("fisico_quimico"),
