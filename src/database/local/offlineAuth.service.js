@@ -19,11 +19,13 @@ IMPORTS
 //////////////////////////////////////////////////////////
 */
 
+import { localApi } from "./localApi.service";
+import { exitoLocal, errorLocal } from "./respuestaLocal";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import bcrypt from "bcryptjs";
 
 import { obtenerBaseLocal } from "./sqlite.database";
-import { exitoLocal, errorLocal } from "./respuestaLocal";
 
 /*
 //////////////////////////////////////////////////////////
@@ -79,50 +81,35 @@ FUNCIONES PRINCIPALES
 */
 
 /**
- * Obtiene colaboradores activos disponibles para login offline.
- * @param {number|null} grupoDatos - Grupo de datos opcional.
- * @returns {Promise<object>} Respuesta local.
+ * Obtiene la lista de colaboradores almacenados en SQLite para el login offline.
+ *
+ * @returns {Promise<object>} Respuesta local estandarizada con array de colaboradores.
  */
-export const obtenerColaboradoresLoginOffline = async (grupoDatos = null) => {
-    try {
-        const db = await obtenerBaseLocal();
-
-        let sql = `
-            SELECT
-                id,
-                servidor_id,
-                uuid,
-                grupo_datos,
-                finca_id,
-                rol_id,
-                nombre,
-                apellidos,
-                cedula,
-                telefono,
-                email,
-                nombre_usuario,
-                tipo_colaborador,
-                activo
-            FROM colaboradores
-            WHERE activo = 1
-            AND deleted_at IS NULL
-        `;
-
-        const valores = [];
-
-        if (grupoDatos !== null && grupoDatos !== undefined) {
-            sql += " AND grupo_datos = ?";
-            valores.push(grupoDatos);
-        }
-
-        sql += " ORDER BY nombre ASC, apellidos ASC";
-
-        const colaboradores = await db.getAllAsync(sql, valores);
-
-        return exitoLocal("Colaboradores disponibles para login obtenidos correctamente.", colaboradores);
-    } catch (err) {
-        return errorLocal("Error al obtener colaboradores para login offline.", err);
+export const obtenerColaboradoresLoginOffline = async () => {
+  try {
+    // 1. Inicializar tablas SQLite antes de consultar
+    if (localApi?.inicializar) {
+      await localApi.inicializar();
     }
+
+    // 2. Consultar colaboradores almacenados localmente
+    const resultado = await localApi.colaboradores.obtenerTodos();
+
+    if (!resultado || !resultado.success) {
+      return exitoLocal("Sin colaboradores locales guardados.", []);
+    }
+
+    return resultado;
+  } catch (err) {
+    const mensaje = String(err?.message || err);
+
+    // Captura limpia en primera ejecución o cuando la base de datos está vacía
+    if (mensaje.includes("no such table") || mensaje.includes("prepareAsync")) {
+      return exitoLocal("Base de datos inicial. Lista vacía.", []);
+    }
+
+    return errorLocal("Error al obtener colaboradores para login offline.", err);
+  }
 };
 
 /**

@@ -35,7 +35,7 @@ import { STYLE } from "../../../theme/style";
  *
  * Composición principal de la pantalla.
  */
-export default function LoginScreen({ onLoginSuccess = () => {} }) {
+export default function LoginScreen({ onLoginSuccess = () => { } }) {
   const loginFlow = useLoginFlow({ onLoginSuccess });
 
   return (
@@ -440,7 +440,7 @@ function PinModal({
 /**
  * SyncModal
  *
- * Utiliza el Modal compartido para solicitar Cédula y PIN antes de sincronizar.
+ * Solicita Cédula (enmascarada, máx 9 dígitos) y PIN antes de sincronizar.
  */
 function SyncModal({
   visible,
@@ -452,7 +452,8 @@ function SyncModal({
   onPinChange,
   onSubmit,
 }) {
-  const isFormValid = cedula.trim().length > 0 && syncPin.length === 4;
+  // Validación de 9 dígitos para la cédula y 4 para el PIN
+  const isFormValid = cedula.trim().length === 9 && syncPin.length === 4;
 
   return (
     <Modal
@@ -479,6 +480,8 @@ function SyncModal({
         onChangeText={onCedulaChange}
         placeholder="Cédula"
         keyboardType="number-pad"
+        maxLength={9}
+        secureTextEntry
         editable={!isSyncing}
         containerStyle={styles.pinInputContainer}
         style={[styles.pinInput, { fontFamily: "Roboto" }]}

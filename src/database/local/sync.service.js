@@ -20,9 +20,22 @@ IMPORTS
 */
 
 import bcrypt from "bcryptjs";
+import * as Crypto from "expo-crypto";
 import { localApi } from "./localApi.service";
 import { exitoLocal, errorLocal } from "./respuestaLocal";
 import { saveToken } from "../../modules/login/utils/tokenStorage";
+
+/*
+//////////////////////////////////////////////////////////
+CONFIGURACIÓN DE BCRYPT PARA EXPO / REACT NATIVE
+//////////////////////////////////////////////////////////
+*/
+
+// Proveedor de aleatoriedad segura mediante expo-crypto
+bcrypt.setRandomFallback((len) => {
+  const array = new Uint8Array(len);
+  return Crypto.getRandomValues(array);
+});
 
 /*
 //////////////////////////////////////////////////////////
@@ -298,17 +311,18 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
       return errorLocal("La respuesta del servidor no contiene los datos del colaborador.", null);
     }
 
-    // 2. Almacenar token JWT para solicitudes posteriores
+    // 2. Almacenar token JWT
     if (respuestaData.token) {
       await saveToken(respuestaData.token);
     }
 
     const colabServidor = respuestaData.colaborador;
 
-    // 3. Generar hash bcrypt local del PIN digitado
-    const pinHashLocal = await bcrypt.hash(String(pin).trim(), 10);
+    // 3. Generar el hash del PIN usando bcrypt
+    const salt = bcrypt.genSaltSync(10);
+    const pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
 
-    // 4. Transformar datos de camelCase (Backend) a snake_case (SQLite)
+    // 4. Mapear datos a snake_case para SQLite
     const colaboradoresParaGuardar = [
       {
         servidor_id: colabServidor.id,
@@ -325,7 +339,7 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
       },
     ];
 
-    // 5. Insertar o actualizar registro en la tabla local de colaboradores
+    // 5. Guardar en la base de datos local
     const resultadoGuardado = await localApi.colaboradores.guardarDesdeServidor(colaboradoresParaGuardar);
 
     return exitoLocal("Colaborador sincronizado correctamente.", resultadoGuardado);
