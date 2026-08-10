@@ -19,8 +19,10 @@ IMPORTS
 //////////////////////////////////////////////////////////
 */
 
+import bcrypt from "bcryptjs";
 import { localApi } from "./localApi.service";
 import { exitoLocal, errorLocal } from "./respuestaLocal";
+import { saveToken } from "../../modules/login/utils/tokenStorage";
 
 /*
 //////////////////////////////////////////////////////////
@@ -269,28 +271,70 @@ export const descargarTablaLocal = async (apiClient, tabla, credenciales = {}) =
 };
 
 /**
- * Descarga ÚNICAMENTE la lista de colaboradores para el inicio de sesión.
+ * Descarga y sincroniza el colaborador autenticado enviando cédula y PIN vía POST.
  * @param {object} apiClient - Instancia axios del proyecto.
  * @param {object} credenciales - Cédula y PIN ingresados en el modal de login.
  * @returns {Promise<object>} Respuesta local.
  */
 export const descargarColaboradoresLoginLocal = async (apiClient, credenciales = {}) => {
   try {
-    await localApi.inicializar();
+    const { cedula, pin } = credenciales;
 
-    // Consultamos únicamente la tabla de colaboradores
-    const resultado = await descargarTablaLocal(apiClient, "colaboradores", credenciales);
-
-    if (!resultado || !resultado.success) {
-      return errorLocal(
-        "No se pudo descargar la lista de colaboradores desde el servidor.",
-        resultado?.error ?? null
-      );
+    if (!cedula || !pin) {
+      return errorLocal("Se requieren cédula y PIN para sincronizar el login.", null);
     }
 
-    return exitoLocal("Colaboradores sincronizados correctamente.", resultado.data);
+    await localApi.inicializar();
+
+    // 1. Petición POST al endpoint de login/sincronización
+    const respuestaHttp = await apiClient.post("/sync/colab", {
+      cedula: String(cedula).trim(),
+      pin: String(pin).trim(),
+    });
+
+    const respuestaData = respuestaHttp?.data?.data;
+
+    if (!respuestaData || !respuestaData.colaborador) {
+      return errorLocal("La respuesta del servidor no contiene los datos del colaborador.", null);
+    }
+
+    // 2. Almacenar token JWT para solicitudes posteriores
+    if (respuestaData.token) {
+      await saveToken(respuestaData.token);
+    }
+
+    const colabServidor = respuestaData.colaborador;
+
+    // 3. Generar hash bcrypt local del PIN digitado
+    const pinHashLocal = await bcrypt.hash(String(pin).trim(), 10);
+
+    // 4. Transformar datos de camelCase (Backend) a snake_case (SQLite)
+    const colaboradoresParaGuardar = [
+      {
+        servidor_id: colabServidor.id,
+        uuid: colabServidor.uuid,
+        nombre: colabServidor.nombre,
+        apellidos: colabServidor.apellidos,
+        cedula: colabServidor.cedula,
+        grupo_datos: colabServidor.grupoDatos,
+        finca_id: colabServidor.fincaId ?? null,
+        nombre_usuario: colabServidor.nombreUsuario,
+        tipo_colaborador: colabServidor.tipoColaborador ?? "external_collab",
+        rol_id: colabServidor.rolId ?? 1,
+        pin_hash: pinHashLocal,
+      },
+    ];
+
+    // 5. Insertar o actualizar registro en la tabla local de colaboradores
+    const resultadoGuardado = await localApi.colaboradores.guardarDesdeServidor(colaboradoresParaGuardar);
+
+    return exitoLocal("Colaborador sincronizado correctamente.", resultadoGuardado);
   } catch (err) {
-    return errorLocal("Error al conectar con el servicio de colaboradores.", err);
+    const mensajeError =
+      err?.response?.data?.message ||
+      err?.message ||
+      "Error al conectar con el servicio de colaboradores.";
+    return errorLocal(mensajeError, err);
   }
 };
 

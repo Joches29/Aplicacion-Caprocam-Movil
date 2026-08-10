@@ -21,7 +21,6 @@ import Modal from "../../../shared/components/Modal";
 import Text from "../../../shared/components/Text";
 import Title from "../../../shared/components/Title";
 import Input from "../../../shared/components/Input";
-import { probarBaseLocal } from "../../../database/local/testLocalDb.service";
 
 import { COLORS } from "../../../theme/colors";
 import { ICONS } from "../../../theme/icons";
@@ -38,21 +37,6 @@ import { STYLE } from "../../../theme/style";
  */
 export default function LoginScreen({ onLoginSuccess = () => {} }) {
   const loginFlow = useLoginFlow({ onLoginSuccess });
-
-  // ⚠️ TEMPORAL — solo para pruebas locales
-  const [isSeeding, setIsSeeding] = useState(false);
-
-  const handleSeedTest = async () => {
-    setIsSeeding(true);
-    try {
-      await probarBaseLocal(); // crea a "Gerald Alfaro" (PIN 1234) + finca/estanque/alimentación
-      await loginFlow.refetch();
-    } catch (err) {
-      console.log("Error sembrando datos de prueba:", err);
-    } finally {
-      setIsSeeding(false);
-    }
-  };
 
   return (
     <View style={STYLE.container}>
@@ -73,8 +57,6 @@ export default function LoginScreen({ onLoginSuccess = () => {} }) {
           onSearchTextChange={loginFlow.setWorkerSearchText}
           isFormValid={loginFlow.isFormValid}
           onContinue={loginFlow.openPinModal}
-          onSeedTest={handleSeedTest}
-          isSeeding={isSeeding}
         />
       </ScrollView>
 
@@ -141,8 +123,6 @@ function WorkerSection({
   onSearchTextChange,
   isFormValid,
   onContinue,
-  onSeedTest,
-  isSeeding,
 }) {
   // Estado de sincronización basado en el resultado real de onSyncData()
   const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'danger'
@@ -196,7 +176,7 @@ function WorkerSection({
       );
     } finally {
       setIsSyncing(false);
-      
+
       // Auto-ocultar el mensaje después de unos segundos
       setTimeout(() => {
         setSyncStatus(null);
@@ -223,7 +203,6 @@ function WorkerSection({
         />
       )}
 
-      {/* Resto del código de la tarjeta... */}
       <Title level={4} color={COLORS.textPrimary} align="center">
         {LOGIN_MESSAGES.WORKER_TITLE}
       </Title>
@@ -241,25 +220,6 @@ function WorkerSection({
           />
           <Text style={styles.buttonText}>
             {LOGIN_MESSAGES.SYNC_BUTTON_TEXT}
-          </Text>
-        </View>
-      </Button>
-
-      {/* ⚠️ TEMPORAL — borrar este botón antes de mergear */}
-      <Button
-        onPress={onSeedTest}
-        variant="outline"
-        disabled={isSeeding}
-        style={styles.syncButton}
-      >
-        <View style={styles.buttonContent}>
-          <Icon
-            icon={ICONS.document || ICONS.info}
-            size={18}
-            color={COLORS.primary}
-          />
-          <Text style={styles.buttonText}>
-            {isSeeding ? "SQLiteando..." : "SQLite"}
           </Text>
         </View>
       </Button>
