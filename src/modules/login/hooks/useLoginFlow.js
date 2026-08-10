@@ -6,9 +6,9 @@
  *
  * @dependencies - useWorkers, formatDateInSpanish, getLoginValidationMessage, isLoginFormValid,
  *                 validarPinOffline (database/local/offlineAuth.service),
- *                 descargarDatosInicialesLocal (database/local/sync.service), api (api/api.js)
- * @validations  - Filtra lista por nombre y requiere PIN exacto de 4 dígitos.
- * @navigation   - N/A (ejecuta el callback onLoginSuccess al autenticar PIN).
+ *                 descargarColaboradoresLoginLocal (database/local/sync.service), api (api/api.js)
+ * @validations   - Filtra lista por nombre y requiere PIN exacto de 4 dígitos.
+ * @navigation    - N/A (ejecuta el callback onLoginSuccess al autenticar PIN).
  */
 
 import { useState } from 'react';
@@ -17,7 +17,7 @@ import { useWorkers } from './useWorkers';
 import { formatDateInSpanish } from '../utils/dateFormatter';
 import { getLoginValidationMessage, isLoginFormValid } from '../utils/loginValidator';
 import { validarPinOffline } from '../../../database/local/offlineAuth.service';
-import { descargarDatosInicialesLocal } from '../../../database/local/sync.service';
+import { descargarColaboradoresLoginLocal } from '../../../database/local/sync.service';
 import api from '../../../api/api';
 
 /**
@@ -55,25 +55,50 @@ export function useLoginFlow({ onLoginSuccess }) {
   };
 
   /**
-   * handleSyncData()
-   * Dispara la descarga inicial de datos (incluye colaboradores) desde el
-   * backend hacia SQLite local, y refresca la lista de trabajadores en pantalla.
+   * handleSyncData({ cedula, pin })
+   * Dispara la descarga EXCLUSIVA de colaboradores desde el backend hacia SQLite local.
    *
+   * @param {Object} credentials - Objeto con cédula y PIN ingresados en el modal.
    * @returns {Promise<{success: boolean, message: string}>} Resultado real de la sincronización.
    */
-  const handleSyncData = async () => {
-    setIsSyncing(true);
-    try {
-      const resultado = await descargarDatosInicialesLocal(api);
+  const handleSyncData = async (credentials = {}) => {
+    const { cedula, pin } = credentials;
 
-      if (!resultado.success) {
-        return { success: false, message: resultado.message };
+    // 1. Validación previa de datos requeridos
+    if (!cedula || !cedula.trim()) {
+      return { success: false, message: 'Debe ingresar una cédula válida.' };
+    }
+
+    if (!pin || pin.length !== 4) {
+      return { success: false, message: 'El PIN debe ser de 4 dígitos.' };
+    }
+
+    setIsSyncing(true);
+
+    try {
+      // 2. Solo descargamos la lista de colaboradores
+      const resultado = await descargarColaboradoresLoginLocal(api, { cedula: cedula.trim(), pin });
+
+      if (!resultado || !resultado.success) {
+        return {
+          success: false,
+          message: resultado?.message || 'No se pudo conectar con el servidor para descargar colaboradores.',
+        };
       }
 
+      // 3. Refrescar la lista de colaboradores en SQLite local
       await refetch();
-      return { success: true, message: 'Sincronización completada correctamente.' };
+
+      return {
+        success: true,
+        message: 'Colaboradores sincronizados correctamente.',
+      };
     } catch (err) {
-      return { success: false, message: err.message || 'Error de sincronización. Verifica tu conexión.' };
+      console.error('Error en handleSyncData:', err);
+      return {
+        success: false,
+        message: err?.response?.data?.message || err?.message || 'Error de conexión. Verifica tu red e intenta nuevamente.',
+      };
     } finally {
       setIsSyncing(false);
     }
@@ -123,18 +148,21 @@ export function useLoginFlow({ onLoginSuccess }) {
       }
 
       setIsPinModalVisible(false);
-      onLoginSuccess(resultado.data); // colaborador de sesión (sin pin_hash)
+      onLoginSuccess(resultado.data);
+    } catch (err) {
+      console.error('Error al validar PIN offline:', err);
+      setPinError('No se pudo verificar el PIN localmente.');
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-return {
+  return {
     workers,
     filteredWorkers,
     loading,
     error,
-    refetch,              // ← agregar esta línea
+    refetch,
     selectedWorker,
     setSelectedWorker,
     workerSearchText,
