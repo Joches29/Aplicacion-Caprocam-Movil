@@ -21,7 +21,7 @@ import Modal from "../../../shared/components/Modal";
 import Text from "../../../shared/components/Text";
 import Title from "../../../shared/components/Title";
 import Input from "../../../shared/components/Input";
-import { probarBaseLocal } from '../../../database/local/testLocalDb.service';
+import { probarBaseLocal } from "../../../database/local/testLocalDb.service";
 
 import { COLORS } from "../../../theme/colors";
 import { ICONS } from "../../../theme/icons";
@@ -31,13 +31,12 @@ import SearchBar from "../../../shared/components/SearchBar";
 import styles from "../styles/loginStyles";
 import { STYLE } from "../../../theme/style";
 
-
 /**
  * LoginScreen
  *
  * Composición principal de la pantalla.
  */
-export default function LoginScreen({ onLoginSuccess = () => { } }) {
+export default function LoginScreen({ onLoginSuccess = () => {} }) {
   const loginFlow = useLoginFlow({ onLoginSuccess });
 
   // ⚠️ TEMPORAL — solo para pruebas locales
@@ -46,10 +45,10 @@ export default function LoginScreen({ onLoginSuccess = () => { } }) {
   const handleSeedTest = async () => {
     setIsSeeding(true);
     try {
-      await probarBaseLocal();   // crea a "Gerald Alfaro" (PIN 1234) + finca/estanque/alimentación
+      await probarBaseLocal(); // crea a "Gerald Alfaro" (PIN 1234) + finca/estanque/alimentación
       await loginFlow.refetch();
     } catch (err) {
-      console.log('Error sembrando datos de prueba:', err);
+      console.log("Error sembrando datos de prueba:", err);
     } finally {
       setIsSeeding(false);
     }
@@ -70,7 +69,6 @@ export default function LoginScreen({ onLoginSuccess = () => { } }) {
           selectedWorker={loginFlow.selectedWorker}
           onSelectWorker={loginFlow.setSelectedWorker}
           onSyncData={loginFlow.handleSyncData}
-          isSyncDisabled={loginFlow.isSyncing}
           searchText={loginFlow.workerSearchText}
           onSearchTextChange={loginFlow.setWorkerSearchText}
           isFormValid={loginFlow.isFormValid}
@@ -139,10 +137,6 @@ function WorkerSection({
   selectedWorker,
   onSelectWorker,
   onSyncData,
-  onTestLogin,
-  onShowLocalDb,
-  onLoadDemoData,
-  isSyncDisabled,
   searchText,
   onSearchTextChange,
   isFormValid,
@@ -152,21 +146,63 @@ function WorkerSection({
 }) {
   // Estado de sincronización basado en el resultado real de onSyncData()
   const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'danger'
-  const [syncMessage, setSyncMessage] = useState('');
+  const [syncMessage, setSyncMessage] = useState("");
+
+  // Estados para el Modal de Sincronización
+  const [isSyncModalVisible, setIsSyncModalVisible] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [cedula, setCedula] = useState("");
+  const [syncPin, setSyncPin] = useState("");
+
+  const handleOpenSyncModal = () => {
+    setCedula("");
+    setSyncPin("");
+    setIsSyncModalVisible(true);
+  };
+
+  const handleCloseSyncModal = () => {
+    if (!isSyncing) {
+      setIsSyncModalVisible(false);
+    }
+  };
 
   /**
-   * handleSync()
-   * Ejecuta la sincronización real (delegada al hook vía onSyncData) y
-   * muestra el resultado (éxito o error) devuelto por handleSyncData.
+   * handleConfirmSync()
+   * Ejecuta la sincronización real enviando Cédula y PIN al servicio.
    */
-  const handleSync = async () => {
-    const result = await onSyncData();
-    setSyncStatus(result.success ? 'success' : 'danger');
-    setSyncMessage(result.message);
-    setTimeout(() => {
-      setSyncStatus(null);
-      setSyncMessage('');
-    }, result.success ? 3000 : 6000);
+  const handleConfirmSync = async () => {
+    setIsSyncing(true);
+    setSyncStatus(null);
+    setSyncMessage("");
+
+    try {
+      // Enviamos la cédula y el PIN al hook / servicio
+      const result = await onSyncData({ cedula, pin: syncPin });
+
+      setIsSyncModalVisible(false);
+
+      if (result && result.success) {
+        setSyncStatus("success");
+        setSyncMessage(result.message || "Sincronización completada con éxito.");
+      } else {
+        setSyncStatus("danger");
+        setSyncMessage(result?.message || "No se pudo sincronizar los datos.");
+      }
+    } catch (err) {
+      setIsSyncModalVisible(false);
+      setSyncStatus("danger");
+      setSyncMessage(
+        err?.message || "Error de conexión o fallo al sincronizar con el servidor."
+      );
+    } finally {
+      setIsSyncing(false);
+      
+      // Auto-ocultar el mensaje después de unos segundos
+      setTimeout(() => {
+        setSyncStatus(null);
+        setSyncMessage("");
+      }, 5000);
+    }
   };
 
   return (
@@ -187,14 +223,14 @@ function WorkerSection({
         />
       )}
 
+      {/* Resto del código de la tarjeta... */}
       <Title level={4} color={COLORS.textPrimary} align="center">
         {LOGIN_MESSAGES.WORKER_TITLE}
       </Title>
 
       <Button
-        onPress={handleSync}
+        onPress={handleOpenSyncModal}
         variant="outline"
-        disabled={isSyncDisabled}
         style={styles.syncButton}
       >
         <View style={styles.buttonContent}>
@@ -210,10 +246,21 @@ function WorkerSection({
       </Button>
 
       {/* ⚠️ TEMPORAL — borrar este botón antes de mergear */}
-      <Button onPress={onSeedTest} variant="outline" disabled={isSeeding} style={styles.syncButton}>
+      <Button
+        onPress={onSeedTest}
+        variant="outline"
+        disabled={isSeeding}
+        style={styles.syncButton}
+      >
         <View style={styles.buttonContent}>
-          <Icon icon={ICONS.document || ICONS.info} size={18} color={COLORS.primary} />
-          <Text style={styles.buttonText}>{isSeeding ? 'SQLiteando...' : 'SQLite'}</Text>
+          <Icon
+            icon={ICONS.document || ICONS.info}
+            size={18}
+            color={COLORS.primary}
+          />
+          <Text style={styles.buttonText}>
+            {isSeeding ? "SQLiteando..." : "SQLite"}
+          </Text>
         </View>
       </Button>
 
@@ -278,13 +325,33 @@ function WorkerSection({
           style={styles.continueButton}
         >
           <View style={styles.buttonContent}>
-            <Icon icon={ICONS.enter} size={18} color={isFormValid ? COLORS.primary : COLORS.textTertiary} />
-            <Text style={[styles.buttonText, !isFormValid && { color: COLORS.textTertiary }]}>
+            <Icon
+              icon={ICONS.enter}
+              size={18}
+              color={isFormValid ? COLORS.primary : COLORS.textTertiary}
+            />
+            <Text
+              style={[
+                styles.buttonText,
+                !isFormValid && { color: COLORS.textTertiary },
+              ]}
+            >
               {LOGIN_MESSAGES.BUTTON_TEXT}
             </Text>
           </View>
         </Button>
       </View>
+
+      <SyncModal
+        visible={isSyncModalVisible}
+        cedula={cedula}
+        syncPin={syncPin}
+        isSyncing={isSyncing}
+        onClose={handleCloseSyncModal}
+        onCedulaChange={setCedula}
+        onPinChange={setSyncPin}
+        onSubmit={handleConfirmSync}
+      />
     </Card>
   );
 }
@@ -352,7 +419,15 @@ function SectionStatus({ message, error = false }) {
  *
  * Modal para ingresar el PIN de 4 dígitos.
  */
-function PinModal({ visible, pinCode, pinError, isAuthenticating, onClose, onPinChange, onSubmit }) {
+function PinModal({
+  visible,
+  pinCode,
+  pinError,
+  isAuthenticating,
+  onClose,
+  onPinChange,
+  onSubmit,
+}) {
   return (
     <Modal
       visible={visible}
@@ -364,7 +439,12 @@ function PinModal({ visible, pinCode, pinError, isAuthenticating, onClose, onPin
       buttonStyle={styles.cancelButtonOutline}
       buttonTextStyle={styles.cancelButtonTextOutline}
     >
-      <Title level={5} color={COLORS.textPrimary} align="center" style={styles.modalTitle}>
+      <Title
+        level={5}
+        color={COLORS.textPrimary}
+        align="center"
+        style={styles.modalTitle}
+      >
         Digite su PIN
       </Title>
       <Input
@@ -377,13 +457,91 @@ function PinModal({ visible, pinCode, pinError, isAuthenticating, onClose, onPin
         autoFocus={visible}
         editable={!isAuthenticating}
         containerStyle={styles.pinInputContainer}
-        style={styles.pinInput}
+        style={[styles.pinInput, { fontFamily: "Roboto" }]}
       />
-      {pinError !== '' && (
-        <Alert variant="danger" message={pinError} style={styles.pinErrorAlert} />
+      {pinError !== "" && (
+        <Alert
+          variant="danger"
+          message={pinError}
+          style={styles.pinErrorAlert}
+        />
       )}
-      <Button onPress={onSubmit} variant="outline" disabled={pinCode.length !== 4 || isAuthenticating}>
+      <Button
+        onPress={onSubmit}
+        variant="outline"
+        disabled={pinCode.length !== 4 || isAuthenticating}
+      >
         Ingresar
+      </Button>
+    </Modal>
+  );
+}
+
+/**
+ * SyncModal
+ *
+ * Utiliza el Modal compartido para solicitar Cédula y PIN antes de sincronizar.
+ */
+function SyncModal({
+  visible,
+  cedula,
+  syncPin,
+  isSyncing,
+  onClose,
+  onCedulaChange,
+  onPinChange,
+  onSubmit,
+}) {
+  const isFormValid = cedula.trim().length > 0 && syncPin.length === 4;
+
+  return (
+    <Modal
+      visible={visible}
+      onClose={onClose}
+      showCloseButton={!isSyncing}
+      closeText="Cancelar"
+      containerStyle={styles.modalContainer}
+      overlayStyle={styles.modalOverlay}
+      buttonStyle={styles.cancelButtonOutline}
+      buttonTextStyle={styles.cancelButtonTextOutline}
+    >
+      <Title
+        level={5}
+        color={COLORS.textPrimary}
+        align="center"
+        style={styles.modalTitle}
+      >
+        Sincronizar Usuarios
+      </Title>
+
+      <Input
+        value={cedula}
+        onChangeText={onCedulaChange}
+        placeholder="Cédula"
+        keyboardType="number-pad"
+        editable={!isSyncing}
+        containerStyle={styles.pinInputContainer}
+        style={[styles.pinInput, { fontFamily: "Roboto" }]}
+      />
+
+      <Input
+        value={syncPin}
+        onChangeText={onPinChange}
+        placeholder="PIN"
+        keyboardType="number-pad"
+        maxLength={4}
+        secureTextEntry
+        editable={!isSyncing}
+        containerStyle={styles.pinInputContainer}
+        style={[styles.pinInput, { fontFamily: "Roboto" }]}
+      />
+
+      <Button
+        onPress={onSubmit}
+        variant="outline"
+        disabled={!isFormValid || isSyncing}
+      >
+        {isSyncing ? "Sincronizando..." : "Sincronizar"}
       </Button>
     </Modal>
   );
