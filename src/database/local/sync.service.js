@@ -4,7 +4,7 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: sync.service.js
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 03/08/2026
+Fecha: 10/08/2026
 Modulo: Database Local
 Descripcion:
 Servicio base para sincronizar datos entre SQLite local y
@@ -27,11 +27,10 @@ import { saveToken } from "../../modules/login/utils/tokenStorage";
 
 /*
 //////////////////////////////////////////////////////////
-CONFIGURACIÓN DE BCRYPT PARA EXPO / REACT NATIVE
+CONFIGURACION DE BCRYPT PARA EXPO / REACT NATIVE
 //////////////////////////////////////////////////////////
 */
 
-// Proveedor de aleatoriedad segura mediante expo-crypto
 bcrypt.setRandomFallback((len) => {
   const array = new Uint8Array(len);
   return Crypto.getRandomValues(array);
@@ -45,7 +44,6 @@ CONSTANTES
 
 const ENDPOINTS_SYNC = {
   grupos_datos: "/grupos-datos",
-  roles: "/roles",
   usuarios: "/usuarios",
 
   fincas: "/fincas",
@@ -75,9 +73,11 @@ const ENDPOINTS_SYNC = {
 
   alimentaciones: "/alimentaciones",
   crecimientos: "/crecimientos",
+  calculos_crecimiento: "/calculos-crecimiento",
   fisico_quimico: "/fisico-quimico",
   fisico_quimico_detalle: "/fisico-quimico-detalle",
   densidad_poblacional: "/densidad-poblacional",
+  densidad_detalle_tiros: "/densidad-detalle-tiros",
   enfermedades: "/enfermedades",
   parasitologias: "/parasitologias",
   raleos: "/raleos",
@@ -86,7 +86,6 @@ const ENDPOINTS_SYNC = {
 
 const TABLAS_DESCARGA_INICIAL = [
   "grupos_datos",
-  "roles",
   "usuarios",
   "colaboradores",
   "fincas",
@@ -243,7 +242,7 @@ FUNCIONES PRINCIPALES
  * Descarga una tabla del backend y la guarda en SQLite.
  * @param {object} apiClient - Instancia axios del proyecto.
  * @param {string} tabla - Nombre de tabla local.
- * @param {object} [credenciales] - Cédula y PIN opcionales para la petición.
+ * @param {object} [credenciales] - Cedula y PIN opcionales para la peticion.
  * @returns {Promise<object>} Respuesta local.
  */
 export const descargarTablaLocal = async (apiClient, tabla, credenciales = {}) => {
@@ -284,9 +283,9 @@ export const descargarTablaLocal = async (apiClient, tabla, credenciales = {}) =
 };
 
 /**
- * Descarga y sincroniza el colaborador autenticado enviando cédula y PIN vía POST.
+ * Descarga y sincroniza el colaborador autenticado enviando cedula y PIN via POST.
  * @param {object} apiClient - Instancia axios del proyecto.
- * @param {object} credenciales - Cédula y PIN ingresados en el modal de login.
+ * @param {object} credenciales - Cedula y PIN ingresados en el modal de login.
  * @returns {Promise<object>} Respuesta local.
  */
 export const descargarColaboradoresLoginLocal = async (apiClient, credenciales = {}) => {
@@ -294,12 +293,11 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
     const { cedula, pin } = credenciales;
 
     if (!cedula || !pin) {
-      return errorLocal("Se requieren cédula y PIN para sincronizar el login.", null);
+      return errorLocal("Se requieren cedula y PIN para sincronizar el login.", null);
     }
 
     await localApi.inicializar();
 
-    // 1. Petición POST al endpoint de login/sincronización
     const respuestaHttp = await apiClient.post("/sync/colab", {
       cedula: String(cedula).trim(),
       pin: String(pin).trim(),
@@ -311,18 +309,15 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
       return errorLocal("La respuesta del servidor no contiene los datos del colaborador.", null);
     }
 
-    // 2. Almacenar token JWT
     if (respuestaData.token) {
       await saveToken(respuestaData.token);
     }
 
     const colabServidor = respuestaData.colaborador;
 
-    // 3. Generar el hash del PIN usando bcrypt
     const salt = bcrypt.genSaltSync(10);
     const pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
 
-    // 4. Mapear datos a snake_case para SQLite
     const colaboradoresParaGuardar = [
       {
         servidor_id: colabServidor.id,
@@ -334,12 +329,11 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
         finca_id: colabServidor.fincaId ?? null,
         nombre_usuario: colabServidor.nombreUsuario,
         tipo_colaborador: colabServidor.tipoColaborador ?? "external_collab",
-        rol_id: colabServidor.rolId ?? 1,
         pin_hash: pinHashLocal,
+        creado_por_usuario_id: colabServidor.creadoPorUsuarioId ?? null,
       },
     ];
 
-    // 5. Guardar en la base de datos local
     const resultadoGuardado = await localApi.colaboradores.guardarDesdeServidor(colaboradoresParaGuardar);
 
     return exitoLocal("Colaborador sincronizado correctamente.", resultadoGuardado);
@@ -348,14 +342,15 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
       err?.response?.data?.message ||
       err?.message ||
       "Error al conectar con el servicio de colaboradores.";
+
     return errorLocal(mensajeError, err);
   }
 };
 
 /**
- * Descarga los catalogos y datos base necesarios para trabajar offline (Módule de Sincronización General).
+ * Descarga los catalogos y datos base necesarios para trabajar offline (Modulo de Sincronizacion General).
  * @param {object} apiClient - Instancia axios del proyecto.
- * @param {object} [credenciales] - Cédula y PIN.
+ * @param {object} [credenciales] - Cedula y PIN.
  * @returns {Promise<object>} Respuesta local.
  */
 export const descargarDatosInicialesLocal = async (apiClient, credenciales = {}) => {
@@ -383,15 +378,16 @@ export const descargarDatosInicialesLocal = async (apiClient, credenciales = {})
 
     if (hayErrores) {
       const tablasConError = resultados.filter((r) => !r.success);
+
       return errorLocal(
-        `Error al conectar con el servidor para la sincronización (${tablasConError.length} tablas fallaron).`,
+        `Error al conectar con el servidor para la sincronizacion (${tablasConError.length} tablas fallaron).`,
         resultados
       );
     }
 
-    return exitoLocal("Sincronización de datos completada correctamente.", resultados);
+    return exitoLocal("Sincronizacion de datos completada correctamente.", resultados);
   } catch (err) {
-    return errorLocal("Error de conexión durante la descarga inicial.", err);
+    return errorLocal("Error de conexion durante la descarga inicial.", err);
   }
 };
 
@@ -478,7 +474,7 @@ export const sincronizarPendientesLocal = async (apiClient) => {
 /**
  * Ejecuta sincronizacion completa: sube pendientes y luego descarga datos base.
  * @param {object} apiClient - Instancia axios del proyecto.
- * @param {object} [credenciales] - Cédula y PIN ingresados.
+ * @param {object} [credenciales] - Cedula y PIN ingresados.
  * @returns {Promise<object>} Respuesta local.
  */
 export const sincronizarCompletoLocal = async (apiClient, credenciales = {}) => {
