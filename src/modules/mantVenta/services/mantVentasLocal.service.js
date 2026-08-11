@@ -233,7 +233,10 @@ async function create(ventaDTO) {
 async function update(id, ventaDTO) {
     try {
         const datosLocales = await mapearVentaParaLocal(ventaDTO);
-        const respuesta = await ejecutarMetodoVentas("actualizar", [id, datosLocales]);
+        const respuesta = await ejecutarMetodoVentas("actualizar", [Number(id), datosLocales]);
+        if (respuesta && respuesta.success === false) {
+            throw new Error(respuesta.message || "Error al actualizar venta en SQLite");
+        }
         return mapearVentaDesdeLocal(obtenerDataRespuesta(respuesta));
     } catch (error) {
         console.error("Error al actualizar venta local", extraerError(error));

@@ -114,7 +114,7 @@ const mapearFincaDesdeBackend = (finca) => {
 };
 
 const guardarFincaDesdeBackend = async (fincaLocal) => {
-  return await localApi.sync.guardarDesdeServidor(TABLA_FINCAS, fincaLocal);
+  return await localApi.sync.guardarDesdeServidor(TABLA_FINCAS, [fincaLocal]);
 };
 
 const obtenerFincasBackend = async () => {

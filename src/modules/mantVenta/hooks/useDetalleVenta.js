@@ -1,156 +1,105 @@
 /**
  * ============================================================
- * HOOK DE DETALLE DE VENTA
+ * HOOK DE DETALLE DE VENTAS (SQLite Offline-First)
  * ============================================================
- *
- * Centraliza el estado y las operaciones locales
- * correspondientes al modulo de ventas.
- *
- * Trabaja contra SQLite usando VentaLocalService.
  */
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useWindowDimensions, View } from "react-native";
 import { useError } from "../../../shared/context/ErrorContext.js";
+
 import VentasLocalService from "../services/mantVentasLocal.service.js";
 import { localApi } from "../../../database/local/localApi.service.js";
+
 import Text from "../../../shared/components/Text.jsx";
 import Icon from "../../../shared/components/Icons.jsx";
 import Card from "../../../shared/components/Card.jsx";
 import Button from "../../../shared/components/Button.jsx";
-import { ICONS } from "../../../theme/icons";
+import { ICONS } from "../../../theme/icons.js";
 import { COLORS } from "../../../theme/colors.js";
 import { styles } from "../styles/VentaStyles.js";
+import { formatearMontoColones } from "./useVenta.js";
 
-/*
-============================================================
-HELPERS
-============================================================
-*/
-
-function formatearMontoColones(value) {
-  const numero = Math.round(Number(value) || 0);
-  return `₡ ${String(numero).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
-}
-
-/*
-============================================================
-HOOK PRINCIPAL
-============================================================
-*/
 export function useDetalleVenta({ onEdit, success, message } = {}) {
+  const { mostrarError } = useError();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
-  const isWide = width >= 700;
+  const isWide = width >= 768;
 
+  const [fincaFiltro, setFincaFiltro] = useState("");
+  const [estanqueFiltro, setEstanqueFiltro] = useState("");
+  const [fechaFiltro, setFechaFiltro] = useState("");
+
+  const [ventas, setVentas] = useState([]);
   const [fincas, setFincas] = useState([]);
   const [estanques, setEstanques] = useState([]);
-  const [ventas, setVentas] = useState([]);
-  const [mostrarExito, setMostrarExito] = useState(
-    success === "1" && Boolean(message)
-  );
+  const [compradores, setCompradores] = useState([]);
 
-  useEffect(() => {
-    if (success !== "1" || !message) {
-      setMostrarExito(false);
-      return;
-    }
-    setMostrarExito(true);
-    const timer = setTimeout(() => setMostrarExito(false), 3000);
-    return () => clearTimeout(timer);
-  }, [success, message]);
-
-  const { mostrarError } = useError();
-
-  useEffect(() => {
-    let activo = true;
-    async function cargarCatalogosLocales() {
-      try {
-        await localApi.inicializar();
-        const [resFincas, resEstanques] = await Promise.all([
-          localApi.fincas.obtenerTodos(),
-          localApi.estanques.obtenerTodos(),
-        ]);
-        if (activo) {
-          setFincas(resFincas.data || []);
-          setEstanques(resEstanques.data || []);
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    }
-    cargarCatalogosLocales();
-    return () => { activo = false; };
-  }, []);
-
+  const [cargando, setCargando] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
   const [eliminando, setEliminando] = useState(false);
 
-  const cargarVentas = useCallback(async () => {
+  useEffect(() => {
+    if (params?.fincaId) setFincaFiltro(String(params.fincaId));
+    if (params?.estanqueId) setEstanqueFiltro(String(params.estanqueId));
+  }, [params?.fincaId, params?.estanqueId]);
+
+  const cargarDatos = useCallback(async () => {
+    setCargando(true);
     try {
       await localApi.inicializar();
-      const data = await VentasLocalService.getAll();
-      setVentas(data);
+      const [resVentas, resFincas, resEstanques, resCompradores] =
+        await Promise.all([
+          VentasLocalService.getAll().catch(() => []),
+          localApi.fincas?.obtenerTodos?.().then((r) => r.data).catch(() => []),
+          localApi.estanques?.obtenerTodos?.().then((r) => r.data).catch(() => []),
+          localApi.compradores?.obtenerTodos?.().then((r) => r.data).catch(() => []),
+        ]);
+
+      setVentas(Array.isArray(resVentas) ? resVentas : []);
+      setFincas(Array.isArray(resFincas) ? resFincas : []);
+      setEstanques(Array.isArray(resEstanques) ? resEstanques : []);
+      setCompradores(Array.isArray(resCompradores) ? resCompradores : []);
     } catch (error) {
-      console.error(error);
+      mostrarError(error);
+    } finally {
+      setCargando(false);
     }
-  }, []);
+  }, [mostrarError]);
 
   useEffect(() => {
-    cargarVentas();
-  }, [cargarVentas]);
-
-  const fincaInicial =
-    typeof params.fincaFiltro === "string" ? params.fincaFiltro : "";
-  const estanqueInicial =
-    typeof params.estanqueFiltro === "string" ? params.estanqueFiltro : "";
-
-  const [fincaFiltro, setFincaFiltro] = useState(fincaInicial);
-  const [estanqueFiltro, setEstanqueFiltro] = useState(estanqueInicial);
+    cargarDatos();
+  }, [cargarDatos]);
 
   const opcionesFincas = useMemo(
-    () => fincas.map((finca) => ({
-      label: finca.nombre_finca || `Finca ${finca.id}`,
-      value: String(finca.id),
-    })),
+    () => [
+      { label: "Todas las fincas", value: "" },
+      ...fincas.map((f) => ({
+        label: f.nombre_finca || f.nombreFinca || f.nombre || `Finca ${f.id}`,
+        value: String(f.id),
+      })),
+    ],
     [fincas]
   );
 
   const opcionesEstanques = useMemo(() => {
-    if (!fincaFiltro) return [];
-    return estanques
-      .filter((estanque) => Number(estanque.finca_id) === Number(fincaFiltro))
-      .map((estanque) => ({
-        label: estanque.codigo || `Estanque ${estanque.id}`,
-        value: String(estanque.id),
+    const base = [{ label: "Todos los estanques", value: "" }];
+    if (!fincaFiltro) return base;
+
+    const filtrados = estanques
+      .filter(
+        (e) =>
+          String(e.finca_id ?? e.idFinca ?? e.fincaId ?? e.finca) === String(fincaFiltro)
+      )
+      .map((e) => ({
+        label: e.codigo || e.nombre || `Estanque ${e.id}`,
+        value: String(e.id),
       }));
+
+    return [...base, ...filtrados];
   }, [fincaFiltro, estanques]);
-
-  const ventasFiltradas = useMemo(() => {
-    return (ventas || []).filter((venta) => {
-      const coincideFinca = !fincaFiltro || Number(venta.finca) === Number(fincaFiltro);
-      const coincideEstanque =
-        !estanqueFiltro || Number(venta.estanque) === Number(estanqueFiltro);
-      return coincideFinca && coincideEstanque;
-    });
-  }, [ventas, fincaFiltro, estanqueFiltro]);
-
-  const hayFiltro = Boolean(fincaFiltro && estanqueFiltro);
-
-  const mensajeDetalle = hayFiltro
-    ? "Mostrando solo las ventas de la finca y estanque seleccionados."
-    : "Seleccione una finca y un estanque para ver su historial de ventas.";
-
-  const descripcionEliminar = useMemo(() => {
-    if (!ventaSeleccionada) return "";
-    const finca = fincas.find((item) => Number(item.id) === Number(ventaSeleccionada.finca));
-    const estanque = estanques.find(
-      (item) => Number(item.id) === Number(ventaSeleccionada.estanque)
-    );
-    return `${finca?.nombre_finca ?? "Finca"} • ${estanque?.codigo ?? "Estanque"}`;
-  }, [ventaSeleccionada, fincas, estanques]);
 
   const handleFincaChange = useCallback((value) => {
     setFincaFiltro(value);
@@ -160,6 +109,88 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
   const handleEstanqueChange = useCallback((value) => {
     setEstanqueFiltro(value);
   }, []);
+
+  const abrirModalEliminar = useCallback((venta) => {
+    setVentaSeleccionada(venta);
+    setModalVisible(true);
+  }, []);
+
+  const cancelarEliminar = useCallback(() => {
+    setVentaSeleccionada(null);
+    setModalVisible(false);
+  }, []);
+
+  const confirmarEliminar = useCallback(async () => {
+    if (!ventaSeleccionada) return;
+    setEliminando(true);
+    try {
+      await VentasLocalService.deleteById(ventaSeleccionada.id);
+      setVentas((prev) => prev.filter((v) => String(v.id) !== String(ventaSeleccionada.id)));
+      setModalVisible(false);
+      setVentaSeleccionada(null);
+    } catch (error) {
+      mostrarError(error);
+    } finally {
+      setEliminando(false);
+    }
+  }, [ventaSeleccionada, mostrarError]);
+
+  const ventasProcesadas = useMemo(() => {
+    return ventas.map((v) => {
+      const fincaObj = fincas.find(
+        (f) => String(f.id) === String(v.finca || v.fincaId)
+      );
+      const estanqueObj = estanques.find(
+        (e) => String(e.id) === String(v.estanque || v.estanqueId)
+      );
+      const compradorObj = compradores.find(
+        (c) => String(c.id) === String(v.comprador || v.compradorId)
+      );
+
+      return {
+        ...v,
+        nombreFinca: fincaObj
+          ? fincaObj.nombre_finca || fincaObj.nombreFinca || fincaObj.nombre
+          : "Finca",
+        nombreEstanque: estanqueObj
+          ? estanqueObj.codigo || estanqueObj.nombre
+          : "Estanque",
+        nombreComprador:
+          !v.comprador || v.comprador === "cliente-generico" || !compradorObj
+            ? "Cliente genérico"
+            : compradorObj.nombre,
+      };
+    });
+  }, [ventas, fincas, estanques, compradores]);
+
+  const ventasFiltradas = useMemo(() => {
+    return ventasProcesadas.filter((v) => {
+      if (fincaFiltro && String(v.finca || v.fincaId) !== String(fincaFiltro)) {
+        return false;
+      }
+      if (
+        estanqueFiltro &&
+        String(v.estanque || v.estanqueId) !== String(estanqueFiltro)
+      ) {
+        return false;
+      }
+      if (fechaFiltro && v.fecha) {
+        if (!v.fecha.includes(fechaFiltro)) return false;
+      }
+      return true;
+    });
+  }, [ventasProcesadas, fincaFiltro, estanqueFiltro, fechaFiltro]);
+
+  const mensajeDetalle = useMemo(() => {
+    if (!fincaFiltro) return "Seleccione una finca para filtrar las ventas.";
+    if (!estanqueFiltro) return "Mostrando ventas de la finca seleccionada.";
+    return "Mostrando ventas filtradas por estanque.";
+  }, [fincaFiltro, estanqueFiltro]);
+
+  const descripcionEliminar = useMemo(() => {
+    if (!ventaSeleccionada) return "la venta";
+    return `la venta del ${ventaSeleccionada.fecha ? new Date(ventaSeleccionada.fecha).toLocaleDateString("es-CR") : "registro"}`;
+  }, [ventaSeleccionada]);
 
   function SectionTitle({ icon, title }) {
     return (
@@ -198,14 +229,11 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
   }
 
   function TarjetaVenta({ venta }) {
-    const finca = fincas.find((item) => Number(item.id) === Number(venta.finca));
-    const estanque = estanques.find((item) => Number(item.id) === Number(venta.estanque));
-
     return (
       <Card style={styles.tarjeta}>
         <View style={styles.tarjetaEncabezado}>
           <Text style={styles.nombreProducto}>
-            {finca?.nombre_finca ?? "Finca"} • {estanque?.codigo ?? "Estanque"}
+            {venta.nombreFinca} • {venta.nombreEstanque}
           </Text>
           <View style={styles.buttonsCrud}>
             <Button
@@ -228,61 +256,34 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
         <View style={styles.filasDetalle}>
           <FilaDetalle
             etiqueta="Fecha"
-            valor={new Date(venta.fecha).toLocaleDateString("es-CR")}
+            valor={venta.fecha ? new Date(venta.fecha).toLocaleDateString("es-CR") : "-"}
           />
           <FilaDetalle
             etiqueta="Total"
             valor={formatearMontoColones(venta.total)}
           />
           <FilaDetalle etiqueta="Kilos" valor={`${venta.cantVendida} kg`} />
-          <FilaDetalle
-            etiqueta="Precio/kg"
-            valor={`₡ ${Number(venta.precioKilo).toLocaleString("es-CR")}`}
-          />
+          <FilaDetalle etiqueta="Comprador" valor={venta.nombreComprador} />
         </View>
       </Card>
     );
-  }
-
-  function abrirModalEliminar(venta) {
-    setVentaSeleccionada(venta);
-    setModalVisible(true);
-  }
-
-  function cancelarEliminar() {
-    setModalVisible(false);
-    setVentaSeleccionada(null);
-  }
-
-  async function confirmarEliminar() {
-    if (!ventaSeleccionada) return;
-    setEliminando(true);
-    try {
-      await VentasLocalService.deleteById(ventaSeleccionada.id);
-      setVentas((actual) =>
-        actual.filter((venta) => venta.id !== ventaSeleccionada.id)
-      );
-    } catch (error) {
-      mostrarError(error);
-    } finally {
-      setEliminando(false);
-      setModalVisible(false);
-      setVentaSeleccionada(null);
-    }
   }
 
   return {
     SectionTitle,
     FilaDetalle,
     TarjetaVenta,
-    ventas,
+    cargando,
     fincaFiltro,
     estanqueFiltro,
+    fechaFiltro,
+    setFincaFiltro,
+    setEstanqueFiltro,
+    setFechaFiltro,
     opcionesFincas,
     opcionesEstanques,
     ventasFiltradas,
     mensajeDetalle,
-    hayFiltro,
     isWide,
     modalVisible,
     descripcionEliminar,
@@ -291,7 +292,7 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
     cancelarEliminar,
     handleFincaChange,
     handleEstanqueChange,
-    mostrarExito,
+    mostrarExito: success,
     mensajeExito: message,
   };
 }
