@@ -22,7 +22,7 @@ import { TYPOGRAPHY } from "../../../theme/typography";
 export const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: 28,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   fieldContainer: {
     marginBottom: 14,

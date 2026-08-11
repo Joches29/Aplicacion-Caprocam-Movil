@@ -51,6 +51,20 @@ export function useFieldValidation() {
   };
 }
 
+export function esNumeroValidoPositivo(valor, permitirCero = false) {
+  if (valor === undefined || valor === null || String(valor).trim() === "") return false;
+  const num = Number(valor);
+  if (Number.isNaN(num)) return false;
+  return permitirCero ? num >= 0 : num > 0;
+}
+
+export function esAlfanumericoMax14(valor) {
+  if (!valor) return true;
+  const str = String(valor).trim();
+  if (str.length > 14) return false;
+  return /^[a-zA-Z0-9]+$/.test(str);
+}
+
 /**
  * Valida una lista de campos obligatorios contra un formData.
  * Reutilizable por cualquier módulo, independientemente de cuáles
@@ -59,10 +73,50 @@ export function useFieldValidation() {
 export function validarCamposObligatorios(formData, camposObligatorios) {
   const errores = {};
 
+  const camposNumericosPositivos = [
+    "cantidadSembrada",
+    "densidadPoblacional",
+    "duracionCiclo",
+    "cantidadInicial",
+    "duracionDias",
+    "cantidadSobrevivientePrecria",
+    "areaHectareas",
+  ];
+
+  const camposNumericosPermiteCero = ["cantidadFinal"];
+
+  const camposAlfanumericos14 = ["codigoLoteLarva", "certificadoLarva"];
+
   camposObligatorios.forEach((campo) => {
-    if (String(formData[campo] ?? "").trim() === "") {
+    const valor = formData[campo];
+    const strValor = String(valor ?? "").trim();
+
+    if (strValor === "") {
       errores[campo] = "Campo obligatorio";
+      return;
+    }
+
+    if (camposAlfanumericos14.includes(campo)) {
+      if (!esAlfanumericoMax14(strValor)) {
+        errores[campo] = "Solo letras y números, máximo 14 caracteres.";
+        return;
+      }
+    }
+
+    if (camposNumericosPositivos.includes(campo)) {
+      if (!esNumeroValidoPositivo(strValor, false)) {
+        errores[campo] = "Debe ser un número mayor a 0";
+        return;
+      }
+    }
+
+    if (camposNumericosPermiteCero.includes(campo)) {
+      if (!esNumeroValidoPositivo(strValor, true)) {
+        errores[campo] = "Debe ser un número entero o decimal válido";
+        return;
+      }
     }
   });
+
   return errores;
 }

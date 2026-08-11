@@ -12,24 +12,31 @@
  *
  * No depende de React ni componentes visuales.
  */
-import { calcularDiasTranscurridos } from "./dateUtils";
+import { diasTranscurridosDesde } from "./dateUtils";
 
-export function calcularCantidadSembrada(
+/**
+ * Inverso de calcularCantidadSembrada: a partir de la cantidad de
+ * larvas que el usuario ingresa directamente (compradas/recibidas)
+ * y el área del estanque, calcula la densidad resultante en PL/m².
+ * Se redondea a 2 decimales - la densidad real casi nunca da un
+ * número entero exacto como sí pasaba cuando era el input.
+ */
+export function calcularDensidadDesdeCantidad(
   areaHectareas,
-  densidadPoblacional,
+  cantidadSembrada,
 ) {
   const area = Number(areaHectareas);
-  const densidad = Number(densidadPoblacional);
+  const cantidad = Number(cantidadSembrada);
 
-  if (Number.isNaN(area) || Number.isNaN(densidad)) {
+  if (Number.isNaN(area) || Number.isNaN(cantidad)) {
     return "";
   }
 
-  if (area <= 0 || densidad <= 0) {
+  if (area <= 0 || cantidad <= 0) {
     return "";
   }
 
-  return String(Math.round(area * 10000 * densidad));
+  return String(Math.round((cantidad / (area * 10000)) * 100) / 100);
 }
 
 /**
@@ -46,18 +53,15 @@ export function calcularProgresoCiclo(registro) {
   const esPrecria = registro.tipoRegistro === "precria";
 
   const totalDias =
-    Number(
-      esPrecria
-        ? registro.duracionDias
-        : registro.diasMaduracion,
-    ) || 0;
+    Number(esPrecria ? registro.duracionDias : registro.duracionCiclo) || 0;
 
-  const fechaInicio = esPrecria ? registro.fechaInicio : registro.fechaSiembra;
+  const fechaInicioStr = esPrecria
+    ? registro.fechaInicio
+    : registro.fechaSiembra;
 
+  const diasCalculados = diasTranscurridosDesde(fechaInicioStr);
   const diaActual =
-    registro.diasCultivo != null && registro.diasCultivo !== ""
-      ? Number(registro.diasCultivo) || 0
-      : calcularDiasTranscurridos(fechaInicio);
+    totalDias > 0 ? Math.min(diasCalculados, totalDias) : diasCalculados;
 
   const progreso =
     totalDias > 0 ? Math.round((diaActual / totalDias) * 100) : 0;

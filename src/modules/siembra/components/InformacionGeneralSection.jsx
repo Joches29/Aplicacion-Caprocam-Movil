@@ -122,18 +122,24 @@ export default function InformacionGeneralSection({
       {isViewMode ? (
         <CampoLectura
           label="Duración estimada del ciclo"
-          value={formData.diasMaduracion ? `${formData.diasMaduracion} días` : ""}
+          value={formData.duracionCiclo ? `${formData.duracionCiclo} días` : ""}
         />
       ) : (
         <NumberInput
           label={requiredLabel("Duración estimada del ciclo")}
-          value={formData.diasMaduracion}
-          onChangeText={(value) => onChange("diasMaduracion", value)}
+          value={formData.duracionCiclo}
+          onChangeText={(value) => onChange("duracionCiclo", value)}
           min={1}
           max={120}
           step={1}
           labelStyle={styles.requiredLabel}
-          style={hasError("diasMaduracion") ? styles.inputError : null}
+          style={hasError("duracionCiclo") ? styles.inputError : null}
+        />
+      )}
+      {isViewMode && formData.estado === "Finalizada" && (
+        <CampoLectura
+          label="Producción"
+          value={`${Number(formData.produccionKg ?? 0).toLocaleString()} kg`}
         />
       )}
     </Card>

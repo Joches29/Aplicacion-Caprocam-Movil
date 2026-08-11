@@ -86,6 +86,8 @@ import Alert from "../../../shared/components/Alert";
 import Icon from "../../../shared/components/Icons";
 import NavbarRegistro from "../../../shared/components/NavbarRegistro";
 import Text from "../../../shared/components/Text";
+import Modal from "../../../shared/components/Modal";
+import Title from "../../../shared/components/Title";
 
 import InformacionGeneralSection from "../components/InformacionGeneralSection";
 import DatosLarvaSection from "../components/DatosLarvaSection";
@@ -102,6 +104,7 @@ import useDetalleSiembra from "../hooks/useDetalleSiembra";
 export default function EditarSiembraScreen() {
   const { id, finalizar } = useLocalSearchParams();
   const router = useRouter();
+  const [saliendo, setSaliendo] = React.useState(false);
   const esFinalizar = finalizar === "1";
 
   const {
@@ -123,6 +126,8 @@ export default function EditarSiembraScreen() {
     guardar,
     handleFinalizarPreCria,
     guardando,
+    confirmarFinalizar,
+    setConfirmarFinalizar,
     iniciarEdicion,
     cancelarEdicion,
     handleAgregarProveedorLarva,
@@ -149,25 +154,43 @@ export default function EditarSiembraScreen() {
     }
   }, [siembra, formData, iniciarEdicion]);
 
-  // Guardar/cancelar dejan isEditing en false cuando terminan con
-  // éxito (o al cancelar) - eso es la señal para volver atrás. El
-  // caso "finalizar" ya navega por su cuenta dentro del hook, así
-  // que se excluye acá para no duplicar la navegación.
-  const estabaEditandoRef = useRef(false);
-  useEffect(() => {
-    if (isEditing) {
-      estabaEditandoRef.current = true;
-    } else if (estabaEditandoRef.current && !esFinalizar) {
-      if (mensajeVariant === "success" && mensaje !== "") {
-        router.replace({
-          pathname: "/siembra",
-          params: { mensajeExito: mensaje },
-        });
-      } else {
-        router.back();
+  // El resultado de guardar/actualizar (éxito o error de la operación,
+  // ya pasadas las validaciones de campos) se muestra en la pantalla
+  // principal, no aquí. Los errores de validación de campos nunca
+  // pasan por "guardando" (se detectan antes de llamar al backend),
+  // así que siguen mostrándose en este formulario para que la persona
+  // pueda corregirlos. El caso "finalizar" pre-cría ya navega por su
+  // cuenta dentro del hook (con su propio mensaje de éxito), así que
+  // se excluye acá para no duplicar la navegación.
+  //
+  // "saliendo" se calcula de forma síncrona durante el render (no en
+  // un useEffect) apenas "guardando" pasa de true a false con un
+  // mensaje listo. Si se calculara en un efecto, esta pantalla
+  // alcanza a pintar el Alert de "editado correctamente" un instante
+  // antes de navegar - por eso no se usa useEffect para esto.
+  const estabaGuardandoRef = useRef(false);
+  const guardandoAnteriorRef = useRef(guardando);
+  if (guardandoAnteriorRef.current !== guardando) {
+    guardandoAnteriorRef.current = guardando;
+    if (guardando) {
+      estabaGuardandoRef.current = true;
+    } else if (estabaGuardandoRef.current) {
+      estabaGuardandoRef.current = false;
+      if (!esFinalizar && mensaje !== "" && !saliendo) {
+        setSaliendo(true);
       }
     }
-  }, [isEditing, esFinalizar, mensaje, mensajeVariant, router]);
+  }
+
+  // La navegación en sí (efecto secundario real) sigue viviendo en un
+  // efecto, ya sucede después de que "saliendo" ya ocultó el Alert.
+  useEffect(() => {
+    if (!saliendo) return;
+    router.replace({
+      pathname: "/siembra",
+      params: { mensajeExito: mensaje, mensajeVariant },
+    });
+  }, [saliendo, mensaje, mensajeVariant, router]);
 
   const scrollRef = useRef(null);
   useEffect(() => {
@@ -312,7 +335,7 @@ export default function EditarSiembraScreen() {
             </>
           )}
 
-          {mensaje !== "" && mensajeVariant !== "success" && (
+          {mensaje !== "" && !saliendo && (
             <Alert
               message={mensaje}
               variant={mensajeVariant}
@@ -327,7 +350,7 @@ export default function EditarSiembraScreen() {
           <View style={styles.actions}>
             <Button
               style={styles.button}
-              onPress={onGuardar}
+              onPress={esFinalizar ? () => setConfirmarFinalizar(true) : onGuardar}
               disabled={guardando}
               textStyle={styles.textoBoton}
               variant="outline"
@@ -355,7 +378,33 @@ export default function EditarSiembraScreen() {
 
         </View>
       </ScrollView>
+
+      {esFinalizar && (
+        <Modal
+          visible={confirmarFinalizar}
+          onClose={() => setConfirmarFinalizar(false)}
+          closeText="Cancelar"
+          containerStyle={STYLE.contentWrapper}
+          buttonStyle={styles.modalCancelButton}
+          buttonTextStyle={styles.modalCancelButtonText}
+        >
+          <Title level={3} style={styles.modalTitle}>
+            ¿Finalizar Pre-Cría?
+          </Title>
+          <Text style={styles.modalMessage}>
+            Esta acción no se puede deshacer.
+          </Text>
+          <Button
+            style={styles.modalConfirmButton}
+            onPress={() => {
+              setConfirmarFinalizar(false);
+              onGuardar();
+            }}
+          >
+            <Text style={styles.modalConfirmButtonText}>Sí, finalizar</Text>
+          </Button>
+        </Modal>
+      )}
     </>
   );
 }
-

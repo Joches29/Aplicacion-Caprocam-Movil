@@ -41,31 +41,27 @@ export default function SiembraCard({
 
   return (
     <CardPress style={styles.card} onPress={onVerDetalle}>
-      <View style={[styles.cardHeader, { flexDirection: "column", alignItems: "stretch", gap: 6 }]}>
-        {/* Fila 1: Estanque + Badge Tipo */}
-        <View style={[styles.cardTitleRow, { justifyContent: "space-between", width: "100%" }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 8 }}>
+      <View style={styles.cardHeader}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <View style={styles.cardTitleRow}>
             <Icon icon={ICONS.water} color={COLORS.primary} />
             <Text style={styles.cardTitle}>
-              {estanqueLabel || (registro.estanque ? `Estanque ${registro.estanque}` : "Sin estanque")}
+              {estanqueLabel || `Estanque ${registro.estanque}`}
             </Text>
           </View>
+          <View style={styles.cardSubtitleRow}>
+            <Text style={styles.cardSubtitle}>{fincaLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardBadges}>
           <Badge
             label={esPreCria ? "Pre-Cría" : "Siembra"}
-            variant={esPreCria ? "warning" : undefined}
             style={styles.statusBadge}
             textStyle={styles.statusText}
           />
-        </View>
-
-        {/* Fila 2: Finca + Badge Estado */}
-        <View style={[styles.cardSubtitleRow, { justifyContent: "space-between", width: "100%" }]}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.cardSubtitle}>{fincaLabel}</Text>
-          </View>
           <Badge
             label={registro.estado}
-            variant="success"
             style={styles.statusBadge}
             textStyle={styles.statusText}
           />
@@ -149,6 +145,16 @@ export default function SiembraCard({
                 camarones
               </Text>
             </View>
+            {registro.estado === "Finalizada" && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLabel}>
+                  <Text style={styles.infoLabel}>Producción:</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {Number(registro.produccionKg ?? 0).toLocaleString()} kg
+                </Text>
+              </View>
+            )}
           </>
         )}
 

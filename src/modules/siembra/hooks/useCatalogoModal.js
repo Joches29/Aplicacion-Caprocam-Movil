@@ -51,9 +51,10 @@ export function useCatalogoModal({
     setMensajeVariant(variant);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (variant === "success" || variant === "danger") {
+      const duracion = variant === "success" ? 3000 : 6000;
       timeoutRef.current = setTimeout(() => {
         setMensaje("");
-      }, 3000);
+      }, duracion);
     }
   };
 
@@ -81,6 +82,24 @@ export function useCatalogoModal({
     proveedorLarva: onEliminarProveedor,
     laboratorioLarva: onEliminarLaboratorio,
     procedenciaLarva: onEliminarProcedencia,
+  };
+
+  const mensajesPorCampo = {
+    proveedorLarva: {
+      create: "Proveedor registrado correctamente.",
+      edit: "Proveedor actualizado correctamente.",
+      delete: "Proveedor eliminado correctamente.",
+    },
+    laboratorioLarva: {
+      create: "Laboratorio registrado correctamente.",
+      edit: "Laboratorio actualizado correctamente.",
+      delete: "Laboratorio eliminado correctamente.",
+    },
+    procedenciaLarva: {
+      create: "Procedencia registrada correctamente.",
+      edit: "Procedencia actualizada correctamente.",
+      delete: "Procedencia eliminada correctamente.",
+    },
   };
 
   function cerrarTodo() {
@@ -154,10 +173,13 @@ export function useCatalogoModal({
         if (handler) await handler(nombreForm);
       }
 
+      const accion = itemEnEdicionValue ? "edit" : "create";
+      const mensajeExito = mensajesPorCampo[campoActivo]?.[accion] || "Registro guardado correctamente.";
+
       setItemEnEdicionValue(null);
       setNombreForm("");
       setVistaModal("lista");
-      mostrarMensaje("Registrado correctamente.", "success");
+      mostrarMensaje(mensajeExito, "success");
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
       mostrarMensaje(mensajeBackend || "No fue posible guardar el registro.", "danger");
@@ -181,8 +203,9 @@ export function useCatalogoModal({
     setGuardando(true);
     try {
       await handler(itemAEliminar.value);
+      const mensajeExito = mensajesPorCampo[campoActivo]?.delete || "Registro eliminado correctamente.";
       volverALista();
-      mostrarMensaje("Eliminado correctamente.", "success");
+      mostrarMensaje(mensajeExito, "success");
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
       mostrarMensaje(mensajeBackend || "No fue posible eliminar el registro.", "danger");

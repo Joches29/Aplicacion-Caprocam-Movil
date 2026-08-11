@@ -169,8 +169,8 @@ function mapearSiembraDesdeLocal(registro) {
 
             plSiembra: obtenerValor(registro, ["pl_siembra", "plSiembra"], null),
             duracionCiclo: obtenerValor(registro, ["duracion_ciclo", "duracionCiclo"], null),
-
             estado: obtenerValor(registro, ["estado"], "Activa"),
+            produccionKg: obtenerValor(registro, ["produccion_kg", "produccionKg"], 0),
 
             activo: obtenerValor(registro, ["activo"], 1),
             sincronizado: obtenerValor(registro, ["sincronizado"], 0),
@@ -244,6 +244,12 @@ async function mapearSiembraParaLocal(siembraDTO) {
         0
     );
 
+    const produccionKg = obtenerValor(
+        siembraDTO,
+        ["produccionKg", "produccion_kg"],
+        0
+    );
+
     const plSiembra = obtenerValor(
         siembraDTO,
         ["plSiembra", "pl_siembra"],
@@ -287,6 +293,7 @@ async function mapearSiembraParaLocal(siembraDTO) {
                 ? convertirNumero(duracionCiclo, null)
                 : null,
         estado: convertirTexto(siembraDTO.estado, "Activa"),
+        produccion_kg: convertirNumero(produccionKg, 0),
         creado_por_usuario_id: creadoPorUsuarioId,
         creado_por_colaborador_id: creadoPorColaboradorId,
     };
@@ -381,9 +388,17 @@ async function deleteById(id) {
 
 async function finalizar(id) {
     try {
+        // Obtener raleos asociados a la siembra para sumar kg_retirados
+        const raleosRespuesta = await localApi.raleos.obtenerTodos({ siembra_id: id });
+        const raleos = obtenerDataRespuesta(raleosRespuesta) || [];
+        
+        const produccionKg = raleos.reduce((total, raleo) => {
+            return total + (Number(raleo.kg_retirados) || 0);
+        }, 0);
+
         const respuesta = await ejecutarMetodoSiembras("actualizar", [
             id,
-            { estado: "FINALIZADA" },
+            { estado: "Finalizada", produccionKg },
         ]);
 
         return mapearSiembraDesdeLocal(obtenerDataRespuesta(respuesta));

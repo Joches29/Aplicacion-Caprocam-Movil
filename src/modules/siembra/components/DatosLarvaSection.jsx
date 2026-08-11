@@ -229,6 +229,7 @@ export default function DatosLarvaSection({
         <Input
           label={requiredLabel("Código de lote")}
           placeholder="Ej: LARV2026001"
+          maxLength={14}
           value={formData.codigoLoteLarva}
           onChangeText={(value) => onChange("codigoLoteLarva", value)}
           labelStyle={styles.requiredLabel}
@@ -260,6 +261,7 @@ export default function DatosLarvaSection({
         <Input
           label={requiredLabel("Certificado de larva")}
           placeholder="Ej: 1823092503E"
+          maxLength={14}
           value={formData.certificadoLarva}
           onChangeText={(value) => onChange("certificadoLarva", value)}
           labelStyle={styles.requiredLabel}

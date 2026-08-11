@@ -39,7 +39,7 @@ import {
   validarCamposObligatorios,
 } from "./useFieldValidation";
 import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
-import { calcularCantidadSembrada } from "./siembraCalculos";
+import { calcularDensidadDesdeCantidad } from "./siembraCalculos";
 import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
 import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
 import FincaLocalService from "../../../modules/finca/services/fincaLocal.service";
@@ -76,10 +76,10 @@ const initialFormData = {
 
   fechaSiembra: "",
   tecnicaCultivo: "",
-  densidadPoblacional: "8",
+  densidadPoblacional: "",
   cantidadSembrada: "",
   plSiembra: "",
-  diasMaduracion: "90",
+  duracionCiclo: "90",
   areaHectareas: "",
 
   fechaInicio: "",
@@ -145,9 +145,12 @@ export default function useNuevaSiembra() {
     return todosEstanques
       .filter((e) => {
         const estanqueFincaId = String(e.fincaId || e.idFinca || e.finca_id || "");
+        const estadoEst = String(e.estado || e.estadoEstanque || e.estado_estanque || "").toLowerCase();
+        const esActivo = estadoEst === "" || estadoEst === "activo";
         return (
-          estanqueFincaId === fincaLocalId ||
-          (fincaServidorId !== "" && estanqueFincaId === fincaServidorId)
+          (estanqueFincaId === fincaLocalId ||
+            (fincaServidorId !== "" && estanqueFincaId === fincaServidorId)) &&
+          esActivo
         );
       })
       .map((e) => ({
@@ -254,11 +257,11 @@ export default function useNuevaSiembra() {
       const updatedData = { ...previousData, [field]: value };
       if (
         updatedData.tipoRegistro === "siembra" &&
-        (field === "areaHectareas" || field === "densidadPoblacional")
+        (field === "areaHectareas" || field === "cantidadSembrada")
       ) {
-        updatedData.cantidadSembrada = calcularCantidadSembrada(
+        updatedData.densidadPoblacional = calcularDensidadDesdeCantidad(
           updatedData.areaHectareas,
-          updatedData.densidadPoblacional,
+          updatedData.cantidadSembrada,
         );
       }
       return updatedData;
@@ -289,9 +292,9 @@ export default function useNuevaSiembra() {
       const updatedData = { ...previousData, estanque: value };
       if (previousData.tipoRegistro === "siembra") {
         updatedData.areaHectareas = areaStr;
-        updatedData.cantidadSembrada = calcularCantidadSembrada(
+        updatedData.densidadPoblacional = calcularDensidadDesdeCantidad(
           areaStr,
-          previousData.densidadPoblacional,
+          previousData.cantidadSembrada,
         );
       }
       return updatedData;
@@ -333,6 +336,7 @@ export default function useNuevaSiembra() {
       setFormData((previo) => {
         const densidad = previo.densidadPoblacional || "8";
         const area = previo.areaHectareas || "";
+        const densidadPoblacional = calcularDensidadDesdeCantidad(area, precria.cantidadFinal);
         const actualizado = {
           ...previo,
           finca: precria.fincaId != null ? String(precria.fincaId) : previo.finca,
@@ -342,9 +346,9 @@ export default function useNuevaSiembra() {
           fechaSalidaPrecria: formatearFechaDesdeISO(precria.fechaFin),
           pasoPorPrecria: "si",
           precriaId: String(precriaId),
-          densidadPoblacional: densidad,
+          densidadPoblacional,
           areaHectareas: area,
-          cantidadSembrada: calcularCantidadSembrada(area, densidad),
+          cantidadSembrada: "",
           loteId: precria.loteLarvaId,
           codigoLoteLarva: lote?.codigoLote || "",
           proveedorLarva: lote?.proveedorLarvaId || "",
@@ -484,13 +488,23 @@ export default function useNuevaSiembra() {
     setSubmitted(true);
     const camposAValidar = obtenerCamposObligatorios();
     const nuevosErrores = validarCamposObligatorios(formData, camposAValidar);
+
+    if (formData.tipoRegistro === "siembra" && formData.pasoPorPrecria === "si") {
+      const sembrada = Number(formData.cantidadSembrada || 0);
+      const sobrevivientes = Number(formData.cantidadSobrevivientePrecria || 0);
+      if (sembrada > sobrevivientes) {
+        nuevosErrores.cantidadSembrada = "No puede superar los sobrevivientes de Pre-Cría.";
+      }
+    }
+
     setErrors(nuevosErrores);
 
     if (Object.keys(nuevosErrores).length > 0) {
       const tipo = formData.tipoRegistro === "precria" ? "Pre-Cría" : "Siembra";
-      setMensaje(
-        `Debe completar todos los campos obligatorios para registrar esta ${tipo}.`,
-      );
+      const msj = nuevosErrores.cantidadSembrada === "No puede superar los sobrevivientes de Pre-Cría."
+        ? "La cantidad sembrada no puede superar la cantidad de sobrevivientes de la Pre-Cría de origen."
+        : `Debe completar y corregir todos los campos obligatorios para registrar esta ${tipo}.`;
+      setMensaje(msj);
       setMensajeVariant("danger");
       return;
     }
@@ -498,6 +512,38 @@ export default function useNuevaSiembra() {
     setGuardando(true);
     try {
       await localApi.inicializar();
+
+      const estanqueSeleccionado = todosEstanques.find(
+        (e) => String(e.id) === String(formData.estanque) || String(e.servidorId) === String(formData.estanque)
+      );
+      if (estanqueSeleccionado) {
+        const estadoEst = String(estanqueSeleccionado.estado || estanqueSeleccionado.estadoEstanque || "").toLowerCase();
+        if (estadoEst !== "" && estadoEst !== "activo") {
+          setMensaje("El estanque seleccionado no se encuentra en estado 'Activo'.");
+          setMensajeVariant("danger");
+          setGuardando(false);
+          return;
+        }
+      }
+
+      const [todasSiembras, todasPrecrias] = await Promise.all([
+        SiembraLocalService.getAll(),
+        PrecriaLocalService.getAll(),
+      ]);
+
+      const tieneSiembraActiva = (todasSiembras || []).some(
+        (s) => String(s.estanqueId || s.estanque_id) === String(formData.estanque) && String(s.estado || "").toLowerCase() !== "finalizada"
+      );
+      const tienePrecriaActiva = (todasPrecrias || []).some(
+        (p) => String(p.estanqueId || p.estanque_id) === String(formData.estanque) && String(p.estado || "").toLowerCase() !== "finalizada"
+      );
+
+      if (tieneSiembraActiva || tienePrecriaActiva) {
+        setMensaje("El estanque seleccionado ya cuenta con un ciclo de cultivo (Siembra o Pre-Cría) activo.");
+        setMensajeVariant("danger");
+        setGuardando(false);
+        return;
+      }
 
       let loteId;
       if (formData.pasoPorPrecria === "si" && formData.loteId) {

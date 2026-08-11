@@ -41,8 +41,10 @@
  * - Badge.
  * - Button.
  * - ProgressBar.
- * - Alert.
  * - Componentes de sección del módulo Siembra.
+ * - El resultado de "Finalizar Siembra" (éxito o error) no se
+ *   muestra aquí: se navega a /siembra y el Alert se muestra en esa
+ *   pantalla principal.
  *
  * NAVEGACIÓN:
  * - /siembra/editar
@@ -61,7 +63,7 @@
  * - CalculoPoblacionSection.
  * - PreCriaSection.
  * - Componentes compartidos:
- *      - Card, Badge, Button, ProgressBar, Alert, Icon, NavbarRegistro.
+ *      - Card, Badge, Button, ProgressBar, Icon, NavbarRegistro.
  *
  * IMPORTANTE:
  *
@@ -73,7 +75,7 @@
  * =========================================================================
  */
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { View, ScrollView } from "react-native";
@@ -84,10 +86,11 @@ import Card from "../../../shared/components/Card";
 import Badge from "../../../shared/components/Badge";
 import Button from "../../../shared/components/Button";
 import ProgressBar from "../../../shared/components/ProgressBar";
-import Alert from "../../../shared/components/Alert";
 import Icon from "../../../shared/components/Icons";
 import NavbarRegistro from "../../../shared/components/NavbarRegistro";
 import Text from "../../../shared/components/Text";
+import Modal from "../../../shared/components/Modal";
+import Title from "../../../shared/components/Title";
 
 
 // Secciones del formulario
@@ -144,11 +147,33 @@ export default function DetalleSiembraScreen() {
     progreso,
 
     guardando,
-
+    confirmarFinalizar,
+    setConfirmarFinalizar,
+    handleFinalizarSiembra,
     handleCrearSiembraDesdePrecria,
 
     fieldHelpers,
   } = useDetalleSiembra(id);
+
+  // El resultado de "Finalizar Siembra" (éxito o error) se muestra en
+  // la pantalla principal, no aquí - por eso se navega apenas termina
+  // la operación (guardando pasa de true a false con un mensaje listo).
+  const estabaGuardandoRef = useRef(false);
+  useEffect(() => {
+    if (guardando) {
+      estabaGuardandoRef.current = true;
+      return;
+    }
+    if (!estabaGuardandoRef.current) return;
+    estabaGuardandoRef.current = false;
+
+    if (mensaje === "") return;
+
+    router.replace({
+      pathname: "/siembra",
+      params: { mensajeExito: mensaje, mensajeVariant },
+    });
+  }, [guardando, mensaje, mensajeVariant, router]);
 
   if (!siembra || !formData) {
     return (
@@ -240,7 +265,7 @@ export default function DetalleSiembraScreen() {
             <View style={styles.etapas}>
               {(formData.tipoRegistro === "precria"
                 ? [
-                    { label: "Siembra", variant: "success" },
+                    { label: "Precria", variant: "success" },
                     { label: "Desarrollo", variant: "warning" },
                     { label: "Finalización", variant: "success" },
                   ]
@@ -325,18 +350,6 @@ export default function DetalleSiembraScreen() {
             </>
           )}
 
-          {mensaje !== "" && (
-            <Alert
-              message={mensaje}
-              variant={mensajeVariant}
-              style={[
-                styles.alert,
-                mensajeVariant === "success" && styles.alertSuccess,
-              ]}
-              textStyle={{ textAlign: "center" }}
-            />
-          )}
-
           <View style={styles.actions}>
             {/*
               Si la Pre-Cría ya fue finalizada previamente, se ofrece
@@ -405,9 +418,50 @@ export default function DetalleSiembraScreen() {
                   </View>
                 </Button>
               )}
+            {formData.tipoRegistro === "siembra" &&
+              formData.estado !== "Finalizada" && (
+                <Button
+                  style={styles.button}
+                  onPress={() => setConfirmarFinalizar(true)}
+                  disabled={guardando}
+                  textStyle={styles.textoBoton}
+                  variant="outline"
+                >
+                  <View style={styles.buttonContent}>
+                    <Icon icon={ICONS.check} color={COLORS.primary} />
+                    <Text style={styles.textoBoton}>
+                      {guardando ? "Finalizando..." : "Finalizar Siembra"}
+                    </Text>
+                  </View>
+                </Button>
+              )}
           </View>
         </View>
       </ScrollView>
+      <Modal
+        visible={confirmarFinalizar}
+        onClose={() => setConfirmarFinalizar(false)}
+        closeText="Cancelar"
+        containerStyle={STYLE.contentWrapper}
+        buttonStyle={styles.modalCancelButton}
+        buttonTextStyle={styles.modalCancelButtonText}
+      >
+        <Title level={3} style={styles.modalTitle}>
+          ¿Finalizar Siembra?
+        </Title>
+        <Text style={styles.modalMessage}>
+          Esta acción no se puede deshacer.
+        </Text>
+        <Button
+          style={styles.modalConfirmButton}
+          onPress={() => {
+            setConfirmarFinalizar(false);
+            handleFinalizarSiembra();
+          }}
+        >
+          <Text style={styles.modalConfirmButtonText}>Sí, finalizar</Text>
+        </Button>
+      </Modal>
     </>
   );
 }

@@ -75,13 +75,13 @@ export default function SiembraListScreen() {
     filtros,
     setFiltros,
 
+    vista,
+    setVista,
     tiposRegistro,
-
     siembrasFiltradas,
     mensaje,
     mensajeVariant,
     handleNuevaSiembra,
-
     handleDetalleSiembra,
   } = useSiembraList();
 
@@ -92,6 +92,13 @@ export default function SiembraListScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={STYLE.contentWrapper}>
+          {mensaje !== "" && (
+            <Alert
+              message={mensaje}
+              variant={mensajeVariant}
+              textStyle={{ textAlign: "center" }}
+            />
+          )}
           <View style={styles.contentHeader}>
             <View style={styles.cardTitleRow}>
               <Icon icon={ICONS.shrimp} color={COLORS.primary} />
@@ -99,6 +106,23 @@ export default function SiembraListScreen() {
                 Siembras y Pre-Crías ({siembrasFiltradas.length})
               </Text>
             </View>
+          </View>
+
+          <View style={styles.toggleContainer}>
+            <Button
+              variant={vista === "activas" ? "primary" : "outline"}
+              onPress={() => setVista("activas")}
+              style={styles.toggleButton}
+            >
+              Activas
+            </Button>
+            <Button
+              variant={vista === "finalizadas" ? "primary" : "outline"}
+              onPress={() => setVista("finalizadas")}
+              style={styles.toggleButton}
+            >
+              Finalizadas
+            </Button>
           </View>
 
           <View style={styles.barraBusqueda}>
@@ -126,18 +150,6 @@ export default function SiembraListScreen() {
               ? "registro encontrado"
               : "registros encontrados"}
           </Text>
-
-          {mensaje !== "" && (
-            <Alert
-              message={mensaje}
-              variant={mensajeVariant}
-              style={[
-                { marginBottom: 16 },
-                mensajeVariant === "success" && { backgroundColor: COLORS.successLight, borderColor: COLORS.success },
-              ]}
-              textStyle={{ textAlign: "center" }}
-            />
-          )}
 
           {siembrasFiltradas.length === 0 ? (
             <EmptyState

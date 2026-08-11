@@ -38,11 +38,20 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   newButtonContent: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-},
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  toggleContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  toggleButton: {
+    flex: 1,
+    marginTop: 0,
+  },
   newButtonText: {
     color: COLORS.primary,
     fontSize: 14,
@@ -61,10 +70,10 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
   },
   filterButton: {
-  alignSelf: "center",
-  marginTop: 0,
-  height: 43,
-},
+    alignSelf: "center",
+    marginTop: 0,
+    height: 43,
+  },
   buttonWrapper: {
     position: "absolute",
     bottom: 16,
@@ -96,7 +105,7 @@ export const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
     marginBottom: 12,
   },
@@ -131,16 +140,23 @@ export const styles = StyleSheet.create({
   cardBadges: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: 8,
   },
   statusBadge: {
     backgroundColor: COLORS.successLight,
     borderWidth: 1,
     borderColor: COLORS.success,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    alignSelf: "flex-start",
   },
   statusText: {
     color: COLORS.success,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: 12,
   },
   cardBody: {
     gap: 8,

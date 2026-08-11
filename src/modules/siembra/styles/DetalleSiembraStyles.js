@@ -19,7 +19,7 @@ import { TYPOGRAPHY } from "../../../theme/typography";
 
 export const styles = StyleSheet.create({
   content: {
-    paddingBottom: 110,
+    paddingBottom: 50,
   },
   alert: {
     width: "100%",
@@ -76,25 +76,28 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 8,
-    gap: 14,
+    gap: 18,
+    flexWrap: "wrap",
   },
   badgeText: {
     fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontSize: 12,
   },
 
   badgeEtapa: {
     alignSelf: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     alignItems: "center",
   },
   actions: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 0,
+    marginTop: 10,
   },
   button: {
     flex: 1,
+    width: "100%",
   },
   buttonContent: {
     flexDirection: "row",
@@ -104,5 +107,33 @@ export const styles = StyleSheet.create({
   },
   textoBoton: {
     fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  modalTitle: {
+    alignSelf: "center",
+  },
+  modalMessage: {
+    color: COLORS.textTertiary,
+    alignSelf: "center",
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    marginBottom: 4,
+  },
+  modalConfirmButton: {
+    borderWidth: 2,
+    borderColor: COLORS.error,
+    backgroundColor: COLORS.white,
+    marginTop: 12,
+    flexDirection: "row",
+  },
+  modalConfirmButtonText: {
+    color: COLORS.error,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+  },
+  modalCancelButton: {
+    borderWidth: 2,
+    borderColor: COLORS.textTertiary,
+    backgroundColor: COLORS.white,
+  },
+  modalCancelButtonText: {
+    color: COLORS.textTertiary,
   },
 });
