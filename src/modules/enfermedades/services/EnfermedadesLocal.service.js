@@ -53,25 +53,48 @@ HELPERS GENERALES
 ============================================================
 */
 
-const obtenerDataRespuesta = (respuesta) =>
-    respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
-        ? respuesta.data
-        : respuesta;
+const obtenerDataRespuesta = (respuesta) => {
+    if (respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")) {
+        return respuesta.data;
+    }
 
-const convertirNumero = (valor, valorDefecto = 0) => {
-    const numero = Number(valor);
-
-    return Number.isNaN(numero) ? valorDefecto : numero;
+    return respuesta;
 };
 
-const convertirTexto = (valor, valorDefecto = "") =>
-    valor === undefined || valor === null ? valorDefecto : String(valor);
+const convertirNumero = (valor, valorDefecto = 0) => {
+    if (valor === undefined || valor === null || valor === "") {
+        return valorDefecto;
+    }
 
-const extraerError = (error) =>
-    error?.message ? error.message : "Error desconocido";
+    const numero = Number(valor);
+
+    if (Number.isNaN(numero)) {
+        return valorDefecto;
+    }
+
+    return numero;
+};
+
+const convertirTexto = (valor, valorDefecto = "") => {
+    if (valor === undefined || valor === null) {
+        return valorDefecto;
+    }
+
+    return String(valor);
+};
+
+const extraerError = (error) => {
+    if (error?.message) {
+        return error.message;
+    }
+
+    return "Error desconocido";
+};
 
 function obtenerValor(objeto, llaves, valorDefecto = null) {
-    if (!objeto) return valorDefecto;
+    if (!objeto) {
+        return valorDefecto;
+    }
 
     for (let i = 0; i < llaves.length; i += 1) {
         const llave = llaves[i];
@@ -92,7 +115,11 @@ async function obtenerJsonStorage(llave) {
     try {
         const valor = await AsyncStorage.getItem(llave);
 
-        return valor ? JSON.parse(valor) : null;
+        if (!valor) {
+            return null;
+        }
+
+        return JSON.parse(valor);
     } catch (error) {
         console.error("Error al leer storage local", error);
         return null;
@@ -113,13 +140,18 @@ async function obtenerContextoLocal() {
 
     const colaboradorId = obtenerValor(
         colaborador,
-        ["id", "colaboradorId"],
+        ["id", "colaboradorId", "colaborador_id"],
         null
     );
+
+    const nombre = obtenerValor(colaborador, ["nombre"], "");
+    const apellidos = obtenerValor(colaborador, ["apellidos", "apellido"], "");
+    const responsable = `${nombre} ${apellidos}`.trim();
 
     return {
         grupoDatos: convertirNumero(grupoDatos, 1),
         colaboradorId: colaboradorId,
+        responsable: responsable || "No disponible",
     };
 }
 
@@ -150,65 +182,66 @@ MAPEADORES
 */
 
 function mapearEnfermedadDesdeLocal(registro) {
-    return registro
-        ? {
-            id: obtenerValor(registro, ["id"], null),
-            servidorId: obtenerValor(registro, ["servidor_id", "servidorId"], null),
-            uuid: obtenerValor(registro, ["uuid"], ""),
-            grupoDatos: obtenerValor(registro, ["grupo_datos", "grupoDatos"], null),
+    if (!registro) {
+        return null;
+    }
 
-            fincaId: obtenerValor(registro, ["finca_id", "fincaId"], null),
-            estanqueId: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+    return {
+        id: obtenerValor(registro, ["id"], null),
+        servidorId: obtenerValor(registro, ["servidor_id", "servidorId"], null),
+        uuid: obtenerValor(registro, ["uuid"], ""),
+        grupoDatos: obtenerValor(registro, ["grupo_datos", "grupoDatos"], null),
 
-            creadoPorUsuarioId: obtenerValor(
-                registro,
-                ["creado_por_usuario_id", "creadoPorUsuarioId"],
-                null
-            ),
+        fincaId: obtenerValor(registro, ["finca_id", "fincaId"], null),
+        estanqueId: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
 
-            creadoPorColaboradorId: obtenerValor(
-                registro,
-                ["creado_por_colaborador_id", "creadoPorColaboradorId"],
-                null
-            ),
+        creadoPorUsuarioId: obtenerValor(
+            registro,
+            ["creado_por_usuario_id", "creadoPorUsuarioId"],
+            null
+        ),
 
-            fechaReporte: obtenerValor(
-                registro,
-                ["fecha_reporte", "fechaReporte", "fecha"],
-                ""
-            ),
+        creadoPorColaboradorId: obtenerValor(
+            registro,
+            ["creado_por_colaborador_id", "creadoPorColaboradorId"],
+            null
+        ),
 
-            enfermedad: obtenerValor(registro, ["enfermedad"], ""),
-            severidad: obtenerValor(registro, ["severidad"], ""),
-            responsable: obtenerValor(registro, ["responsable"], ""),
+        tipoRegistro: obtenerValor(
+            registro,
+            ["tipo_registro", "tipoRegistro"],
+            "enfermedad"
+        ),
 
-            mortalidadRegistrada: obtenerValor(
-                registro,
-                ["mortalidad_registrada", "mortalidad", "mortalidadRegistrada"],
-                0
-            ),
+        fechaReporte: obtenerValor(
+            registro,
+            ["fecha_reporte", "fechaReporte", "fecha"],
+            ""
+        ),
 
-            reporte: obtenerValor(registro, ["reporte"], ""),
+        responsable: obtenerValor(registro, ["responsable"], ""),
+        enfermedad: obtenerValor(registro, ["enfermedad"], ""),
+        severidad: obtenerValor(registro, ["severidad"], ""),
+        reporte: obtenerValor(registro, ["reporte"], "") || "",
 
-            activo: obtenerValor(registro, ["activo"], 1),
-            sincronizado: obtenerValor(registro, ["sincronizado"], 0),
-            pendienteSync: obtenerValor(registro, ["pendiente_sync", "pendienteSync"], 1),
-            accionSync: obtenerValor(registro, ["accion_sync", "accionSync"], null),
-            fechaSync: obtenerValor(registro, ["fecha_sync", "fechaSync"], null),
+        activo: obtenerValor(registro, ["activo"], 1),
+        sincronizado: obtenerValor(registro, ["sincronizado"], 0),
+        pendienteSync: obtenerValor(registro, ["pendiente_sync", "pendienteSync"], 1),
+        accionSync: obtenerValor(registro, ["accion_sync", "accionSync"], null),
+        fechaSync: obtenerValor(registro, ["fecha_sync", "fechaSync"], null),
 
-            fechaCreacion: obtenerValor(
-                registro,
-                ["fecha_creacion", "fechaCreacion"],
-                null
-            ),
+        fechaCreacion: obtenerValor(
+            registro,
+            ["fecha_creacion", "fechaCreacion"],
+            null
+        ),
 
-            fechaActualizacion: obtenerValor(
-                registro,
-                ["fecha_actualizacion", "fechaActualizacion"],
-                null
-            ),
-        }
-        : null;
+        fechaActualizacion: obtenerValor(
+            registro,
+            ["fecha_actualizacion", "fechaActualizacion"],
+            null
+        ),
+    };
 }
 
 async function mapearEnfermedadParaLocal(enfermedadDTO) {
@@ -238,10 +271,10 @@ async function mapearEnfermedadParaLocal(enfermedadDTO) {
         ""
     );
 
-    const mortalidad = obtenerValor(
+    const responsable = obtenerValor(
         enfermedadDTO,
-        ["mortalidadRegistrada", "mortalidad_registrada", "mortalidad"],
-        0
+        ["responsable"],
+        contexto.responsable
     );
 
     const creadoPorColaboradorId = obtenerValor(
@@ -256,35 +289,77 @@ async function mapearEnfermedadParaLocal(enfermedadDTO) {
         null
     );
 
+    const reporte = convertirTexto(
+        obtenerValor(enfermedadDTO, ["reporte"], "")
+    ).trim();
+
     return {
         grupo_datos: convertirNumero(grupoDatos, contexto.grupoDatos),
         finca_id: convertirNumero(fincaId, null),
         estanque_id: convertirNumero(estanqueId, null),
-        tipo_registro: convertirTexto(enfermedadDTO.tipoRegistro, "enfermedad"),
+        tipo_registro: convertirTexto(
+            obtenerValor(enfermedadDTO, ["tipoRegistro", "tipo_registro"], "enfermedad"),
+            "enfermedad"
+        ),
         fecha_reporte: convertirTexto(fechaReporte),
-        responsable: convertirTexto(enfermedadDTO.responsable),
+        responsable: convertirTexto(responsable, contexto.responsable),
         enfermedad: convertirTexto(enfermedadDTO.enfermedad),
         severidad: convertirTexto(enfermedadDTO.severidad),
-        mortalidad_registrada: convertirNumero(mortalidad, 0),
-        reporte: convertirTexto(enfermedadDTO.reporte).trim(),
+        reporte: reporte || null,
         creado_por_usuario_id: creadoPorUsuarioId,
         creado_por_colaborador_id: creadoPorColaboradorId,
     };
 }
+
+/*
+============================================================
+FILTROS Y RESUMEN
+============================================================
+*/
 
 function aplicarFiltros(registros, filtros = {}) {
     const fincaId = obtenerValor(filtros, ["fincaId", "finca_id"], null);
     const estanqueId = obtenerValor(filtros, ["estanqueId", "estanque_id"], null);
     const enfermedad = obtenerValor(filtros, ["enfermedad"], null);
     const severidad = obtenerValor(filtros, ["severidad"], null);
+    const fechaInicio = obtenerValor(filtros, ["fechaInicio", "fecha_inicio"], null);
+    const fechaFin = obtenerValor(filtros, ["fechaFin", "fecha_fin"], null);
 
     return registros.filter((item) => {
-        const coincideFinca = fincaId ? Number(item.fincaId) === Number(fincaId) : true;
-        const coincideEstanque = estanqueId ? Number(item.estanqueId) === Number(estanqueId) : true;
-        const coincideEnfermedad = enfermedad ? String(item.enfermedad) === String(enfermedad) : true;
-        const coincideSeveridad = severidad ? String(item.severidad) === String(severidad) : true;
+        const fechaReporte = String(item.fechaReporte || "").slice(0, 10);
 
-        return coincideFinca && coincideEstanque && coincideEnfermedad && coincideSeveridad;
+        const coincideFinca = fincaId
+            ? Number(item.fincaId) === Number(fincaId)
+            : true;
+
+        const coincideEstanque = estanqueId
+            ? Number(item.estanqueId) === Number(estanqueId)
+            : true;
+
+        const coincideEnfermedad = enfermedad
+            ? String(item.enfermedad) === String(enfermedad)
+            : true;
+
+        const coincideSeveridad = severidad
+            ? String(item.severidad) === String(severidad)
+            : true;
+
+        const coincideFechaInicio = fechaInicio
+            ? fechaReporte >= String(fechaInicio).slice(0, 10)
+            : true;
+
+        const coincideFechaFin = fechaFin
+            ? fechaReporte <= String(fechaFin).slice(0, 10)
+            : true;
+
+        return (
+            coincideFinca &&
+            coincideEstanque &&
+            coincideEnfermedad &&
+            coincideSeveridad &&
+            coincideFechaInicio &&
+            coincideFechaFin
+        );
     });
 }
 
@@ -292,7 +367,9 @@ function contarFrecuencias(registros, campo) {
     const acumulado = registros.reduce((total, item) => {
         const valor = item[campo];
 
-        if (!valor) return total;
+        if (!valor) {
+            return total;
+        }
 
         total[valor] = total[valor] ? total[valor] + 1 : 1;
 
@@ -300,11 +377,15 @@ function contarFrecuencias(registros, campo) {
     }, {});
 
     return Object.keys(acumulado)
-        .map((nombre) => ({
-            nombre: nombre,
-            total: acumulado[nombre],
-        }))
-        .sort((a, b) => b.total - a.total);
+        .map((nombre) => {
+            return {
+                nombre: nombre,
+                total: acumulado[nombre],
+            };
+        })
+        .sort((a, b) => {
+            return b.total - a.total;
+        });
 }
 
 /*
@@ -315,6 +396,8 @@ OPERACIONES LOCALES
 
 async function getAll(filtros = {}) {
     try {
+        await localApi.inicializar();
+
         const respuesta = await ejecutarMetodoEnfermedades("obtenerTodos");
         const data = obtenerDataRespuesta(respuesta);
         const registros = Array.isArray(data) ? data : [];
@@ -331,6 +414,8 @@ async function getAll(filtros = {}) {
 
 async function getById(id) {
     try {
+        await localApi.inicializar();
+
         const respuesta = await ejecutarMetodoEnfermedades("obtenerPorId", [id]);
 
         return mapearEnfermedadDesdeLocal(obtenerDataRespuesta(respuesta));
@@ -342,6 +427,8 @@ async function getById(id) {
 
 async function create(enfermedadDTO) {
     try {
+        await localApi.inicializar();
+
         const datosLocales = await mapearEnfermedadParaLocal(enfermedadDTO);
         const respuesta = await ejecutarMetodoEnfermedades("crear", [datosLocales]);
 
@@ -354,7 +441,10 @@ async function create(enfermedadDTO) {
 
 async function update(id, enfermedadDTO) {
     try {
+        await localApi.inicializar();
+
         const datosLocales = await mapearEnfermedadParaLocal(enfermedadDTO);
+
         const respuesta = await ejecutarMetodoEnfermedades("actualizar", [
             id,
             datosLocales,
@@ -369,9 +459,19 @@ async function update(id, enfermedadDTO) {
 
 async function deleteById(id) {
     try {
-        const respuesta = await ejecutarMetodoEnfermedades("eliminar", [id]);
+        await localApi.inicializar();
 
-        return mapearEnfermedadDesdeLocal(obtenerDataRespuesta(respuesta));
+        const respuesta = await ejecutarMetodoEnfermedades("eliminar", [id]);
+        const data = obtenerDataRespuesta(respuesta);
+
+        if (data === true) {
+            return {
+                id: id,
+                eliminado: true,
+            };
+        }
+
+        return mapearEnfermedadDesdeLocal(data);
     } catch (error) {
         console.error("Error al eliminar la enfermedad local", extraerError(error));
         throw error;
@@ -384,10 +484,6 @@ async function getResumenDashboard(filtros = {}) {
 
         return {
             totalCasos: registros.length,
-            totalMortalidad: registros.reduce(
-                (total, item) => total + convertirNumero(item.mortalidadRegistrada, 0),
-                0
-            ),
             enfermedadesFrecuentes: contarFrecuencias(registros, "enfermedad"),
             severidadesFrecuentes: contarFrecuencias(registros, "severidad"),
         };

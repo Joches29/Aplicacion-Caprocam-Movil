@@ -1,7 +1,7 @@
 /**
- * ============================================================
+ * =============================================================
  * HOOK DE ENFERMEDADES
- * ============================================================
+ * =============================================================
  *
  * Centraliza el estado y las operaciones locales
  * correspondientes al modulo de enfermedades.
@@ -21,10 +21,9 @@ CONSTANTES
 */
 
 const RESUMEN_INICIAL = {
-  totalCasos: 0,
-  totalMortalidad: 0,
-  enfermedadesFrecuentes: [],
-  severidadesFrecuentes: [],
+    totalCasos: 0,
+    enfermedadesFrecuentes: [],
+    severidadesFrecuentes: [],
 };
 
 /*
@@ -33,10 +32,29 @@ HELPERS
 ============================================================
 */
 
-const obtenerArraySeguro = (valor) => Array.isArray(valor) ? valor : [];
+const obtenerArraySeguro = (valor) => {
+    if (Array.isArray(valor)) {
+        return valor;
+    }
 
-const obtenerResumenSeguro = (valor) =>
-  valor && typeof valor === "object" ? valor : RESUMEN_INICIAL;
+    return [];
+};
+
+const obtenerResumenSeguro = (valor) => {
+    if (valor && typeof valor === "object") {
+        return {
+            totalCasos: valor.totalCasos ?? 0,
+            enfermedadesFrecuentes: obtenerArraySeguro(
+                valor.enfermedadesFrecuentes
+            ),
+            severidadesFrecuentes: obtenerArraySeguro(
+                valor.severidadesFrecuentes
+            ),
+        };
+    }
+
+    return RESUMEN_INICIAL;
+};
 
 /*
 ============================================================
@@ -45,127 +63,136 @@ HOOK PRINCIPAL
 */
 
 export default function useEnfermedades() {
-  const { mostrarError } = useError();
+    const { mostrarError } = useError();
 
-  const [enfermedades, setEnfermedades] = useState([]);
-  const [resumen, setResumen] = useState(RESUMEN_INICIAL);
-  const [catalogoEnfermedades, setCatalogoEnfermedades] = useState([]);
-  const [catalogoSeveridades, setCatalogoSeveridades] = useState([]);
-  const [loading, setLoading] = useState(false);
+    const [enfermedades, setEnfermedades] = useState([]);
+    const [resumen, setResumen] = useState(RESUMEN_INICIAL);
+    const [catalogoEnfermedades, setCatalogoEnfermedades] = useState([]);
+    const [catalogoSeveridades, setCatalogoSeveridades] = useState([]);
+    const [loading, setLoading] = useState(false);
 
-  async function cargarDatos() {
-    try {
-      setLoading(true);
+    async function cargarDatos() {
+        try {
+            setLoading(true);
 
-      const [
-        registros,
-        resumenLocal,
-        enfermedadesCatalogo,
-        severidadesCatalogo,
-      ] = await Promise.all([
-        EnfermedadesLocalService.getAll(),
-        EnfermedadesLocalService.getResumenDashboard(),
-        EnfermedadesLocalService.getCatalogo(),
-        EnfermedadesLocalService.getCatalogoSeveridades(),
-      ]);
+            const [
+                registros,
+                resumenLocal,
+                enfermedadesCatalogo,
+                severidadesCatalogo,
+            ] = await Promise.all([
+                EnfermedadesLocalService.getAll(),
+                EnfermedadesLocalService.getResumenDashboard(),
+                EnfermedadesLocalService.getCatalogo(),
+                EnfermedadesLocalService.getCatalogoSeveridades(),
+            ]);
 
-      setEnfermedades(obtenerArraySeguro(registros));
-      setResumen(obtenerResumenSeguro(resumenLocal));
-      setCatalogoEnfermedades(obtenerArraySeguro(enfermedadesCatalogo));
-      setCatalogoSeveridades(obtenerArraySeguro(severidadesCatalogo));
-    } catch (error) {
-      console.error("Error al cargar enfermedades locales", error);
-      mostrarError(error);
-    } finally {
-      setLoading(false);
+            setEnfermedades(obtenerArraySeguro(registros));
+            setResumen(obtenerResumenSeguro(resumenLocal));
+            setCatalogoEnfermedades(obtenerArraySeguro(enfermedadesCatalogo));
+            setCatalogoSeveridades(obtenerArraySeguro(severidadesCatalogo));
+        } catch (error) {
+            console.error("Error al cargar enfermedades locales", error);
+            mostrarError(error);
+        } finally {
+            setLoading(false);
+        }
     }
-  }
 
-  async function buscarEnfermedad(id) {
-    try {
-      setLoading(true);
+    async function buscarEnfermedad(id) {
+        try {
+            setLoading(true);
 
-      return await EnfermedadesLocalService.getById(id);
-    } catch (error) {
-      console.error("Error al buscar la enfermedad local", error);
-      mostrarError(error);
-      return null;
-    } finally {
-      setLoading(false);
+            return await EnfermedadesLocalService.getById(id);
+        } catch (error) {
+            console.error("Error al buscar la enfermedad local", error);
+            mostrarError(error);
+
+            return null;
+        } finally {
+            setLoading(false);
+        }
     }
-  }
 
-  async function guardarEnfermedad(registro) {
-    try {
-      setLoading(true);
+    async function guardarEnfermedad(registro) {
+        try {
+            setLoading(true);
 
-      const nuevaEnfermedad = await EnfermedadesLocalService.create(registro);
+            const nuevaEnfermedad = await EnfermedadesLocalService.create(
+                registro
+            );
 
-      await cargarDatos();
+            await cargarDatos();
 
-      return nuevaEnfermedad;
-    } catch (error) {
-      console.error("Error al guardar la enfermedad local", error);
-      mostrarError(error);
-      return null;
-    } finally {
-      setLoading(false);
+            return nuevaEnfermedad;
+        } catch (error) {
+            console.error("Error al guardar la enfermedad local", error);
+            mostrarError(error);
+
+            return null;
+        } finally {
+            setLoading(false);
+        }
     }
-  }
 
-  async function actualizarEnfermedad(id, registro) {
-    try {
-      setLoading(true);
+    async function actualizarEnfermedad(id, registro) {
+        try {
+            setLoading(true);
 
-      const enfermedadActualizada = await EnfermedadesLocalService.update(
-        id,
-        registro
-      );
+            const enfermedadActualizada = await EnfermedadesLocalService.update(
+                id,
+                registro
+            );
 
-      await cargarDatos();
+            await cargarDatos();
 
-      return enfermedadActualizada;
-    } catch (error) {
-      console.error("Error al actualizar la enfermedad local", error);
-      mostrarError(error);
-      return null;
-    } finally {
-      setLoading(false);
+            return enfermedadActualizada;
+        } catch (error) {
+            console.error("Error al actualizar la enfermedad local", error);
+            mostrarError(error);
+
+            return null;
+        } finally {
+            setLoading(false);
+        }
     }
-  }
 
-  async function eliminarEnfermedad(id) {
-    try {
-      setLoading(true);
+    async function eliminarEnfermedad(id) {
+        try {
+            setLoading(true);
 
-      const enfermedadEliminada = await EnfermedadesLocalService.deleteById(id);
+            const enfermedadEliminada = await EnfermedadesLocalService.deleteById(
+                id
+            );
 
-      await cargarDatos();
+            await cargarDatos();
 
-      return enfermedadEliminada;
-    } catch (error) {
-      console.error("Error al eliminar la enfermedad local", error);
-      mostrarError(error);
-      return null;
-    } finally {
-      setLoading(false);
+            return enfermedadEliminada;
+        } catch (error) {
+            console.error("Error al eliminar la enfermedad local", error);
+            mostrarError(error);
+
+            return null;
+        } finally {
+            setLoading(false);
+        }
     }
-  }
 
-  useEffect(function () {
-    cargarDatos();
-  }, []);
+    useEffect(() => {
+        cargarDatos();
+    }, []);
 
-  return {
-    enfermedades,
-    resumen,
-    catalogoEnfermedades,
-    catalogoSeveridades,
-    loading,
-    recargar: cargarDatos,
-    buscarEnfermedad,
-    guardarEnfermedad,
-    actualizarEnfermedad,
-    eliminarEnfermedad,
-  };
+    return {
+        enfermedades,
+        resumen,
+        catalogoEnfermedades,
+        catalogoSeveridades,
+        loading,
+
+        recargar: cargarDatos,
+        buscarEnfermedad,
+        guardarEnfermedad,
+        actualizarEnfermedad,
+        eliminarEnfermedad,
+    };
 }

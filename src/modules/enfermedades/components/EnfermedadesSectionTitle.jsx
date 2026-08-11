@@ -17,18 +17,22 @@ import { TYPOGRAPHY } from "../../../theme/typography";
 import { styles } from "../styles/EnfermedadesStyle";
 
 export default function EnfermedadesSectionTitle({ title, icon }) {
-  return (
-    <View style={styles.sectionTitleRow}>
-      <Icon icon={icon} size={18} color={COLORS.primary} />
+    return (
+        <View style={styles.sectionTitleRow}>
+            <Icon
+                icon={icon}
+                size={18}
+                color={COLORS.primary}
+            />
 
-      <Title
-        level={5}
-        color={COLORS.textSecondary}
-        fuente={TYPOGRAPHY.fontFamily.bold}
-        style={styles.sectionTitle}
-      >
-        {title}
-      </Title>
-    </View>
-  );
+            <Title
+                level={5}
+                color={COLORS.textSecondary}
+                fuente={TYPOGRAPHY.fontFamily.bold}
+                style={styles.sectionTitle}
+            >
+                {title}
+            </Title>
+        </View>
+    );
 }
