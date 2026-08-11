@@ -12,12 +12,11 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useMemo, useState } from "react";
+import { useWindowDimensions } from "react-native";
 
 import { useError } from "../../../shared/context/ErrorContext";
 import { localApi } from "../../../database/local/localApi.service";
 import ParasitologiaLocalService from "../services/ParasitologiaLocal.service";
-
-import { COLORS } from "../../../theme/colors";
 
 /*
 ============================================================
@@ -28,15 +27,21 @@ CONSTANTES
 const STORAGE_COLABORADOR_ACTUAL = "caprocam_colaborador_actual";
 
 const PARASITOS_RESPALDO = [
-  { label: "Gregarina", value: "gregarina" },
-  { label: "Nematodo", value: "nematodo" },
-  { label: "Epicomensal", value: "epicomensal" },
-  { label: "Protozoario", value: "protozoario" },
-  { label: "Otro", value: "otro" },
+    { label: "Gregarina", value: "gregarina" },
+    { label: "Nematodo", value: "nematodo" },
+    { label: "Epicomensal", value: "epicomensal" },
+    { label: "Protozoario", value: "protozoario" },
+    { label: "Otro", value: "otro" },
+];
+
+const GRADOS_RESPALDO = [
+    { label: "Bajo", value: "bajo" },
+    { label: "Medio", value: "medio" },
+    { label: "Alto", value: "alto" },
 ];
 
 const METODOS_LOCAL_API = {
-  obtenerTodos: ["obtenerTodos", "getAll", "listar"],
+    obtenerTodos: ["obtenerTodos", "getAll", "listar"],
 };
 
 /*
@@ -45,26 +50,94 @@ HELPERS DE FECHA
 ============================================================
 */
 
-const convertirFechaParaBackend = (fecha) => {
-  if (!fecha) return "";
-  if (fecha.includes("-") && !fecha.includes("/")) return fecha.slice(0, 10);
+function obtenerFechaHoy() {
+    const hoy = new Date();
+    const dia = String(hoy.getDate()).padStart(2, "0");
+    const mes = String(hoy.getMonth() + 1).padStart(2, "0");
 
-  const [dia, mes, anio] = fecha.split("/");
+    return `${dia}/${mes}/${hoy.getFullYear()}`;
+}
 
-  return dia && mes && anio ? `${anio}-${mes}-${dia}` : fecha;
-};
+function convertirFechaParaBackend(fecha) {
+    if (!fecha) {
+        return "";
+    }
 
-const formatearFechaUI = (fecha) => {
-  if (!fecha) return "";
+    if (String(fecha).includes("-") && !String(fecha).includes("/")) {
+        return String(fecha).slice(0, 10);
+    }
 
-  if (typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}/.test(fecha)) {
-    const [anio, mes, dia] = fecha.slice(0, 10).split("-");
+    const [dia, mes, anio] = String(fecha).split("/");
 
-    return `${dia}/${mes}/${anio}`;
-  }
+    if (dia && mes && anio) {
+        return `${anio}-${mes}-${dia}`;
+    }
 
-  return fecha;
-};
+    return fecha;
+}
+
+function formatearFechaUI(fecha) {
+    if (!fecha) {
+        return "";
+    }
+
+    if (typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}/.test(fecha)) {
+        const [anio, mes, dia] = fecha.slice(0, 10).split("-");
+
+        return `${dia}/${mes}/${anio}`;
+    }
+
+    return fecha;
+}
+
+function obtenerFechaValida(fecha) {
+    const texto = String(fecha ?? "").trim();
+    let dia;
+    let mes;
+    let anio;
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+        [dia, mes, anio] = texto.split("/").map(Number);
+    } else if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
+        [anio, mes, dia] = texto.slice(0, 10).split("-").map(Number);
+    } else {
+        return null;
+    }
+
+    const fechaValidada = new Date(anio, mes - 1, dia);
+    fechaValidada.setHours(0, 0, 0, 0);
+
+    if (
+        fechaValidada.getFullYear() !== anio ||
+        fechaValidada.getMonth() !== mes - 1 ||
+        fechaValidada.getDate() !== dia
+    ) {
+        return null;
+    }
+
+    return fechaValidada;
+}
+
+function validarFechaReporte(fecha) {
+    if (!String(fecha ?? "").trim()) {
+        return "Seleccione la fecha del reporte.";
+    }
+
+    const fechaValidada = obtenerFechaValida(fecha);
+
+    if (!fechaValidada) {
+        return "La fecha del reporte no es valida.";
+    }
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    if (fechaValidada > hoy) {
+        return "La fecha del reporte no puede ser futura.";
+    }
+
+    return "";
+}
 
 /*
 ============================================================
@@ -72,55 +145,85 @@ HELPERS GENERALES
 ============================================================
 */
 
-const primeraMayuscula = (texto) =>
-  texto ? texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase() : "";
+function primeraMayuscula(texto) {
+    if (!texto) {
+        return "";
+    }
 
-const obtenerDataRespuesta = (respuesta) =>
-  respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
-    ? respuesta.data
-    : respuesta;
+    return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
+}
 
-const convertirNumero = (valor, valorDefecto = 0) => {
-  const numero = Number(valor);
+const obtenerDataRespuesta = (respuesta) => {
+    if (respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")) {
+        return respuesta.data;
+    }
 
-  return Number.isNaN(numero) ? valorDefecto : numero;
+    return respuesta;
 };
 
 function obtenerValor(objeto, llaves, valorDefecto = null) {
-  if (!objeto) return valorDefecto;
-
-  for (let i = 0; i < llaves.length; i += 1) {
-    const llave = llaves[i];
-
-    if (
-      Object.prototype.hasOwnProperty.call(objeto, llave) &&
-      objeto[llave] !== undefined &&
-      objeto[llave] !== null
-    ) {
-      return objeto[llave];
+    if (!objeto) {
+        return valorDefecto;
     }
-  }
 
-  return valorDefecto;
+    for (let i = 0; i < llaves.length; i += 1) {
+        const llave = llaves[i];
+
+        if (
+            Object.prototype.hasOwnProperty.call(objeto, llave) &&
+            objeto[llave] !== undefined &&
+            objeto[llave] !== null
+        ) {
+            return objeto[llave];
+        }
+    }
+
+    return valorDefecto;
 }
 
 async function obtenerColaboradorActual() {
-  try {
-    const valor = await AsyncStorage.getItem(STORAGE_COLABORADOR_ACTUAL);
+    try {
+        const valor = await AsyncStorage.getItem(STORAGE_COLABORADOR_ACTUAL);
 
-    return valor ? JSON.parse(valor) : null;
-  } catch (error) {
-    console.error("Error al obtener colaborador actual", error);
-    return null;
-  }
+        if (!valor) {
+            return null;
+        }
+
+        return JSON.parse(valor);
+    } catch (error) {
+        console.error("Error al obtener colaborador actual", error);
+        return null;
+    }
 }
 
-const obtenerNombreResponsable = (colaborador) => {
-  const nombre = obtenerValor(colaborador, ["nombre"], "");
-  const apellidos = obtenerValor(colaborador, ["apellidos"], "");
+function obtenerNombreResponsable(colaborador) {
+    if (!colaborador) {
+        return "No disponible";
+    }
 
-  return `${nombre} ${apellidos}`.trim();
-};
+    const nombreCompleto = obtenerValor(
+        colaborador,
+        ["nombreCompleto", "nombre_completo"],
+        null
+    );
+
+    if (nombreCompleto) {
+        return String(nombreCompleto).trim();
+    }
+
+    const nombre = obtenerValor(colaborador, ["nombre"], "");
+    const apellidos = obtenerValor(colaborador, ["apellidos", "apellido"], "");
+    const responsable = `${nombre} ${apellidos}`.trim();
+
+    return (
+        responsable ||
+        obtenerValor(
+            colaborador,
+            ["usuario", "username", "nombre_usuario"],
+            "No disponible"
+        )
+    );
+}
 
 /*
 ============================================================
@@ -129,30 +232,34 @@ HELPERS DE LOCAL API
 */
 
 async function ejecutarMetodoLocal(seccion, tipoMetodo, argumentos = []) {
-  const apiSeccion = localApi[seccion];
+    const apiSeccion = localApi[seccion];
 
-  if (!apiSeccion) {
-    throw new Error(`localApi.${seccion} no esta disponible.`);
-  }
-
-  const nombres = METODOS_LOCAL_API[tipoMetodo] || [];
-
-  for (let i = 0; i < nombres.length; i += 1) {
-    const nombreMetodo = nombres[i];
-
-    if (typeof apiSeccion[nombreMetodo] === "function") {
-      return await apiSeccion[nombreMetodo](...argumentos);
+    if (!apiSeccion) {
+        throw new Error(`localApi.${seccion} no esta disponible.`);
     }
-  }
 
-  throw new Error(`No existe metodo local ${tipoMetodo} para ${seccion}.`);
+    const nombres = METODOS_LOCAL_API[tipoMetodo] || [];
+
+    for (let i = 0; i < nombres.length; i += 1) {
+        const nombreMetodo = nombres[i];
+
+        if (typeof apiSeccion[nombreMetodo] === "function") {
+            return await apiSeccion[nombreMetodo](...argumentos);
+        }
+    }
+
+    throw new Error(`No existe metodo local ${tipoMetodo} para ${seccion}.`);
 }
 
 async function obtenerRegistrosLocales(seccion) {
-  const respuesta = await ejecutarMetodoLocal(seccion, "obtenerTodos");
-  const data = obtenerDataRespuesta(respuesta);
+    const respuesta = await ejecutarMetodoLocal(seccion, "obtenerTodos");
+    const data = obtenerDataRespuesta(respuesta);
 
-  return Array.isArray(data) ? data : [];
+    if (Array.isArray(data)) {
+        return data;
+    }
+
+    return [];
 }
 
 /*
@@ -161,54 +268,56 @@ HELPERS DE FINCAS Y ESTANQUES
 ============================================================
 */
 
-const obtenerIdFinca = (finca) =>
-  Number(
-    obtenerValor(
-      finca,
-      ["id", "fincaId", "idFinca", "finca_id", "servidor_id", "servidorId"],
-      0
-    )
-  );
+function obtenerIdFinca(finca) {
+    return Number(
+        obtenerValor(
+            finca,
+            ["servidor_id", "servidorId", "id", "fincaId", "idFinca", "finca_id"],
+            0
+        )
+    );
+}
 
-const obtenerIdEstanque = (estanque) =>
-  Number(
-    obtenerValor(
-      estanque,
-      [
-        "id",
-        "estanqueId",
-        "idEstanque",
-        "estanque_id",
-        "servidor_id",
-        "servidorId",
-      ],
-      0
-    )
-  );
+function obtenerIdEstanque(estanque) {
+    return Number(
+        obtenerValor(
+            estanque,
+            [
+                "servidor_id",
+                "servidorId",
+                "id",
+                "estanqueId",
+                "idEstanque",
+                "estanque_id",
+            ],
+            0
+        )
+    );
+}
 
-const obtenerFincaIdEstanque = (estanque) =>
-  Number(
-    obtenerValor(estanque, ["finca_id", "fincaId", "idFinca"], null) ??
-      estanque?.finca?.id ??
-      0
-  );
+function obtenerFincaIdEstanque(estanque) {
+    return Number(
+        obtenerValor(
+            estanque,
+            ["finca_id", "fincaId", "idFinca"],
+            0
+        )
+    );
+}
 
-const obtenerNombreFinca = (item, id) =>
-  obtenerValor(
-    item,
-    [
-      "nombreFinca",
-      "nombre_finca",
-      "nombre",
-      "codigoCBO",
-      "codigoCbo",
-      "codigo_cbo",
-    ],
-    ""
-  ) || `Finca ${id}`;
+function obtenerNombreFinca(item, id) {
+    return (
+        obtenerValor(
+            item,
+            ["nombreFinca", "nombre_finca", "nombre", "codigoCBO", "codigoCbo", "codigo_cbo"],
+            ""
+        ) || `Finca ${id}`
+    );
+}
 
-const obtenerNombreEstanque = (item, id) =>
-  obtenerValor(item, ["codigo", "nombre"], "") || `Estanque ${id}`;
+function obtenerNombreEstanque(item, id) {
+    return obtenerValor(item, ["codigo", "nombre"], "") || `Estanque ${id}`;
+}
 
 /*
 ============================================================
@@ -216,36 +325,40 @@ HELPERS DE CATALOGOS
 ============================================================
 */
 
-function normalizarCatalogoParasitos(catalogo) {
-  return Array.isArray(catalogo) && catalogo.length > 0
-    ? catalogo
+function normalizarCatalogo(catalogo, respaldo = []) {
+    if (!Array.isArray(catalogo) || catalogo.length === 0) {
+        return respaldo;
+    }
+
+    return catalogo
         .map((item) => {
-          if (typeof item === "string") {
+            if (typeof item === "string") {
+                return {
+                    label: primeraMayuscula(item),
+                    value: item,
+                };
+            }
+
+            const value = obtenerValor(
+                item,
+                ["value", "valor", "codigo", "parasito", "grado", "nombre"],
+                ""
+            );
+
+            const label = obtenerValor(
+                item,
+                ["label", "nombre", "nombreVisible"],
+                primeraMayuscula(String(value))
+            );
+
             return {
-              label: primeraMayuscula(item),
-              value: item,
+                label: String(label),
+                value: String(value),
             };
-          }
-
-          const value = obtenerValor(
-            item,
-            ["value", "codigo", "parasito", "nombre"],
-            ""
-          );
-
-          const label = obtenerValor(
-            item,
-            ["label", "nombre", "nombreVisible"],
-            primeraMayuscula(String(value))
-          );
-
-          return {
-            label: String(label),
-            value: String(value),
-          };
         })
-        .filter((item) => item.value !== "")
-    : PARASITOS_RESPALDO;
+        .filter((item) => {
+            return item.value !== "";
+        });
 }
 
 /*
@@ -255,346 +368,450 @@ HOOK PRINCIPAL
 */
 
 export default function useEditarParasitologia(registroId, onGuardado) {
-  const { mostrarError } = useError();
+    const { width } = useWindowDimensions();
+    const { mostrarError } = useError();
 
-  const [finca, setFinca] = useState("");
-  const [estanque, setEstanque] = useState("");
-  const [fechaReporte, setFechaReporte] = useState("");
-  const [responsable, setResponsable] = useState("");
-  const [parasito, setParasito] = useState("");
-  const [camaronesMuestreados, setCamaronesMuestreados] = useState("");
-  const [camaronesInfectados, setCamaronesInfectados] = useState("");
-  const [observaciones, setObservaciones] = useState("");
+    const [finca, setFinca] = useState("");
+    const [estanque, setEstanque] = useState("");
+    const [fechaReporte, setFechaReporte] = useState(obtenerFechaHoy());
+    const [responsable, setResponsable] = useState("");
+    const [parasito, setParasito] = useState("");
+    const [gradoInfeccion, setGradoInfeccion] = useState("");
+    const [observaciones, setObservaciones] = useState("");
 
-  const [fincas, setFincas] = useState([]);
-  const [estanques, setEstanques] = useState([]);
-  const [catalogo, setCatalogo] = useState([]);
+    const [fincas, setFincas] = useState([]);
+    const [estanques, setEstanques] = useState([]);
+    const [catalogoParasitos, setCatalogoParasitos] = useState([]);
+    const [catalogoGrados, setCatalogoGrados] = useState([]);
 
-  const [submitted, setSubmitted] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-  const [tipoMensaje, setTipoMensaje] = useState("info");
+    const [submitted, setSubmitted] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+    const [tipoMensaje, setTipoMensaje] = useState("info");
 
-  const [loading, setLoading] = useState(false);
-  const [cargandoRegistro, setCargandoRegistro] = useState(true);
-  const [cargandoOpciones, setCargandoOpciones] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [cargandoRegistro, setCargandoRegistro] = useState(true);
+    const [cargandoOpciones, setCargandoOpciones] = useState(true);
 
-  useEffect(() => {
-    let activo = true;
+    useEffect(() => {
+        if (!mensaje) {
+            return undefined;
+        }
 
-    async function cargarOpciones() {
-      try {
-        setCargandoOpciones(true);
+        const duracion = tipoMensaje === "success" ? 3000 : 6000;
 
-        await localApi.inicializar();
+        const timer = setTimeout(() => {
+            setMensaje("");
+            setTipoMensaje("info");
+        }, duracion);
 
-        const [colaborador, fincasData, estanquesData, catalogoData] =
-          await Promise.all([
-            obtenerColaboradorActual(),
-            obtenerRegistrosLocales("fincas"),
-            obtenerRegistrosLocales("estanques"),
-            ParasitologiaLocalService.getCatalogo(),
-          ]);
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [mensaje, tipoMensaje]);
 
-        if (!activo) return;
+    useEffect(() => {
+        let activo = true;
 
-        setResponsable(obtenerNombreResponsable(colaborador));
-        setFincas(fincasData);
-        setEstanques(estanquesData);
-        setCatalogo(Array.isArray(catalogoData) ? catalogoData : []);
-      } catch (error) {
-        console.error("Error al cargar opciones locales de parasitologia", error);
-        mostrarError(error);
-      } finally {
-        if (activo) setCargandoOpciones(false);
-      }
-    }
+        async function cargarOpciones() {
+            try {
+                setCargandoOpciones(true);
 
-    cargarOpciones();
+                await localApi.inicializar();
 
-    return () => {
-      activo = false;
-    };
-  }, []);
+                const [
+                    colaborador,
+                    fincasData,
+                    estanquesData,
+                    parasitosData,
+                    gradosData,
+                ] = await Promise.all([
+                    obtenerColaboradorActual(),
+                    obtenerRegistrosLocales("fincas"),
+                    obtenerRegistrosLocales("estanques"),
+                    ParasitologiaLocalService.getCatalogo(),
+                    ParasitologiaLocalService.getCatalogoGrados(),
+                ]);
 
-  useEffect(() => {
-    if (!registroId) {
-      setCargandoRegistro(false);
-      return;
-    }
+                if (!activo) {
+                    return;
+                }
 
-    let activo = true;
+                setResponsable(obtenerNombreResponsable(colaborador));
+                setFincas(fincasData);
+                setEstanques(estanquesData);
+                setCatalogoParasitos(parasitosData);
+                setCatalogoGrados(gradosData);
+            } catch (error) {
+                console.error("Error al cargar opciones locales de parasitologia", error);
 
-    async function cargarRegistro() {
-      try {
-        setCargandoRegistro(true);
+                if (activo) {
+                    setTipoMensaje("danger");
+                    setMensaje(error.message || "Error al cargar opciones locales.");
+                    mostrarError(error);
+                }
+            } finally {
+                if (activo) {
+                    setCargandoOpciones(false);
+                }
+            }
+        }
 
-        const registro = await ParasitologiaLocalService.getById(registroId);
+        cargarOpciones();
 
-        if (!activo || !registro) return;
+        return () => {
+            activo = false;
+        };
+    }, []);
 
-        setFinca(String(registro.fincaId ?? ""));
-        setEstanque(String(registro.estanqueId ?? ""));
-        setFechaReporte(formatearFechaUI(registro.fechaReporte ?? ""));
-        setResponsable(registro.responsable ?? "");
-        setParasito(registro.parasito ?? "");
-        setCamaronesMuestreados(String(registro.camaronesMuestreados ?? ""));
-        setCamaronesInfectados(String(registro.camaronesInfectados ?? ""));
-        setObservaciones(registro.observaciones ?? "");
-      } catch (error) {
-        console.error("Error al cargar parasitologia local", error);
-        setTipoMensaje("danger");
-        setMensaje("No se pudo cargar el registro.");
-        mostrarError(error);
-      } finally {
-        if (activo) setCargandoRegistro(false);
-      }
-    }
+    useEffect(() => {
+        if (!registroId) {
+            setCargandoRegistro(false);
+            return undefined;
+        }
 
-    cargarRegistro();
+        let activo = true;
 
-    return () => {
-      activo = false;
-    };
-  }, [registroId]);
+        async function cargarRegistro() {
+            try {
+                setCargandoRegistro(true);
 
-  const muestreadosN = Number(camaronesMuestreados) || 0;
-  const infectadosN = Number(camaronesInfectados) || 0;
+                await localApi.inicializar();
 
-  const porcentajeCalculado = muestreadosN > 0
-    ? ((infectadosN / muestreadosN) * 100).toFixed(1)
-    : "0.0";
+                const registro = await ParasitologiaLocalService.getById(
+                    registroId
+                );
 
-  const porcentajeNum = Number(porcentajeCalculado)
+                if (!activo || !registro) {
+                    return;
+                }
 
-  const nombreGrado =
-    porcentajeNum >= 50 ? "Alto" :
-      porcentajeNum >= 20 ? "Medio" :
-        "Bajo";
+                setFinca(
+                    String(
+                        obtenerValor(
+                            registro,
+                            ["fincaId", "finca_id"],
+                            ""
+                        )
+                    )
+                );
 
-  const descripcionGrado =
-    porcentajeNum >= 50 ? "El nivel de infeccion requiere atencion inmediata." :
-      porcentajeNum >= 20 ? "El nivel de infeccion requiere monitoreo cercano." :
-        "El nivel de infeccion esta dentro de un rango aceptable.";
+                setEstanque(
+                    String(
+                        obtenerValor(
+                            registro,
+                            ["estanqueId", "estanque_id"],
+                            ""
+                        )
+                    )
+                );
 
-  const colorGrado =
-    porcentajeNum >= 50 ? COLORS.error :
-      porcentajeNum >= 20 ? COLORS.warning :
-        COLORS.success;
+                setFechaReporte(
+                    formatearFechaUI(
+                        obtenerValor(
+                            registro,
+                            ["fechaReporte", "fecha_reporte", "fecha"],
+                            ""
+                        )
+                    )
+                );
 
-  const gradoCalculado = {
-    porcentaje: porcentajeCalculado,
-    nombre: nombreGrado,
-    descripcion: descripcionGrado,
-  };
+                const responsableRegistro = obtenerValor(
+                    registro,
+                    ["responsable"],
+                    ""
+                );
 
-  const opcionesFincas = useMemo(
-    () =>
-      fincas
-        .map((item) => {
-          const id = obtenerIdFinca(item);
+                if (responsableRegistro) {
+                    setResponsable(responsableRegistro);
+                }
 
-          return {
-            label: String(obtenerNombreFinca(item, id)),
-            value: String(id),
-          };
-        })
-        .filter((item) => Number(item.value) > 0),
-    [fincas]
-  );
+                setParasito(
+                    obtenerValor(
+                        registro,
+                        ["parasito"],
+                        ""
+                    )
+                );
 
-  const opcionesEstanques = useMemo(
-    () =>
-      finca
-        ? estanques
-            .filter((item) => obtenerFincaIdEstanque(item) === Number(finca))
+                setGradoInfeccion(
+                    obtenerValor(
+                        registro,
+                        ["gradoInfeccion", "grado_infeccion"],
+                        ""
+                    )
+                );
+
+                setObservaciones(
+                    obtenerValor(
+                        registro,
+                        ["observaciones"],
+                        ""
+                    ) || ""
+                );
+            } catch (error) {
+                console.error("Error al cargar parasitologia local", error);
+
+                if (activo) {
+                    setTipoMensaje("danger");
+                    setMensaje("No se pudo cargar el registro.");
+                    mostrarError(error);
+                }
+            } finally {
+                if (activo) {
+                    setCargandoRegistro(false);
+                }
+            }
+        }
+
+        cargarRegistro();
+
+        return () => {
+            activo = false;
+        };
+    }, [registroId]);
+
+    const opcionesFincas = useMemo(() => {
+        return fincas
             .map((item) => {
-              const id = obtenerIdEstanque(item);
+                const id = obtenerIdFinca(item);
 
-              return {
-                label: String(obtenerNombreEstanque(item, id)),
-                value: String(id),
-              };
+                return {
+                    label: String(obtenerNombreFinca(item, id)),
+                    value: String(id),
+                };
             })
-            .filter((item) => Number(item.value) > 0)
-        : [],
-    [estanques, finca]
-  );
+            .filter((item) => {
+                return Number(item.value) > 0;
+            });
+    }, [fincas]);
 
-  const opcionesParasitos = useMemo(
-    () => normalizarCatalogoParasitos(catalogo),
-    [catalogo]
-  );
+    const opcionesEstanques = useMemo(() => {
+        if (!finca) {
+            return [];
+        }
 
-  const placeholderFinca = cargandoOpciones
-    ? "Cargando fincas..."
-    : opcionesFincas.length > 0
-      ? "Seleccione una finca"
-      : "No se encuentran opciones o valores";
+        return estanques
+            .filter((item) => {
+                return obtenerFincaIdEstanque(item) === Number(finca);
+            })
+            .map((item) => {
+                const id = obtenerIdEstanque(item);
 
-  const placeholderEstanque = !finca
-    ? "Seleccione primero una finca"
-    : opcionesEstanques.length > 0
-      ? "Seleccione un estanque"
-      : "No se encuentran opciones o valores";
+                return {
+                    label: String(obtenerNombreEstanque(item, id)),
+                    value: String(id),
+                };
+            })
+            .filter((item) => {
+                return Number(item.value) > 0;
+            });
+    }, [estanques, finca]);
 
-  const placeholderParasito =
-    opcionesParasitos.length > 0
-      ? "Seleccione un parasito"
-      : "No se encuentran opciones o valores";
+    const opcionesParasitos = useMemo(() => {
+        return normalizarCatalogo(catalogoParasitos, PARASITOS_RESPALDO);
+    }, [catalogoParasitos]);
 
-  const cambiarFinca = (value) => {
-    setFinca(String(value));
-    setEstanque("");
-    setMensaje("");
-  };
+    const opcionesGrados = useMemo(() => {
+        return normalizarCatalogo(catalogoGrados, GRADOS_RESPALDO);
+    }, [catalogoGrados]);
 
-  const cambiarEstanque = (value) => {
-    setEstanque(String(value));
-    setMensaje("");
-  };
+    const esTablet = width >= 768;
 
-  const cambiarFechaReporte = (value) => {
-    setFechaReporte(value);
-    setMensaje("");
-  };
+    const gridStyle = useMemo(() => {
+        return {
+            width: "100%",
+            flexDirection: esTablet ? "row" : "column",
+            flexWrap: esTablet ? "wrap" : "nowrap",
+            gap: 12,
+        };
+    }, [esTablet]);
 
-  const cambiarParasito = (value) => {
-    setParasito(String(value));
-    setMensaje("");
-  };
+    const itemStyle = useMemo(() => {
+        return {
+            width: esTablet ? "48.5%" : "100%",
+        };
+    }, [esTablet]);
 
-  const cambiarCamaronesMuestreados = (value) => {
-    setCamaronesMuestreados(String(value));
-    setMensaje("");
-  };
+    const itemFullStyle = useMemo(() => {
+        return {
+            width: "100%",
+        };
+    }, []);
 
-  const cambiarCamaronesInfectados = (value) => {
-    setCamaronesInfectados(String(value));
-    setMensaje("");
-  };
+    const placeholderFinca = cargandoOpciones
+        ? "Cargando fincas..."
+        : opcionesFincas.length > 0
+            ? "Seleccione una finca"
+            : "No se encuentran opciones o valores";
 
-  const cambiarObservaciones = (value) => {
-    setObservaciones(value);
-    setMensaje("");
-  };
+    const placeholderEstanque = !finca
+        ? "Seleccione primero una finca"
+        : opcionesEstanques.length > 0
+            ? "Seleccione un estanque"
+            : "No se encuentran opciones o valores";
 
-  const validarFormulario = () =>
-    Boolean(
-      finca &&
-        estanque &&
-        fechaReporte &&
-        parasito &&
-        camaronesMuestreados.trim() !== "" &&
-        camaronesInfectados.trim() !== "" &&
-        muestreadosN > 0 &&
-        infectadosN >= 0 &&
-        infectadosN <= muestreadosN
-    );
+    const placeholderParasito = opcionesParasitos.length > 0
+        ? "Seleccione un parasito"
+        : "No se encuentran opciones o valores";
 
-  const registrarParasitologia = async () => {
-    setSubmitted(true);
-    setMensaje("");
+    const placeholderGrado = opcionesGrados.length > 0
+        ? "Seleccione el grado de infeccion"
+        : "No se encuentran opciones o valores";
 
-    if (!validarFormulario()) {
-      if (
-        camaronesMuestreados.trim() !== "" &&
-        camaronesInfectados.trim() !== "" &&
-        infectadosN > muestreadosN
-      ) {
-        setTipoMensaje("danger");
-        setMensaje(
-          "El numero de infectados no puede ser mayor que el numero de muestreados."
-        );
-        return;
-      }
+    const errorFinca = submitted && finca === "";
+    const errorEstanque = submitted && estanque === "";
+    const errorFechaReporte =
+        submitted && validarFechaReporte(fechaReporte) !== "";
+    const errorParasito = submitted && parasito === "";
+    const errorGrado = submitted && gradoInfeccion === "";
 
-      setTipoMensaje("danger");
-      setMensaje("Rellene los datos requeridos correctamente.");
-      return;
+    function limpiarMensaje() {
+        setMensaje("");
+        setTipoMensaje("info");
     }
 
-    setLoading(true);
+    function cambiarFinca(value) {
+        setFinca(String(value));
+        setEstanque("");
+        limpiarMensaje();
+    }
 
-    try {
-      await ParasitologiaLocalService.update(registroId, {
-        fincaId: Number(finca),
-        estanqueId: Number(estanque),
-        fechaReporte: convertirFechaParaBackend(fechaReporte),
+    function cambiarEstanque(value) {
+        setEstanque(String(value));
+        limpiarMensaje();
+    }
+
+    function cambiarFechaReporte(value) {
+        setFechaReporte(value);
+        limpiarMensaje();
+    }
+
+    function cambiarParasito(value) {
+        setParasito(String(value));
+        limpiarMensaje();
+    }
+
+    function cambiarGradoInfeccion(value) {
+        setGradoInfeccion(String(value));
+        limpiarMensaje();
+    }
+
+    function cambiarObservaciones(value) {
+        setObservaciones(value);
+        limpiarMensaje();
+    }
+
+    function validarFormulario() {
+        if (!finca) {
+            return "Seleccione una finca.";
+        }
+
+        if (!estanque) {
+            return "Seleccione un estanque.";
+        }
+
+        const errorFecha = validarFechaReporte(fechaReporte);
+
+        if (errorFecha) {
+            return errorFecha;
+        }
+
+        if (!parasito) {
+            return "Seleccione un parasito.";
+        }
+
+        if (!gradoInfeccion) {
+            return "Seleccione el grado de infeccion.";
+        }
+
+        return "";
+    }
+
+    async function registrarParasitologia() {
+        setSubmitted(true);
+        setMensaje("");
+
+        const errorValidacion = validarFormulario();
+
+        if (errorValidacion) {
+            setTipoMensaje("danger");
+            setMensaje(errorValidacion);
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            await ParasitologiaLocalService.update(registroId, {
+                fincaId: Number(finca),
+                estanqueId: Number(estanque),
+                fechaReporte: convertirFechaParaBackend(fechaReporte),
+                responsable: responsable,
+                parasito: parasito,
+                gradoInfeccion: gradoInfeccion,
+                observaciones: observaciones.trim() || null,
+            });
+
+            setTipoMensaje("success");
+            setMensaje("Parasitologia actualizada localmente.");
+
+            if (typeof onGuardado === "function") {
+                onGuardado();
+            }
+        } catch (error) {
+            console.error("Error al actualizar parasitologia local", error);
+            setTipoMensaje("danger");
+            setMensaje(
+                error?.message || "No se pudo actualizar la parasitologia local."
+            );
+            mostrarError(error);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    return {
+        finca,
+        estanque,
+        fechaReporte,
         responsable,
         parasito,
-        camaronesMuestreados: muestreadosN,
-        camaronesInfectados: infectadosN,
-        observaciones: observaciones.trim() || null,
-      });
+        gradoInfeccion,
+        observaciones,
 
-      setTipoMensaje("success");
-      setMensaje("Parasitologia actualizada localmente.");
+        opcionesFincas,
+        opcionesEstanques,
+        opcionesParasitos,
+        opcionesGrados,
 
-      if (typeof onGuardado === "function") {
-        onGuardado();
-      }
-    } catch (error) {
-      console.error("Error al actualizar parasitologia local", error);
-      setTipoMensaje("danger");
-      setMensaje(
-        error?.message || "No se pudo actualizar la parasitologia local."
-      );
-      mostrarError(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+        placeholderFinca,
+        placeholderEstanque,
+        placeholderParasito,
+        placeholderGrado,
 
-  return {
-    finca,
-    estanque,
-    fechaReporte,
-    responsable,
-    parasito,
-    camaronesMuestreados,
-    camaronesInfectados,
-    observaciones,
+        gridStyle,
+        itemStyle,
+        itemFullStyle,
 
-    opcionesFincas,
-    opcionesEstanques,
-    opcionesParasitos,
+        errorFinca,
+        errorEstanque,
+        errorFechaReporte,
+        errorParasito,
+        errorGrado,
 
-    placeholderFinca,
-    placeholderEstanque,
-    placeholderParasito,
+        mensaje,
+        tipoMensaje,
 
-    gradoCalculado,
-    colorGrado,
+        loading: loading || cargandoOpciones,
+        cargandoRegistro,
 
-    gridStyle: undefined,
-    itemStyle: undefined,
-    itemFullStyle: undefined,
+        cambiarFinca,
+        setEstanque: cambiarEstanque,
+        setFechaReporte: cambiarFechaReporte,
+        setParasito: cambiarParasito,
+        setGradoInfeccion: cambiarGradoInfeccion,
+        setObservaciones: cambiarObservaciones,
 
-    errorFinca: submitted && !finca,
-    errorEstanque: submitted && !estanque,
-    errorFechaReporte: submitted && !fechaReporte,
-    errorParasito: submitted && !parasito,
-    errorMuestreados: submitted && Number(camaronesMuestreados) <= 0,
-    errorInfectados:
-      submitted &&
-      (camaronesInfectados.trim() === "" ||
-        Number(camaronesInfectados) < 0 ||
-        Number(camaronesInfectados) > Number(camaronesMuestreados)),
-
-    mensaje,
-    tipoMensaje,
-
-    loading: loading || cargandoOpciones,
-    cargandoRegistro,
-
-    cambiarFinca,
-    setEstanque: cambiarEstanque,
-    setFechaReporte: cambiarFechaReporte,
-    setParasito: cambiarParasito,
-    setCamaronesMuestreados: cambiarCamaronesMuestreados,
-    setCamaronesInfectados: cambiarCamaronesInfectados,
-    setObservaciones: cambiarObservaciones,
-
-    registrarParasitologia,
-  };
+        registrarParasitologia,
+    };
 }
