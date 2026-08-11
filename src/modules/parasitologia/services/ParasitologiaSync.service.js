@@ -28,41 +28,56 @@ HELPERS
 ============================================================
 */
 
-const obtenerDataRespuesta = (respuesta) =>
-  respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
-    ? respuesta.data
-    : respuesta;
+const obtenerDataRespuesta = (respuesta) => {
+    if (respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")) {
+        return respuesta.data;
+    }
+
+    return respuesta;
+};
 
 const convertirNumero = (valor, valorDefecto = 0) => {
-  const numero = Number(valor);
+    if (valor === undefined || valor === null || valor === "") {
+        return valorDefecto;
+    }
 
-  return Number.isNaN(numero) ? valorDefecto : numero;
+    const numero = Number(valor);
+
+    if (Number.isNaN(numero)) {
+        return valorDefecto;
+    }
+
+    return numero;
 };
 
 const obtenerValor = (objeto, llaves, valorDefecto = null) => {
-  if (!objeto) return valorDefecto;
-
-  for (let i = 0; i < llaves.length; i += 1) {
-    const llave = llaves[i];
-
-    if (
-      Object.prototype.hasOwnProperty.call(objeto, llave) &&
-      objeto[llave] !== undefined &&
-      objeto[llave] !== null
-    ) {
-      return objeto[llave];
+    if (!objeto) {
+        return valorDefecto;
     }
-  }
 
-  return valorDefecto;
+    for (let i = 0; i < llaves.length; i += 1) {
+        const llave = llaves[i];
+
+        if (
+            Object.prototype.hasOwnProperty.call(objeto, llave) &&
+            objeto[llave] !== undefined &&
+            objeto[llave] !== null
+        ) {
+            return objeto[llave];
+        }
+    }
+
+    return valorDefecto;
 };
 
 const obtenerPendientesParasitologias = async () => {
-  const respuesta = await localApi.sync.obtenerPendientes();
-  const data = obtenerDataRespuesta(respuesta);
-  const pendientes = Array.isArray(data) ? data : [];
+    const respuesta = await localApi.sync.obtenerPendientes();
+    const data = obtenerDataRespuesta(respuesta);
+    const pendientes = Array.isArray(data) ? data : [];
 
-  return pendientes.filter((item) => item.tabla === TABLA_PARASITOLOGIAS);
+    return pendientes.filter((item) => {
+        return item.tabla === TABLA_PARASITOLOGIAS;
+    });
 };
 
 /*
@@ -71,39 +86,45 @@ MAPEO LOCAL A BACKEND
 ============================================================
 */
 
-const mapearParasitologiaParaBackend = (registro) => ({
-  fincaId: convertirNumero(
-    obtenerValor(registro, ["finca_id", "fincaId"], null),
-    null
-  ),
-  estanqueId: convertirNumero(
-    obtenerValor(registro, ["estanque_id", "estanqueId"], null),
-    null
-  ),
-  fechaReporte: obtenerValor(
-    registro,
-    ["fecha_reporte", "fechaReporte", "fecha"],
-    ""
-  ),
-  parasito: obtenerValor(registro, ["parasito"], ""),
-  camaronesMuestreados: convertirNumero(
-    obtenerValor(
-      registro,
-      ["camarones_muestreados", "camaronesMuestreados"],
-      0
-    ),
-    0
-  ),
-  camaronesInfectados: convertirNumero(
-    obtenerValor(
-      registro,
-      ["camarones_infectados", "camaronesInfectados"],
-      0
-    ),
-    0
-  ),
-  observaciones: obtenerValor(registro, ["observaciones"], null),
-});
+const mapearParasitologiaParaBackend = (registro) => {
+    const observaciones = obtenerValor(
+        registro,
+        ["observaciones"],
+        null
+    );
+
+    return {
+        fincaId: convertirNumero(
+            obtenerValor(registro, ["finca_id", "fincaId"], null),
+            null
+        ),
+
+        estanqueId: convertirNumero(
+            obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+            null
+        ),
+
+        fechaReporte: obtenerValor(
+            registro,
+            ["fecha_reporte", "fechaReporte", "fecha"],
+            ""
+        ),
+
+        parasito: obtenerValor(
+            registro,
+            ["parasito"],
+            ""
+        ),
+
+        gradoInfeccion: obtenerValor(
+            registro,
+            ["grado_infeccion", "gradoInfeccion"],
+            ""
+        ),
+
+        observaciones: observaciones ? String(observaciones).trim() : null,
+    };
+};
 
 /*
 ============================================================
@@ -112,41 +133,56 @@ SINCRONIZACION POR ACCION
 */
 
 const sincronizarCreate = async (registro) => {
-  const payload = mapearParasitologiaParaBackend(registro);
+    const payload = mapearParasitologiaParaBackend(registro);
 
-  return await parasitologiaService.create(payload);
+    return await parasitologiaService.create(payload);
 };
 
 const sincronizarUpdate = async (registro) => {
-  const servidorId = obtenerValor(registro, ["servidor_id", "servidorId"], null);
-  const payload = mapearParasitologiaParaBackend(registro);
+    const servidorId = obtenerValor(
+        registro,
+        ["servidor_id", "servidorId"],
+        null
+    );
 
-  return servidorId
-    ? await parasitologiaService.update(servidorId, payload)
-    : await parasitologiaService.create(payload);
+    const payload = mapearParasitologiaParaBackend(registro);
+
+    if (servidorId) {
+        return await parasitologiaService.update(servidorId, payload);
+    }
+
+    return await parasitologiaService.create(payload);
 };
 
 const sincronizarDelete = async (registro) => {
-  const servidorId = obtenerValor(registro, ["servidor_id", "servidorId"], null);
+    const servidorId = obtenerValor(
+        registro,
+        ["servidor_id", "servidorId"],
+        null
+    );
 
-  return servidorId
-    ? await parasitologiaService.deleteById(servidorId)
-    : { eliminadoSoloLocal: true };
+    if (servidorId) {
+        return await parasitologiaService.deleteById(servidorId);
+    }
+
+    return {
+        eliminadoSoloLocal: true,
+    };
 };
 
 const sincronizarRegistro = async (pendiente) => {
-  const accion = pendiente.accion;
-  const registro = pendiente.registro;
+    const accion = pendiente.accion;
+    const registro = pendiente.registro;
 
-  if (accion === "DELETE") {
-    return await sincronizarDelete(registro);
-  }
+    if (accion === "DELETE") {
+        return await sincronizarDelete(registro);
+    }
 
-  if (accion === "UPDATE") {
-    return await sincronizarUpdate(registro);
-  }
+    if (accion === "UPDATE") {
+        return await sincronizarUpdate(registro);
+    }
 
-  return await sincronizarCreate(registro);
+    return await sincronizarCreate(registro);
 };
 
 /*
@@ -156,44 +192,44 @@ FUNCION PRINCIPAL
 */
 
 async function sincronizarParasitologiasPendientes() {
-  const resultado = {
-    total: 0,
-    sincronizados: 0,
-    errores: [],
-  };
+    const resultado = {
+        total: 0,
+        sincronizados: 0,
+        errores: [],
+    };
 
-  await localApi.inicializar();
+    await localApi.inicializar();
 
-  const pendientes = await obtenerPendientesParasitologias();
+    const pendientes = await obtenerPendientesParasitologias();
 
-  resultado.total = pendientes.length;
+    resultado.total = pendientes.length;
 
-  for (let i = 0; i < pendientes.length; i += 1) {
-    const pendiente = pendientes[i];
-    const registro = pendiente.registro;
+    for (let i = 0; i < pendientes.length; i += 1) {
+        const pendiente = pendientes[i];
+        const registro = pendiente.registro;
 
-    try {
-      await sincronizarRegistro(pendiente);
+        try {
+            await sincronizarRegistro(pendiente);
 
-      await eliminarRegistroLocalDespuesSync(
-        TABLA_PARASITOLOGIAS,
-        registro.id
-      );
+            await eliminarRegistroLocalDespuesSync(
+                TABLA_PARASITOLOGIAS,
+                registro.id
+            );
 
-      resultado.sincronizados += 1;
-    } catch (error) {
-      resultado.errores.push({
-        id: registro?.id ?? null,
-        accion: pendiente.accion,
-        mensaje:
-          error?.response?.data?.message ||
-          error?.message ||
-          "Error al sincronizar parasitologia.",
-      });
+            resultado.sincronizados += 1;
+        } catch (error) {
+            resultado.errores.push({
+                id: registro?.id ?? null,
+                accion: pendiente.accion,
+                mensaje:
+                    error?.response?.data?.message ||
+                    error?.message ||
+                    "Error al sincronizar parasitologia.",
+            });
+        }
     }
-  }
 
-  return resultado;
+    return resultado;
 }
 
 /*
@@ -203,7 +239,7 @@ EXPORT
 */
 
 const ParasitologiaSyncService = {
-  sincronizarParasitologiasPendientes,
+    sincronizarParasitologiasPendientes,
 };
 
 export default ParasitologiaSyncService;

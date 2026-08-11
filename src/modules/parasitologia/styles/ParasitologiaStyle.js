@@ -13,130 +13,78 @@ import { COLORS } from "../../../theme/colors";
 import { TYPOGRAPHY } from "../../../theme/typography";
 
 export const styles = StyleSheet.create({
-  content: {
-    paddingBottom: 40,
-  },
+    content: {
+        paddingBottom: 40,
+    },
 
-  alert: {
-    marginBottom: 16,
-  },
+    card: {
+        width: "100%",
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border ?? COLORS.inputBorder ?? "#E5E7EB",
+        borderRadius: 14,
+    },
 
-  alertText: {
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
+    alert: {
+        width: "100%",
+        marginBottom: 16,
+    },
 
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-  },
+    alertText: {
+        lineHeight: 18,
+        fontFamily: TYPOGRAPHY.fontFamily.medium,
+    },
 
-  sectionTitle: {
-    marginLeft: 8,
-    textTransform: "uppercase",
-  },
+    sectionTitleRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 14,
+    },
 
-  label: {
-    color: COLORS.textPrimary,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
+    sectionTitle: {
+        marginLeft: 8,
+        textTransform: "uppercase",
+        fontFamily: TYPOGRAPHY.fontFamily.bold,
+    },
 
-  campoConError: {
-    borderColor: COLORS.error,
-  },
+    label: {
+        color: COLORS.textPrimary,
+        fontFamily: TYPOGRAPHY.fontFamily.medium,
+    },
 
-  previewCard: {
-    borderWidth: 1,
-    borderColor: COLORS.secondary,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-  },
+    campoConError: {
+        borderColor: COLORS.error,
+    },
 
-  previewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
+    disabledInput: {
+        backgroundColor: COLORS.surface ?? "#F8FAFC",
+        color: COLORS.textTertiary,
+    },
 
-  previewTitle: {
-    marginLeft: 8,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
+    textArea: {
+        minHeight: 100,
+        textAlignVertical: "top",
+    },
 
-  previewGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
+    outlinePrimaryButton: {
+        width: "100%",
+        minHeight: 50,
+        borderRadius: 14,
+        marginBottom: 18,
+        borderWidth: 1,
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.white,
+    },
 
-  previewBox: {
-    flexGrow: 1,
-    minWidth: "30%",
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.secondary,
-  },
+    inlineButtonContentCentered: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+    },
 
-  previewLabel: {
-    marginBottom: 4,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
-
-  previewValue: {
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
-
-  gradeBox: {
-    marginTop: 12,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: COLORS.secondary,
-  },
-
-  gradeHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  gradeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: COLORS.white,
-  },
-
-  gradeDescription: {
-    marginTop: 8,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-  },
-
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: "top",
-  },
-
-  outlinePrimaryButton: {
-    minHeight: 50,
-    borderRadius: 14,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.white,
-  },
-
-  inlineButtonContentCentered: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  saveText: {
-    marginLeft: 8,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
+    saveText: {
+        fontFamily: TYPOGRAPHY.fontFamily.bold,
+    },
 });
