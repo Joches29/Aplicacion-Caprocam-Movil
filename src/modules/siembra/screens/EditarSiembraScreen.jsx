@@ -159,10 +159,10 @@ export default function EditarSiembraScreen() {
       estabaEditandoRef.current = true;
     } else if (estabaEditandoRef.current && !esFinalizar) {
       if (mensajeVariant === "success" && mensaje !== "") {
-        const timer = setTimeout(() => {
-          router.back();
-        }, 3000);
-        return () => clearTimeout(timer);
+        router.replace({
+          pathname: "/siembra",
+          params: { mensajeExito: mensaje },
+        });
       } else {
         router.back();
       }
@@ -312,7 +312,7 @@ export default function EditarSiembraScreen() {
             </>
           )}
 
-          {mensaje !== "" && (
+          {mensaje !== "" && mensajeVariant !== "success" && (
             <Alert
               message={mensaje}
               variant={mensajeVariant}
@@ -351,17 +351,6 @@ export default function EditarSiembraScreen() {
               </View>
             </Button>
 
-            <Button
-              variant="outline"
-              style={styles.button}
-              onPress={cancelarEdicion}
-              textStyle={styles.textoBoton}
-            >
-              <View style={styles.buttonContent}>
-                <Icon icon={ICONS.close} color={COLORS.primary} />
-                <Text style={styles.textoBoton}>Cancelar</Text>
-              </View>
-            </Button>
           </View>
 
         </View>

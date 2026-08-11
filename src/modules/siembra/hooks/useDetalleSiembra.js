@@ -743,7 +743,11 @@ export default function useDetalleSiembra() {
       setFormData(conLote);
       setIsEditing(false);
       setSubmitted(false);
-      setMensaje("Registro actualizado correctamente.");
+      
+      const msjExito = formData.tipoRegistro === "precria"
+        ? "Pre-Cría editada correctamente."
+        : "Siembra editada correctamente.";
+      setMensaje(msjExito);
       setMensajeVariant("success");
     } catch (err) {
       const mensajeError = err.response?.data?.message || err.message;

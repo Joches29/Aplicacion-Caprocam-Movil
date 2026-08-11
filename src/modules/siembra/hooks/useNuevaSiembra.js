@@ -76,7 +76,6 @@ const initialFormData = {
 
   fechaSiembra: "",
   tecnicaCultivo: "",
-  especie: "camaron_blanco",
   densidadPoblacional: "8",
   cantidadSembrada: "",
   plSiembra: "",
@@ -169,12 +168,6 @@ export default function useNuevaSiembra() {
       { label: "Extensiva", value: "extensiva" },
       { label: "Semi-intensiva", value: "semi" },
       { label: "Intensiva", value: "intensiva" },
-    ],
-    [],
-  );
-  const especies = useMemo(
-    () => [
-      { label: "Camarón blanco (Litopenaeus vannamei)", value: "camaron_blanco" },
     ],
     [],
   );
@@ -520,17 +513,16 @@ export default function useNuevaSiembra() {
         await SiembraLocalService.create(new SiembraDTO(formData, loteId));
       }
 
-      setMensaje(
-        formData.tipoRegistro === "precria"
-          ? "Pre-Cría registrada correctamente."
-          : "Siembra registrada correctamente.",
-      );
-      setMensajeVariant("success");
       setSubmitted(false);
 
-      setTimeout(() => {
-        router.replace("/siembra");
-      }, 3000);
+      router.replace({
+        pathname: "/siembra",
+        params: {
+          mensajeExito: formData.tipoRegistro === "precria"
+            ? "Pre-Cría registrada correctamente."
+            : "Siembra registrada correctamente.",
+        },
+      });
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
       setMensaje(mensajeBackend || "No fue posible registrar el ciclo.");
@@ -544,7 +536,6 @@ export default function useNuevaSiembra() {
     estanques,
     fincas,
     tecnicasCultivo,
-    especies,
     proveedoresLarva,
     laboratoriosLarva,
     procedenciasLarva,

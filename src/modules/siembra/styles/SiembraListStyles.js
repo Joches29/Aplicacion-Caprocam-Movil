@@ -21,7 +21,7 @@ import { TYPOGRAPHY } from "../../../theme/typography";
 
 export const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: 24,
+    paddingBottom: 90,
   },
   contentHeader: {
     paddingTop: 18,
@@ -37,14 +37,12 @@ export const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     flex: 1,
   },
-  newButton: {
-    width: "100%",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 0,
-    alignSelf: "stretch",
-  },
+  newButtonContent: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+},
   newButtonText: {
     color: COLORS.primary,
     fontSize: 14,
@@ -52,45 +50,36 @@ export const styles = StyleSheet.create({
     textAlign: "center",
     flexShrink: 0,
   },
-  newButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  newButtonCompact: {
-    minHeight: 36,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+  searchBarContainer: {
+    flex: 1,
+    marginBottom: 0,
   },
   barraBusqueda: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 8,
     marginBottom: 12,
-    width: "100%",
-  },
-  searchBarContainer: {
-    flex: 1,
-    minHeight: 44,
-  },
-  filterColumn: {
-    width: 160,
-    flexDirection: "column",
-    alignItems: "stretch",
-    justifyContent: "flex-start",
-    marginTop: 0,
-    gap: 8,
   },
   filterButton: {
-    alignSelf: "stretch",
-    minHeight: 44,
-    marginTop: 0,
+  alignSelf: "center",
+  marginTop: 0,
+  height: 43,
+},
+  buttonWrapper: {
+    position: "absolute",
+    bottom: 16,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    alignItems: "center",
   },
-  buttonRow: {
+  addButton: {
     width: "100%",
-    alignItems: "flex-end",
-    marginBottom: 12,
+    maxWidth: 900,
+    marginTop: 0,
+    borderRadius: 14,
+    paddingVertical: 12,
+    backgroundColor: COLORS.white,
   },
   contadorResultados: {
     marginBottom: 12,
@@ -103,28 +92,22 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.secondary,
     backgroundColor: COLORS.surface,
-    overflow: "hidden",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 12,
     marginBottom: 12,
-  },
-  cardTitleGroup: {
-    flex: 1,
-    marginRight: 4,
   },
   cardTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    flexShrink: 1,
   },
   cardTitle: {
     color: COLORS.textPrimary,
-    fontSize: 17,
+    fontSize: 18,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     flexShrink: 1,
   },
@@ -136,7 +119,7 @@ export const styles = StyleSheet.create({
   },
   cardSubtitle: {
     color: COLORS.textTertiary,
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     flexShrink: 1,
   },
@@ -148,44 +131,16 @@ export const styles = StyleSheet.create({
   cardBadges: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    flexShrink: 0,
-  },
-  typeBadgeSiembra: {
-    backgroundColor: COLORS.primaryLight,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  typeBadgeSiembraText: {
-    color: COLORS.primary,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontSize: 11,
-  },
-  typeBadgePreCria: {
-    backgroundColor: COLORS.warningLight,
-    borderWidth: 1,
-    borderColor: COLORS.warning,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  typeBadgePreCriaText: {
-    color: COLORS.warning,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontSize: 11,
+    gap: 8,
   },
   statusBadge: {
     backgroundColor: COLORS.successLight,
     borderWidth: 1,
     borderColor: COLORS.success,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
   },
   statusText: {
     color: COLORS.success,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontSize: 11,
   },
   cardBody: {
     gap: 8,
@@ -207,21 +162,5 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     textAlign: "right",
-  },
-  detailButton: {
-    borderRadius: 14,
-    paddingVertical: 11,
-    marginTop: 0,
-  },
-  detailButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  detailButtonText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
 });

@@ -18,6 +18,9 @@ import { COLORS } from "../../../theme/colors";
 import { TYPOGRAPHY } from "../../../theme/typography";
 
 export const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 110,
+  },
   alert: {
     width: "100%",
     marginBottom: 16,
@@ -73,7 +76,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 8,
-    gap: 16,
+    gap: 14,
   },
   badgeText: {
     fontFamily: TYPOGRAPHY.fontFamily.medium,
@@ -81,15 +84,14 @@ export const styles = StyleSheet.create({
 
   badgeEtapa: {
     alignSelf: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    flex: 1,
     alignItems: "center",
   },
   actions: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 10,
+    marginTop: 0,
   },
   button: {
     flex: 1,

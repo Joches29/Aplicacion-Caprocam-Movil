@@ -58,6 +58,7 @@ import Button from "../../../shared/components/Button";
 import Icon from "../../../shared/components/Icons";
 import EmptyState from "../../../shared/components/EmptyState";
 import SearchBar from "../../../shared/components/SearchBar";
+import Alert from "../../../shared/components/Alert";
 import FilterButton from "../../../shared/components/FilterButton";
 import { ICONS } from "../../../theme/icons";
 import { COLORS } from "../../../theme/colors";
@@ -77,7 +78,8 @@ export default function SiembraListScreen() {
     tiposRegistro,
 
     siembrasFiltradas,
-
+    mensaje,
+    mensajeVariant,
     handleNuevaSiembra,
 
     handleDetalleSiembra,
@@ -106,30 +108,16 @@ export default function SiembraListScreen() {
               placeholder="Buscar finca, estanque, lote, proveedor..."
               containerStyle={styles.searchBarContainer}
             />
-            <View style={styles.filterColumn}>
-              <FilterButton
-                categories={tiposRegistro}
-                suppliers={[]}
-                units={[]}
-                activeFilters={filtros}
-                onApply={setFiltros}
-                showLowStock={false}
-                showExpiryDate={false}
-                buttonStyle={styles.filterButton}
-              />
-              <Button
-                variant="outline"
-                onPress={handleNuevaSiembra}
-                style={[styles.newButton, styles.newButtonCompact]}
-              >
-                <View style={styles.newButtonContent}>
-                  <Icon icon={ICONS.add} color={COLORS.primary} />
-                  <Text style={styles.newButtonText} numberOfLines={1}>
-                    Nueva Siembra
-                  </Text>
-                </View>
-              </Button>
-            </View>
+            <FilterButton
+              categories={tiposRegistro}
+              suppliers={[]}
+              units={[]}
+              activeFilters={filtros}
+              onApply={setFiltros}
+              showLowStock={false}
+              showExpiryDate={false}
+              buttonStyle={styles.filterButton}
+            />
           </View>
 
           <Text style={styles.contadorResultados}>
@@ -138,6 +126,18 @@ export default function SiembraListScreen() {
               ? "registro encontrado"
               : "registros encontrados"}
           </Text>
+
+          {mensaje !== "" && (
+            <Alert
+              message={mensaje}
+              variant={mensajeVariant}
+              style={[
+                { marginBottom: 16 },
+                mensajeVariant === "success" && { backgroundColor: COLORS.successLight, borderColor: COLORS.success },
+              ]}
+              textStyle={{ textAlign: "center" }}
+            />
+          )}
 
           {siembrasFiltradas.length === 0 ? (
             <EmptyState
@@ -157,6 +157,19 @@ export default function SiembraListScreen() {
           )}
         </View>
       </ScrollView>
+
+      <View style={styles.buttonWrapper}>
+        <Button
+          variant="outline"
+          onPress={handleNuevaSiembra}
+          style={styles.addButton}
+        >
+          <View style={styles.newButtonContent}>
+            <Icon icon={ICONS.add} color={COLORS.primary} />
+            <Text style={styles.newButtonText}>Añadir Siembra</Text>
+          </View>
+        </Button>
+      </View>
     </View>
   );
 }

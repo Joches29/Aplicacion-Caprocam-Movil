@@ -30,8 +30,8 @@
  * solo conserva la navegación (useRouter).
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigation, useRouter } from "expo-router";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
 import { calcularProgresoCiclo } from "./siembraCalculos";
 import SiembraLocalService from "../services/SiembraLocal.services";
 import PrecriaLocalService from "../services/PrecriaLocal.service";
@@ -75,6 +75,36 @@ export default function useSiembraList() {
   const [filtros, setFiltros] = useState({ categories: [] });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const { mensajeExito } = useLocalSearchParams();
+  const [mensaje, setMensaje] = useState("");
+  const [mensajeVariant, setMensajeVariant] = useState("info");
+  const mensajeTimeoutRef = useRef(null);
+
+  function mostrarMensaje(texto, variant) {
+    if (mensajeTimeoutRef.current) {
+      clearTimeout(mensajeTimeoutRef.current);
+    }
+    setMensaje(texto);
+    setMensajeVariant(variant);
+
+    const duracion = variant === "success" ? 3000 : 6000;
+    mensajeTimeoutRef.current = setTimeout(() => {
+      setMensaje("");
+      router.setParams({ mensajeExito: undefined });
+    }, duracion);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (mensajeTimeoutRef.current) clearTimeout(mensajeTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mensajeExito) {
+      mostrarMensaje(mensajeExito, "success");
+    }
+  }, [mensajeExito]);
 
   const tiposRegistro = [
     { label: "Siembra", value: "siembra" },
@@ -241,6 +271,8 @@ export default function useSiembraList() {
     tiposRegistro,
     cargando,
     error,
+    mensaje,
+    mensajeVariant,
     handleNuevaSiembra,
     handleDetalleSiembra,
     recargar: cargar,

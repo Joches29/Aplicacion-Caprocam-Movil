@@ -44,6 +44,18 @@ export function useCatalogoModal({
   const [mensaje, setMensaje] = useState("");
   const [mensajeVariant, setMensajeVariant] = useState("info");
   const [guardando, setGuardando] = useState(false);
+  const timeoutRef = require("react").useRef(null);
+
+  const mostrarMensaje = (msj, variant) => {
+    setMensaje(msj);
+    setMensajeVariant(variant);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (variant === "success" || variant === "danger") {
+      timeoutRef.current = setTimeout(() => {
+        setMensaje("");
+      }, 3000);
+    }
+  };
 
   const [itemAEliminar, setItemAEliminar] = useState(null);
 
@@ -115,8 +127,7 @@ export function useCatalogoModal({
   async function guardarFormulario() {
     if (!nombreForm.trim()) {
       setNombreConError(true);
-      setMensaje("Debes completar los campos obligatorios.");
-      setMensajeVariant("danger");
+      mostrarMensaje("Debes completar los campos obligatorios.", "danger");
       return;
     }
 
@@ -128,8 +139,7 @@ export function useCatalogoModal({
       );
 
       if (itemOriginal && itemOriginal.label === nombreForm.trim()) {
-        setMensaje("No hay cambios para guardar.");
-        setMensajeVariant("danger");
+        mostrarMensaje("No hay cambios para guardar.", "danger");
         return;
       }
     }
@@ -147,12 +157,10 @@ export function useCatalogoModal({
       setItemEnEdicionValue(null);
       setNombreForm("");
       setVistaModal("lista");
-      setMensaje("Registrado correctamente.");
-      setMensajeVariant("success");
+      mostrarMensaje("Registrado correctamente.", "success");
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible guardar el registro.");
-      setMensajeVariant("danger");
+      mostrarMensaje(mensajeBackend || "No fue posible guardar el registro.", "danger");
     } finally {
       setGuardando(false);
     }
@@ -174,10 +182,10 @@ export function useCatalogoModal({
     try {
       await handler(itemAEliminar.value);
       volverALista();
+      mostrarMensaje("Eliminado correctamente.", "success");
     } catch (err) {
       const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible eliminar el registro.");
-      setMensajeVariant("danger");
+      mostrarMensaje(mensajeBackend || "No fue posible eliminar el registro.", "danger");
       setVistaModal("lista");
     } finally {
       setGuardando(false);
