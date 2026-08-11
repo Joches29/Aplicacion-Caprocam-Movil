@@ -2,9 +2,6 @@
  * ============================================================
  * PANTALLA DE REGISTRO DE VENTAS DEL MÓDULO DE VENTAS
  * ============================================================
- *
- * Contiene la interfaz para registrar ventas de producto y
- * enviar la información a la lógica de negocio del módulo.
  */
 
 import { ScrollView, View } from "react-native";
@@ -30,7 +27,6 @@ export default function VentaScreen({ onDetalleVentas }) {
     fincaSeleccionada,
     estanqueSeleccionado,
     pesoPromedio,
-    tamanoPromedio,
     kilosVendidos,
     precioKilo,
     fechaVenta,
@@ -48,11 +44,9 @@ export default function VentaScreen({ onDetalleVentas }) {
     totalVenta,
     ventas,
     SectionTitle,
-    setFechaVenta,
     setEstanqueSeleccionado,
     handleFincaChange,
     handlePesoPromedioChange,
-    handleTamanoPromedioChange,
     handleKilosVendidosChange,
     handlePrecioChange,
     handleCompradorChange,
@@ -114,18 +108,6 @@ export default function VentaScreen({ onDetalleVentas }) {
               style={errores.pesoPromedio ? errorInputStyle : null}
             />
           </View>
-
-          <View style={styles.inputItem}>
-            <NumberInput
-              label="Tamaño promedio (cm) *"
-              value={tamanoPromedio}
-              onChangeText={handleTamanoPromedioChange}
-              step={0.1}
-              min={0.0}
-              max={20}
-              style={errores.tamanoPromedio ? errorInputStyle : null}
-            />
-          </View>
         </View>
 
         <View style={gridStyle}>
@@ -163,13 +145,6 @@ export default function VentaScreen({ onDetalleVentas }) {
           />
         </View>
 
-        <View style={styles.summaryBox}>
-          <Text style={styles.summaryLabel}>Total estimado</Text>
-          <Text style={styles.summaryValue}>
-            {formatearMontoColones(totalVenta)}
-          </Text>
-        </View>
-
         <SectionTitle icon={ICONS.user} title="Comprador" />
 
         <View style={gridStyle}>
@@ -183,6 +158,13 @@ export default function VentaScreen({ onDetalleVentas }) {
               selectStyle={errores.comprador ? errorInputStyle : null}
             />
           </View>
+        </View>
+
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryLabel}>Total estimado</Text>
+          <Text style={styles.summaryValue}>
+            {formatearMontoColones(totalVenta)}
+          </Text>
         </View>
 
         {submitted && errorMessage ? (
@@ -216,15 +198,17 @@ export default function VentaScreen({ onDetalleVentas }) {
           </View>
         </Button>
 
-        <Button
-          onPress={() => onDetalleVentas(ventas, fincaSeleccionada)}
-          style={styles.saveButton}
-        >
-          <View style={styles.buttonContent}>
-            <Icon icon={ICONS.report} size={20} color={COLORS.primary} />
-            <Text style={styles.buttonText}>Mostrar detalles</Text>
-          </View>
-        </Button>
+        {typeof onDetalleVentas === "function" && (
+          <Button
+            onPress={() => onDetalleVentas(ventas, fincaSeleccionada)}
+            style={styles.saveButton}
+          >
+            <View style={styles.buttonContent}>
+              <Icon icon={ICONS.report} size={20} color={COLORS.primary} />
+              <Text style={styles.buttonText}>Mostrar detalles</Text>
+            </View>
+          </Button>
+        )}
       </Card>
     </ScrollView>
   );
