@@ -9,35 +9,35 @@ Version SQLite (offline-first) del service de Compradores.
 Reemplaza temporalmente las llamadas HTTP directas por lectura/
 escritura en la base local, para poder trabajar y probar sin
 depender del backend ni de un JWT real.
-
-IMPORTANTE:
-- Mantiene exactamente los mismos nombres de funcion y la misma
-  forma de los datos que la version anterior (comprador.service.api.js,
-  que queda guardada como respaldo/referencia), para no tener que
-  tocar ninguno de los hooks que ya consumen este service.
-- No hay sincronizacion con el backend todavia: esto solo guarda
-  y lee de SQLite local. La sincronizacion (subir lo pendiente a
-  /compradores) es un paso aparte, pendiente.
-- grupoDatos/colaboradorId salen de local/sesionTemporal.helper.js
-  (dentro de este mismo modulo, no en database/local), que usa
-  sesion offline real si existe, o un valor fijo de prueba si
-  todavia no hay login (ver ese archivo para el detalle).
-- Este archivo se encarga solo de inicializar la base SQLite
-  (asegurarBaseInicializada), en vez de agregar esa llamada al
-  _layout.jsx global. La funcion de Gerald es idempotente (CREATE
-  TABLE IF NOT EXISTS), asi que no hay problema en llamarla desde
-  aca sin tocar ningun archivo compartido del proyecto.
 //////////////////////////////////////////////////////////
 */
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { localApi } from "../../../database/local/localApi.service";
 
 /*
 //////////////////////////////////////////////////////////
-IMPORTS
+HELPERS LOCALES DE SESIÓN
 //////////////////////////////////////////////////////////
 */
 
-import { localApi } from "../../../database/local/localApi.service";
-import { obtenerContextoLocal } from "../local/sesionTemporal.helper";
+async function obtenerContextoLocal() {
+  try {
+    const colaboradorJson = await AsyncStorage.getItem("colaborador_actual");
+    const grupoStorage = await AsyncStorage.getItem("grupo_datos_actual");
+    const colaborador = colaboradorJson ? JSON.parse(colaboradorJson) : null;
+
+    const grupoDatos = colaborador?.grupoDatos || colaborador?.grupo_datos || grupoStorage || 1;
+    const colaboradorId = colaborador?.id || colaborador?.colaboradorId || colaborador?.colaborador_id || null;
+
+    return {
+      grupoDatos: Number(grupoDatos) || 1,
+      colaboradorId: colaboradorId ? Number(colaboradorId) : null,
+    };
+  } catch (error) {
+    return { grupoDatos: 1, colaboradorId: null };
+  }
+}
 
 /*
 //////////////////////////////////////////////////////////
