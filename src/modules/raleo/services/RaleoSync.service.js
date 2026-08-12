@@ -7,6 +7,12 @@
  *
  * Cuando el backend confirma que el registro fue recibido
  * correctamente, el registro se elimina fisicamente de SQLite.
+ *
+ * ACTUALIZADO: el mapeo hacia el backend (mapearRaleoParaBackend)
+ * ahora usa los campos del schema nuevo de raleos (kg_retirados,
+ * biomasa_restante, biomasa_estimada, siembra_id). Se eliminaron
+ * objetivo, metodo, pesoEstimado y colaboradorId porque ya no
+ * existen como columnas en la tabla local `raleos`.
  */
 
 import RaleoService from "./Raleo.service";
@@ -28,16 +34,16 @@ HELPERS
 */
 
 const obtenerDataRespuesta = (respuesta) =>
-    respuesta &&Object.prototype.hasOwnProperty.call(respuesta, "data")
-    ? respuesta.data
-    : respuesta;
+    respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
+        ? respuesta.data
+        : respuesta;
 
 const convertirNumero = (valor, valorDefecto = 0) => {
     const numero = Number(valor);
-    return Number.isNaN(numero)? valorDefecto: numero;
+    return Number.isNaN(numero) ? valorDefecto : numero;
 };
 
-const obtenerValor = (objeto,llaves,valorDefecto = null) => {
+const obtenerValor = (objeto, llaves, valorDefecto = null) => {
     if (!objeto) return valorDefecto;
 
     for (let i = 0; i < llaves.length; i += 1) {
@@ -64,9 +70,9 @@ OBTENER PENDIENTES
 const obtenerPendientesRaleos = async () => {
     const respuesta = await localApi.sync.obtenerPendientes();
     const data = obtenerDataRespuesta(respuesta);
-    const pendientes = Array.isArray(data)? data: [];
+    const pendientes = Array.isArray(data) ? data : [];
 
-    return pendientes.filter((item) =>item.tabla === TABLA_RALEOS);
+    return pendientes.filter((item) => item.tabla === TABLA_RALEOS);
 };
 
 /*
@@ -78,37 +84,30 @@ MAPEAR SQLITE -> BACKEND
 const mapearRaleoParaBackend = (registro) => {
     return {
         fincaId: convertirNumero(
-        obtenerValor(registro, ["finca_id","fincaId"], null),
-        null
+            obtenerValor(registro, ["finca_id", "fincaId"], null),
+            null
         ),
         estanqueId: convertirNumero(
-        obtenerValor(registro, ["estanque_id","estanqueId"],null),
-        null
+            obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+            null
         ),
-        colaboradorId: convertirNumero(
-        obtenerValor(registro, ["colaborador_id","colaboradorId"],null),
-        null
+        siembraId: obtenerValor(registro, ["siembra_id", "siembraId"], null) !== null
+            ? convertirNumero(obtenerValor(registro, ["siembra_id", "siembraId"], null), null)
+            : null,
+        fecha: obtenerValor(registro, ["fecha"], ""),
+        porcentaje: convertirNumero(
+            obtenerValor(registro, ["porcentaje"], 0), 0
         ),
-        fecha:
-        obtenerValor(registro,["fecha"],""
+        kgRetirados: convertirNumero(
+            obtenerValor(registro, ["kg_retirados", "kgRetirados"], 0), 0
         ),
-        porcentaje:convertirNumero(
-        obtenerValor(registro,["porcentaje"],0),0
+        biomasaRestante: convertirNumero(
+            obtenerValor(registro, ["biomasa_restante", "biomasaRestante"], 0), 0
         ),
-        pesoEstimado:convertirNumero(
-        obtenerValor(registro,["peso_estimado","pesoEstimado"],0),0
+        biomasaEstimada: convertirNumero(
+            obtenerValor(registro, ["biomasa_estimada", "biomasaEstimada"], 0), 0
         ),
-        biomasaEstimada:convertirNumero(
-        obtenerValor(registro,["biomasa_estimada","biomasaEstimada"],0),0
-        ),
-        objetivo:
-        obtenerValor(registro,["objetivo"],""),
-        metodo:
-        obtenerValor(registro,["metodos","metodo"],""
-        ),
-        observaciones:
-        obtenerValor(registro,["observaciones"],""
-        ),
+        observaciones: obtenerValor(registro, ["observaciones"], ""),
     };
 };
 
@@ -119,28 +118,28 @@ SINCRONIZACION POR ACCION
 */
 
 const sincronizarCreate = async (registro) => {
-    const payload =mapearRaleoParaBackend(registro);
+    const payload = mapearRaleoParaBackend(registro);
     return await RaleoService.create(payload);
 };
 
 const sincronizarUpdate = async (registro) => {
     const servidorId =
-        obtenerValor(registro,["servidor_id","servidorId"],null);
+        obtenerValor(registro, ["servidor_id", "servidorId"], null);
     const payload =
         mapearRaleoParaBackend(registro);
 
     return servidorId
-        ? await RaleoService.update(servidorId,payload)
+        ? await RaleoService.update(servidorId, payload)
         : await RaleoService.create(payload);
 };
 
 const sincronizarDelete = async (registro) => {
     const servidorId =
-        obtenerValor(registro,["servidor_id","servidorId"],null);
+        obtenerValor(registro, ["servidor_id", "servidorId"], null);
 
     return servidorId
         ? await RaleoService.deleteById(servidorId)
-        : { eliminadoSoloLocal: true};
+        : { eliminadoSoloLocal: true };
 };
 
 const sincronizarRegistro = async (pendiente) => {
@@ -178,9 +177,9 @@ async function sincronizarRaleosPendientes() {
     const pendientes =
         await obtenerPendientesRaleos();
 
-    resultado.total =pendientes.length;
+    resultado.total = pendientes.length;
 
-    for (let i = 0;i < pendientes.length;i += 1) {
+    for (let i = 0; i < pendientes.length; i += 1) {
         const pendiente = pendientes[i];
         const registro = pendiente.registro;
 
@@ -193,7 +192,7 @@ async function sincronizarRaleosPendientes() {
             );
 
             resultado.sincronizados += 1;
-        } catch(error) {
+        } catch (error) {
             resultado.errores.push({
                 id: registro?.id ?? null,
                 accion: pendiente.accion,

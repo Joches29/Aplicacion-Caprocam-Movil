@@ -9,93 +9,237 @@
  * devueltos, usando su propio estado `submitted`.
  *
  * Estado que maneja:
+ *
  * - form: objeto con los valores actuales de todos los campos.
  *
  * Retorna:
+ *
  * - form: valores actuales del formulario.
+ *
  * - updateField(campo, valor): actualiza un campo del formulario.
+ *
  * - resetForm(): restaura el formulario a sus valores iniciales.
+ *
  * - validarForm(): retorna { valido, errores } verificando como
- *   obligatorios finca, estanque, colaborador, fecha,
- *   porcentajeRaleo, pesoPromedio, biomasaActual, objetivo y
- *   metodo. `observaciones` NO se valida aquí (es opcional): si
- *   queda vacío, RaleoScreen.jsx lo completa con un texto por
- *   defecto antes de guardar (mismo patrón que useAlimentacionForm.js
- *   y useDensidadPoblacional.js con sus notas).
+ * obligatorios finca, estanque, fecha, biomasaEstimada y
+ * kgRetirados.
  *
- * CORREGIDO: antes `observaciones` SÍ se validaba como
- * obligatorio aquí, contradiciendo tanto el docstring como el
- * fallback de RaleoScreen.jsx: el formulario nunca lograba
- * guardarse si se dejaba en blanco, aunque la UI lo mostraba como
- * campo opcional (sin asterisco).
+ * `observaciones` NO se valida aquí porque es opcional.
  *
- * CORREGIDO: el campo "responsable" (un Input de texto,
- * deshabilitado y sin ninguna forma de llenarse) se reemplazó por
- * "colaborador": un Select real con colaboradores reales del
- * backend (mismo patrón que "Colaborador asignado" en
- * useFincaCrecimiento.js / FincaCrecimientoScreen.jsx). Es
- * obligatorio en la UI (estandarización con Crecimiento), aunque
- * la columna colaborador_id en la base de datos es nullable.
+ * CAMBIO:
+ * El registro de raleo ahora captura los kilogramos realmente
+ * retirados en vez del porcentaje.
  *
- * Funcionalidad:
- * - `fecha` inicia en la fecha de hoy (hoy()) y no en "": DateInput
- *   solo llama a onChangeText cuando el usuario abre el calendario
- *   y elige una fecha, pero ya muestra "hoy" por defecto sin
- *   disparar ese evento. Si el estado inicial fuera "", el campo
- *   se veía lleno mientras form.fecha seguía vacío, y la
- *   validación mostraba "La fecha es obligatoria" aunque se viera
- *   una fecha en pantalla.
+ * El porcentaje y la biomasa restante son calculados por el
+ * sistema a partir de la biomasa estimada y los kilogramos
+ * retirados.
  *
- * Ejemplo:
- * const { form, updateField, resetForm, validarForm } = useRaleo();
+ * Campos eliminados:
+ *
+ * - porcentajeRaleo
+ * - pesoPromedio
+ * - objetivo
+ * - metodo
+ *
+ * `biomasaActual` se renombró a `biomasaEstimada`.
  */
 
 import { useState } from "react";
 
+
+/*
+ * ============================================================
+ * FUNCIONES AUXILIARES
+ * ============================================================
+ */
+
 function hoy() {
   const d = new Date();
+
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
+
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
+
+
+/*
+ * ============================================================
+ * ESTADO INICIAL
+ * ============================================================
+ */
 
 const FORM_INICIAL = {
   fecha: hoy(),
   finca: "",
   estanque: "",
-  porcentajeRaleo: "",
-  pesoPromedio: "",
-  biomasaActual: "",
-  objetivo: "",
-  metodo: "",
+  biomasaEstimada: "",
+  kgRetirados: "",
   observaciones: "",
 };
 
+
+/*
+ * ============================================================
+ * HOOK
+ * ============================================================
+ */
+
 export default function useRaleo() {
+
   const [form, setForm] = useState(FORM_INICIAL);
 
+
+  /*
+   * ========================================================
+   * ACTUALIZAR CAMPO
+   * ========================================================
+   */
+
   function updateField(campo, valor) {
-    setForm((prev) => ({ ...prev, [campo]: valor }));
+    setForm((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
   }
+
+
+  /*
+   * ========================================================
+   * REINICIAR FORMULARIO
+   * ========================================================
+   */
 
   function resetForm() {
     setForm(FORM_INICIAL);
   }
 
+
+  /*
+   * ========================================================
+   * VALIDAR FORMULARIO
+   * ========================================================
+   */
+
   function validarForm() {
+
     const errores = {};
-    if (!form.finca) errores.finca = "La finca es obligatoria";
-    if (!form.estanque) errores.estanque = "El estanque es obligatorio";
-    if (!form.fecha) errores.fecha = "La fecha es obligatoria";
-    if (!form.porcentajeRaleo || Number.isNaN(Number(form.porcentajeRaleo))) {
-      errores.porcentajeRaleo = "El porcentaje de raleo es obligatorio y debe ser numérico";
+
+
+    /*
+     * ----------------------------------------------------
+     * FINCA
+     * ----------------------------------------------------
+     */
+
+    if (!form.finca) {
+      errores.finca = "La finca es obligatoria";
     }
-    if (!form.pesoPromedio) errores.pesoPromedio = "El peso promedio estimado es obligatorio";
-    if (!form.biomasaActual) errores.biomasaActual = "La biomasa actual estimada es obligatoria";
-    if (!form.objetivo) errores.objetivo = "El objetivo del raleo es obligatorio";
-    if (!form.metodo) errores.metodo = "El método es obligatorio";
-    return { valido: Object.keys(errores).length === 0, errores };
+
+
+    /*
+     * ----------------------------------------------------
+     * ESTANQUE
+     * ----------------------------------------------------
+     */
+
+    if (!form.estanque) {
+      errores.estanque = "El estanque es obligatorio";
+    }
+
+
+    /*
+     * ----------------------------------------------------
+     * FECHA
+     * ----------------------------------------------------
+     */
+
+    if (!form.fecha) {
+      errores.fecha = "La fecha es obligatoria";
+    }
+
+
+    /*
+     * ----------------------------------------------------
+     * BIOMASA ESTIMADA
+     * ----------------------------------------------------
+     */
+
+    const biomasaEstimada = Number(form.biomasaEstimada);
+
+    if (
+      !form.biomasaEstimada ||
+      Number.isNaN(biomasaEstimada)
+    ) {
+
+      errores.biomasaEstimada =
+        "La biomasa estimada es obligatoria y debe ser numérica";
+
+    } else if (biomasaEstimada <= 0) {
+
+      errores.biomasaEstimada =
+        "La biomasa estimada debe ser mayor a 0";
+    }
+
+
+    /*
+     * ----------------------------------------------------
+     * KG RETIRADOS
+     * ----------------------------------------------------
+     */
+
+    const kgRetirados = Number(form.kgRetirados);
+
+    if (
+      !form.kgRetirados ||
+      Number.isNaN(kgRetirados)
+    ) {
+
+      errores.kgRetirados =
+        "La cantidad retirada es obligatoria y debe ser numérica";
+
+    } else if (kgRetirados <= 0) {
+
+      errores.kgRetirados =
+        "La cantidad retirada debe ser mayor a 0";
+
+    } else if (
+      !errores.biomasaEstimada &&
+      kgRetirados > biomasaEstimada
+    ) {
+
+      /*
+       * No se permite retirar más biomasa de la estimada.
+       *
+       * Esto evita:
+       *
+       * - porcentajes superiores al 100 %
+       * - biomasa restante negativa
+       */
+
+      errores.kgRetirados =
+        "La cantidad retirada no puede ser mayor que la biomasa estimada";
+    }
+
+
+    /*
+     * ----------------------------------------------------
+     * RESULTADO
+     * ----------------------------------------------------
+     */
+
+    return {
+      valido: Object.keys(errores).length === 0,
+      errores,
+    };
   }
+
+
+  /*
+   * ========================================================
+   * RETORNO
+   * ========================================================
+   */
 
   return {
     form,

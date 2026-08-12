@@ -9,31 +9,19 @@
  * Mantiene una API similar al service HTTP para que los hooks
  * puedan trabajar con datos locales sin cambiar la pantalla.
  */
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { localApi } from "../../../database/local/localApi.service";
 
 /*
-============================================================
-CONSTANTES
-============================================================
-*/
+ * ============================================================
+ * CONSTANTES
+ * ============================================================
+ */
 
 const STORAGE_COLABORADOR_ACTUAL = "caprocam_colaborador_actual";
 const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
-
-const OBJETIVO_RALEO = [
-    "Comercializacion",
-    "Reduccion de densidad",
-    "Resiembra en otro estanque",
-]
-
-const METODO_EXTRACCION = [
-    "Atarraya",
-    "Red de arrastre",
-    "Boleo",
-    "Trampa selectiva",
-]
 
 const METODOS_LOCAL_API = {
     obtenerTodos: ["obtenerTodos", "getAll", "listar"],
@@ -44,10 +32,11 @@ const METODOS_LOCAL_API = {
 };
 
 /*
-============================================================
-HELPERS GENERALES
-============================================================
-*/
+ * ============================================================
+ * HELPERS GENERALES
+ * ============================================================
+ */
+
 const obtenerDataRespuesta = (respuesta) =>
     respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
         ? respuesta.data
@@ -95,8 +84,13 @@ async function obtenerJsonStorage(llave) {
 }
 
 async function obtenerContextoLocal() {
-    const colaborador = await obtenerJsonStorage(STORAGE_COLABORADOR_ACTUAL);
-    const grupoStorage = await AsyncStorage.getItem(STORAGE_GRUPO_DATOS);
+    const colaborador = await obtenerJsonStorage(
+        STORAGE_COLABORADOR_ACTUAL
+    );
+
+    const grupoStorage = await AsyncStorage.getItem(
+        STORAGE_GRUPO_DATOS
+    );
 
     const grupoColaborador = obtenerValor(
         colaborador,
@@ -135,43 +129,139 @@ async function ejecutarMetodoRaleo(tipoMetodo, argumentos = []) {
         }
     }
 
-    throw new Error(`No existe metodo local para raleos: ${tipoMetodo}`);
+    throw new Error(
+        `No existe metodo local para raleos: ${tipoMetodo}`
+    );
 }
 
 /*
-============================================================
-MAPEADORES
-============================================================
-*/
+ * ============================================================
+ * MAPEADORES
+ * ============================================================
+ */
 
 function mapearRaleoDesdeLocal(registro) {
     return registro
         ? {
             id: obtenerValor(registro, ["id"], null),
-            servidorId: obtenerValor(registro, ["servidor_id", "servidorId"], null),
-            uuid: obtenerValor(registro, ["uuid"], ""),
 
-            grupoDatos: obtenerValor(registro,["grupo_datos", "grupoDatos"],null),
-            fincaId: obtenerValor(registro,["finca_id", "fincaId"],null),
-            estanqueId: obtenerValor(registro,["estanque_id", "estanqueId"],null),
-            colaboradorId: obtenerValor(registro,["colaborador_id", "colaboradorId"],null),
-            fecha: obtenerValor(registro,["fecha"],""),
-            porcentaje: obtenerValor(registro,["porcentaje"],null),
-            pesoEstimado: obtenerValor(registro,["peso_estimado", "pesoEstimado"],0),
-            biomasaEstimada: obtenerValor(registro,["biomasa_estimada", "biomasaEstimada"],0),
+            servidorId: obtenerValor(
+                registro,
+                ["servidor_id", "servidorId"],
+                null
+            ),
 
-            objetivo: obtenerValor(registro,["objetivo"],""),
-            metodo: obtenerValor(registro,["metodos", "metodo"],""),
+            uuid: obtenerValor(
+                registro,
+                ["uuid"],
+                ""
+            ),
 
-            observaciones: obtenerValor(registro,["observaciones"],""),
+            grupoDatos: obtenerValor(
+                registro,
+                ["grupo_datos", "grupoDatos"],
+                null
+            ),
 
-            activo: obtenerValor(registro,["activo"],1),
-            sincronizado: obtenerValor(registro,["sincronizado"],0),
-            pendienteSync: obtenerValor(registro,["pendiente_sync", "pendienteSync"],1),
-            accionSync: obtenerValor(registro,["accion_sync", "accionSync"],null),
-            fechaSync: obtenerValor(registro,["fecha_sync", "fechaSync"],null),
-            fechaCreacion: obtenerValor( registro,["fecha_creacion", "fechaCreacion"],null),
-            fechaActualizacion: obtenerValor(registro,["fecha_actualizacion", "fechaActualizacion"],null),
+            fincaId: obtenerValor(
+                registro,
+                ["finca_id", "fincaId"],
+                null
+            ),
+
+            estanqueId: obtenerValor(
+                registro,
+                ["estanque_id", "estanqueId"],
+                null
+            ),
+
+            /*
+             * Se mantiene preparado para cuando se integre
+             * la relacion con siembras.
+             */
+            siembraId: obtenerValor(
+                registro,
+                ["siembra_id", "siembraId"],
+                null
+            ),
+
+            fecha: obtenerValor(
+                registro,
+                ["fecha"],
+                ""
+            ),
+
+            porcentaje: obtenerValor(
+                registro,
+                ["porcentaje"],
+                null
+            ),
+
+            kgRetirados: obtenerValor(
+                registro,
+                ["kg_retirados", "kgRetirados"],
+                null
+            ),
+
+            biomasaRestante: obtenerValor(
+                registro,
+                ["biomasa_restante", "biomasaRestante"],
+                null
+            ),
+
+            biomasaEstimada: obtenerValor(
+                registro,
+                ["biomasa_estimada", "biomasaEstimada"],
+                null
+            ),
+
+            observaciones: obtenerValor(
+                registro,
+                ["observaciones"],
+                ""
+            ),
+
+            activo: obtenerValor(
+                registro,
+                ["activo"],
+                1
+            ),
+
+            sincronizado: obtenerValor(
+                registro,
+                ["sincronizado"],
+                0
+            ),
+
+            pendienteSync: obtenerValor(
+                registro,
+                ["pendiente_sync", "pendienteSync"],
+                1
+            ),
+
+            accionSync: obtenerValor(
+                registro,
+                ["accion_sync", "accionSync"],
+                null
+            ),
+
+            fechaSync: obtenerValor(
+                registro,
+                ["fecha_sync", "fechaSync"],
+                null
+            ),
+
+            fechaCreacion: obtenerValor(
+                registro,
+                ["fecha_creacion", "fechaCreacion"],
+                null
+            ),
+
+            fechaActualizacion: obtenerValor(
+                registro,
+                ["fecha_actualizacion", "fechaActualizacion"],
+                null
+            ),
         }
         : null;
 }
@@ -197,10 +287,14 @@ async function mapearRaleoParaLocal(raleoDTO) {
         null
     );
 
-    const colaboradorId = obtenerValor(
+    /*
+     * Por ahora siembra_id queda en null.
+     * Se integrara posteriormente.
+     */
+    const siembraId = obtenerValor(
         raleoDTO,
-        ["colaboradorId","colaborador_id","idColaborador"],
-        contexto.colaboradorId
+        ["siembraId", "siembra_id"],
+        null
     );
 
     const fecha = obtenerValor(
@@ -211,134 +305,323 @@ async function mapearRaleoParaLocal(raleoDTO) {
 
     const creadoPorColaboradorId = obtenerValor(
         raleoDTO,
-        ["creadoPorColaboradorId","creado_por_colaborador_id"],
+        [
+            "creadoPorColaboradorId",
+            "creado_por_colaborador_id",
+        ],
         contexto.colaboradorId
     );
 
     const creadoPorUsuarioId = obtenerValor(
         raleoDTO,
-        ["creadoPorUsuarioId","creado_por_usuario_id"],
+        [
+            "creadoPorUsuarioId",
+            "creado_por_usuario_id",
+        ],
         null
     );
 
     return {
-        grupo_datos: convertirNumero(grupoDatos,contexto.grupoDatos),
-        finca_id: convertirNumero(fincaId,null),
-        estanque_id: convertirNumero(estanqueId,null),
-        colaborador_id: convertirNumero(colaboradorId,null),
-        fecha: convertirTexto(fecha),
-        porcentaje: convertirTexto(obtenerValor(raleoDTO,["porcentaje","porcentajeRaleo"],"")),
-        peso_estimado: convertirNumero(obtenerValor(raleoDTO,["pesoEstimado","peso_estimado","pesoPromedio"],0),0),
-        biomasa_estimada: convertirNumero(obtenerValor(raleoDTO,["biomasaEstimada","biomasa_estimada","biomasaActual"],0),0),
-        objetivo: convertirTexto(obtenerValor(raleoDTO,["objetivo"],"")),
-        metodos: convertirTexto(obtenerValor(raleoDTO,["metodo","metodos"],"")),
-        observaciones: convertirTexto(obtenerValor(raleoDTO,["observaciones"],"")).trim(),
+        grupo_datos: convertirNumero(
+            grupoDatos,
+            contexto.grupoDatos
+        ),
+
+        finca_id: convertirNumero(
+            fincaId,
+            null
+        ),
+
+        estanque_id: convertirNumero(
+            estanqueId,
+            null
+        ),
+
+        /*
+         * Actualmente no se utiliza siembra_id,
+         * pero la columna ya existe en SQLite.
+         */
+        siembra_id: siembraId !== null
+            ? convertirNumero(siembraId, null)
+            : null,
+
+        fecha: convertirTexto(
+            fecha
+        ),
+
+        porcentaje: obtenerValor(
+            raleoDTO,
+            ["porcentaje", "porcentajeRaleo"],
+            null
+        ) !== null
+            ? convertirNumero(
+                obtenerValor(
+                    raleoDTO,
+                    ["porcentaje", "porcentajeRaleo"],
+                    null
+                ),
+                null
+            )
+            : null,
+
+        kg_retirados: obtenerValor(
+            raleoDTO,
+            [
+                "kgRetirados",
+                "kg_retirados",
+                "kilogramosRetirados",
+            ],
+            null
+        ) !== null
+            ? convertirNumero(
+                obtenerValor(
+                    raleoDTO,
+                    [
+                        "kgRetirados",
+                        "kg_retirados",
+                        "kilogramosRetirados",
+                    ],
+                    null
+                ),
+                null
+            )
+            : null,
+
+        biomasa_restante: obtenerValor(
+            raleoDTO,
+            [
+                "biomasaRestante",
+                "biomasa_restante",
+            ],
+            null
+        ) !== null
+            ? convertirNumero(
+                obtenerValor(
+                    raleoDTO,
+                    [
+                        "biomasaRestante",
+                        "biomasa_restante",
+                    ],
+                    null
+                ),
+                null
+            )
+            : null,
+
+        biomasa_estimada: obtenerValor(
+            raleoDTO,
+            [
+                "biomasaEstimada",
+                "biomasa_estimada",
+            ],
+            null
+        ) !== null
+            ? convertirNumero(
+                obtenerValor(
+                    raleoDTO,
+                    [
+                        "biomasaEstimada",
+                        "biomasa_estimada",
+                    ],
+                    null
+                ),
+                null
+            )
+            : null,
+
+        observaciones: convertirTexto(
+            obtenerValor(
+                raleoDTO,
+                ["observaciones"],
+                ""
+            )
+        ).trim(),
+
         creado_por_usuario_id: creadoPorUsuarioId,
-        creado_por_colaborador_id: creadoPorColaboradorId,
+
+        creado_por_colaborador_id:
+            creadoPorColaboradorId,
     };
 }
 
+/*
+ * ============================================================
+ * FILTROS
+ * ============================================================
+ */
+
 function aplicarFiltros(registros, filtros = {}) {
-    const fincaId = obtenerValor(filtros,["fincaId", "finca_id"],null);
-    const estanqueId = obtenerValor(filtros,["estanqueId", "estanque_id"],null);
-    const colaboradorId = obtenerValor(filtros,["colaboradorId", "colaborador_id"],null);
-    const objetivo = obtenerValor(filtros,["objetivo"],null);
-    const metodo = obtenerValor(filtros,["metodo","metodos"],null);
+    const fincaId = obtenerValor(
+        filtros,
+        ["fincaId", "finca_id"],
+        null
+    );
+
+    const estanqueId = obtenerValor(
+        filtros,
+        ["estanqueId", "estanque_id"],
+        null
+    );
+
+    const siembraId = obtenerValor(
+        filtros,
+        ["siembraId", "siembra_id"],
+        null
+    );
 
     return registros.filter((item) => {
-        const coincideFinca =fincaId? Number(item.fincaId) === Number(fincaId): true;
-        const coincideEstanque =estanqueId? Number(item.estanqueId) === Number(estanqueId): true;
-        const coincideColaborador =colaboradorId? Number(item.colaboradorId) === Number(colaboradorId): true
-        const coincideObjetivo =objetivo? String(item.objetivo) === String(objetivo): true;
-        const coincideMetodo =metodo? String(item.metodo) === String(metodo): true;
+        const coincideFinca = fincaId
+            ? Number(item.fincaId) === Number(fincaId)
+            : true;
 
-        return (coincideFinca &&coincideEstanque &&coincideColaborador &&coincideObjetivo &&coincideMetodo);
+        const coincideEstanque = estanqueId
+            ? Number(item.estanqueId) === Number(estanqueId)
+            : true;
+
+        /*
+         * Se deja el filtro preparado para siembra_id,
+         * aunque actualmente no se utiliza.
+         */
+        const coincideSiembra = siembraId
+            ? Number(item.siembraId) === Number(siembraId)
+            : true;
+
+        return (
+            coincideFinca &&
+            coincideEstanque &&
+            coincideSiembra
+        );
     });
 }
 
 /*
-============================================================
-OPERACIONES LOCALES
-============================================================
-*/
+ * ============================================================
+ * OPERACIONES LOCALES
+ * ============================================================
+ */
 
 async function getAll(filtros = {}) {
     try {
-        const respuesta = await ejecutarMetodoRaleo("obtenerTodos");
+        const respuesta = await ejecutarMetodoRaleo(
+            "obtenerTodos"
+        );
+
         const data = obtenerDataRespuesta(respuesta);
-        const registros =Array.isArray(data)? data: [];
+
+        const registros = Array.isArray(data)
+            ? data
+            : [];
 
         return aplicarFiltros(
-            registros.map(mapearRaleoDesdeLocal).filter(Boolean),
+            registros
+                .map(mapearRaleoDesdeLocal)
+                .filter(Boolean),
             filtros
         );
     } catch (error) {
-        console.error("Error al obtener raleos locales",extraerError(error));
+        console.error(
+            "Error al obtener raleos locales",
+            extraerError(error)
+        );
+
         throw error;
     }
 }
 
 async function getById(id) {
     try {
-        const respuesta = await ejecutarMetodoRaleo("obtenerPorId",[id]);
+        const respuesta = await ejecutarMetodoRaleo(
+            "obtenerPorId",
+            [id]
+        );
 
-        return mapearRaleoDesdeLocal(obtenerDataRespuesta(respuesta));
+        return mapearRaleoDesdeLocal(
+            obtenerDataRespuesta(respuesta)
+        );
     } catch (error) {
-        console.error("Error al obtener el raleo local",extraerError(error));
+        console.error(
+            "Error al obtener el raleo local",
+            extraerError(error)
+        );
+
         throw error;
     }
 }
 
 async function create(raleoDTO) {
     try {
-        const datosLocales =await mapearRaleoParaLocal(raleoDTO);
-        const respuesta =await ejecutarMetodoRaleo("crear",[datosLocales]);
-        return mapearRaleoDesdeLocal(obtenerDataRespuesta(respuesta));
-    } catch(error) {
-        console.error("Error al crear el raleo local",extraerError(error));
+        const datosLocales =
+            await mapearRaleoParaLocal(raleoDTO);
+
+        const respuesta = await ejecutarMetodoRaleo(
+            "crear",
+            [datosLocales]
+        );
+
+        return mapearRaleoDesdeLocal(
+            obtenerDataRespuesta(respuesta)
+        );
+    } catch (error) {
+        console.error(
+            "Error al crear el raleo local",
+            extraerError(error)
+        );
+
         throw error;
     }
 }
 
 async function update(id, raleoDTO) {
     try {
-        const datosLocales = await mapearRaleoParaLocal(raleoDTO);
-        const respuesta = await ejecutarMetodoRaleo("actualizar",[
-            id,
-            datosLocales
-        ]);
+        const datosLocales =
+            await mapearRaleoParaLocal(raleoDTO);
 
-        return mapearRaleoDesdeLocal(obtenerDataRespuesta(respuesta));
-    } catch(error) {
-        console.error("Error al actualizar el raleo local",extraerError(error));
+        const respuesta = await ejecutarMetodoRaleo(
+            "actualizar",
+            [
+                id,
+                datosLocales,
+            ]
+        );
+
+        return mapearRaleoDesdeLocal(
+            obtenerDataRespuesta(respuesta)
+        );
+    } catch (error) {
+        console.error(
+            "Error al actualizar el raleo local",
+            extraerError(error)
+        );
+
         throw error;
     }
 }
 
 async function deleteById(id) {
     try {
-        const respuesta =await ejecutarMetodoRaleo("eliminar",[id]);
+        const respuesta = await ejecutarMetodoRaleo(
+            "eliminar",
+            [id]
+        );
 
-        return mapearRaleoDesdeLocal(obtenerDataRespuesta(respuesta));
-    } catch(error) {
-        console.error("Error al eliminar el raleo local",extraerError(error));
+        return mapearRaleoDesdeLocal(
+            obtenerDataRespuesta(respuesta)
+        );
+    } catch (error) {
+        console.error(
+            "Error al eliminar el raleo local",
+            extraerError(error)
+        );
+
         throw error;
     }
 }
 
-async function getObjetivos() {
-    return OBJETIVO_RALEO;
-}
-
-async function getMetodos() {
-    return METODO_EXTRACCION;
-}
-
 /*
-============================================================
-EXPORT
-============================================================
-*/
+ * ============================================================
+ * EXPORT
+ * ============================================================
+ */
 
 const RaleosLocalService = {
     getAll,
@@ -346,8 +629,6 @@ const RaleosLocalService = {
     create,
     update,
     deleteById,
-    getObjetivos,
-    getMetodos,
 };
 
 export default RaleosLocalService;
