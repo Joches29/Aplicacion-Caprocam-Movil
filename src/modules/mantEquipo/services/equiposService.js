@@ -1,395 +1,450 @@
-/*
-//////////////////////////////////////////////////////////
-CABEZA DE ARCHIVO
-//////////////////////////////////////////////////////////
-Archivo: equiposService.js
-Autor: Rodolfo
-Fecha: 04/08/2026
-Modulo: Mantenimiento de Equipos
-Descripcion:
-Servicio CRUD para equipos operando sobre SQLite local.
-Convierte entre el formato snake_case de la BD local y el
-shape camelCase que usa el frontend. Marca registros como
-pendiente_sync para sincronizacion futura con el backend.
-//////////////////////////////////////////////////////////
-*/
-
-/*
-//////////////////////////////////////////////////////////
-IMPORTS
-//////////////////////////////////////////////////////////
-*/
+/**
+ * ============================================================
+ * SERVICIO: equiposService
+ * ============================================================
+ *
+ * Servicio con operaciones CRUD para equipos.
+ * Conectado a la base de datos local SQLite (Offline-First).
+ * Permite listar, obtener por ID, crear, actualizar, eliminar,
+ * y cambiar estado operativo de equipos localmente para su posterior
+ * sincronización con la API principal.
+ * ============================================================
+ */
 
 import { localApi } from "../../../database/local/localApi.service";
 import { obtenerCamposAuditoria } from "../../../shared/utils/sessionUtils";
 
-/*
-//////////////////////////////////////////////////////////
-CONSTANTES
-//////////////////////////////////////////////////////////
-*/
+// ============================================================
+// CONSTANTES
+// ============================================================
 
 export const TIPOS_EQUIPO = [
-    { label: "Aireación", value: "aireacion", prefijo: "20" },
-    { label: "Bombeo", value: "bombeo", prefijo: "10" },
-    { label: "Alimentación", value: "alimentacion", prefijo: "30" },
-    { label: "Monitoreo", value: "monitoreo", prefijo: "40" },
-    { label: "Mantenimiento", value: "mantenimiento", prefijo: "50" },
-    { label: "Otro", value: "otro", prefijo: "99" },
+  { label: "Aireación", value: "aireacion", prefijo: "20" },
+  { label: "Bombeo", value: "bombeo", prefijo: "10" },
+  { label: "Alimentación", value: "alimentacion", prefijo: "30" },
+  { label: "Monitoreo", value: "monitoreo", prefijo: "40" },
+  { label: "Mantenimiento", value: "mantenimiento", prefijo: "50" },
+  { label: "Otro", value: "otro", prefijo: "99" },
 ];
 
-// Mapeo de tipo_equipo: SQLite/backend capitalizado → frontend minúscula
-const TIPO_LOCAL_A_FRONTEND = {
-    Aireacion: "aireacion",
-    Bombeo: "bombeo",
-    Alimentacion: "alimentacion",
-    Monitoreo: "monitoreo",
-    Mantenimiento: "mantenimiento",
-    Otro: "otro",
+const TIPO_BACKEND_A_FRONTEND = {
+  Aireacion: "aireacion",
+  Bombeo: "bombeo",
+  Alimentacion: "alimentacion",
+  Monitoreo: "monitoreo",
+  Mantenimiento: "mantenimiento",
+  Otro: "otro",
 };
 
-// Mapeo de tipo: frontend minúscula → SQLite/backend capitalizado
-const TIPO_FRONTEND_A_LOCAL = {
-    aireacion: "Aireacion",
-    bombeo: "Bombeo",
-    alimentacion: "Alimentacion",
-    monitoreo: "Monitoreo",
-    mantenimiento: "Mantenimiento",
-    otro: "Otro",
+const TIPO_FRONTEND_A_BACKEND = {
+  aireacion: "Aireacion",
+  bombeo: "Bombeo",
+  alimentacion: "Alimentacion",
+  monitoreo: "Monitoreo",
+  mantenimiento: "Mantenimiento",
+  otro: "Otro",
 };
 
-// Mapeo de estado_operativo: SQLite → frontend
-const ESTADO_OPERATIVO_LOCAL_A_FRONTEND = {
-    Activo: "activo",
-    Inactivo: "inactivo",
-    Mantenimiento: "mantenimiento",
+const ESTADO_OPERATIVO_BACKEND_A_FRONTEND = {
+  Activo: "activo",
+  Inactivo: "inactivo",
+  Mantenimiento: "mantenimiento",
 };
 
-// Mapeo de estado_operativo: frontend → SQLite
-const ESTADO_OPERATIVO_FRONTEND_A_LOCAL = {
-    activo: "Activo",
-    inactivo: "Inactivo",
-    mantenimiento: "Mantenimiento",
+const ESTADO_OPERATIVO_FRONTEND_A_BACKEND = {
+  activo: "Activo",
+  inactivo: "Inactivo",
+  mantenimiento: "Mantenimiento",
 };
 
-/*
-//////////////////////////////////////////////////////////
-FUNCIONES DE MAPEO
-//////////////////////////////////////////////////////////
-*/
+// ============================================================
+// FUNCIONES AUXILIARES DE MAPEO
+// ============================================================
+
+function fechaBackendAFormulario(fecha) {
+  if (!fecha) return "";
+  const partes = String(fecha).split("-");
+  if (partes.length === 3) {
+    const [anio, mes, dia] = partes;
+    return `${dia}/${mes}/${anio}`;
+  }
+  return String(fecha);
+}
 
 /**
- * Convierte un registro local SQLite (snake_case) al shape frontend (camelCase).
- * @param {object} equipo - Registro SQLite.
- * @returns {object} Equipo en formato frontend.
+ * Mapea la respuesta local SQLite (snake_case)
+ * al shape que espera el frontend (camelCase).
  */
 function mapEquipoLocal(equipo) {
-    return {
-        id: equipo.id,
-        servidorId: equipo.servidor_id,
-        uuid: equipo.uuid,
+  if (!equipo) return null;
 
-        // Identificacion
-        codigo: equipo.identificador,
-        codigoInterno: equipo.identificador,
+  const encendido = equipo.estado === "Encendido";
+  let horasUso = Number(equipo.horas_actuales || 0);
 
-        nombre: equipo.nombre_equipo,
-        descripcion: equipo.descripcion,
+  // Si está encendido, calcular las horas transcurridas en vivo desde fecha_actualizacion
+  if (encendido && equipo.fecha_actualizacion) {
+    const msInicio = new Date(equipo.fecha_actualizacion).getTime();
+    if (!isNaN(msInicio)) {
+      const msTranscurridos = Math.max(0, Date.now() - msInicio);
+      const horasTranscurridas = msTranscurridos / (1000 * 60 * 60);
+      horasUso = parseFloat((horasUso + horasTranscurridas).toFixed(2));
+    }
+  }
 
-        // Tipo
-        tipo: TIPO_LOCAL_A_FRONTEND[equipo.tipo_equipo] || "otro",
+  return {
+    id: equipo.id,
+    servidorId: equipo.servidor_id,
+    uuid: equipo.uuid,
 
-        fechaInstalacion: equipo.fecha_instalacion || "",
-        funcionEquipo: equipo.funcion_equipo,
+    // Identificación
+    codigo: equipo.identificador,
+    codigoInterno: equipo.identificador,
 
-        // Ubicacion
-        estanqueId: equipo.estanque_id,
-        ubicacion: equipo.estanque_id,
+    nombre: equipo.nombre_equipo,
+    descripcion: equipo.descripcion,
 
-        // Horas
-        horasMantenimiento: equipo.horas_mantenimiento,
-        horasUso: Number(equipo.horas_actuales || 0),
+    // Tipo
+    tipo: TIPO_BACKEND_A_FRONTEND[equipo.tipo_equipo] || "otro",
 
-        // Estado operativo
-        estado: ESTADO_OPERATIVO_LOCAL_A_FRONTEND[equipo.estado_operativo] || "activo",
+    fechaInstalacion: fechaBackendAFormulario(equipo.fecha_instalacion),
+    funcionEquipo: equipo.funcion_equipo,
 
-        // Encendido / Apagado
-        encendido: equipo.estado === "Encendido",
+    // Ubicación
+    estanqueId: equipo.estanque_id,
+    ubicacion: equipo.estanque_id,
 
-        activo: Boolean(equipo.activo),
+    // Horas
+    horasMantenimiento: equipo.horas_mantenimiento,
+    horasUso,
 
-        // Campos sync
-        sincronizado: Boolean(equipo.sincronizado),
-        pendienteSync: Boolean(equipo.pendiente_sync),
-    };
+    // Estado operativo: activo / inactivo / mantenimiento
+    estado: ESTADO_OPERATIVO_BACKEND_A_FRONTEND[equipo.estado_operativo] || "activo",
+
+    // Encendido / Apagado
+    encendido,
+
+    activo: Boolean(equipo.activo),
+    sincronizado: Boolean(equipo.sincronizado),
+    pendienteSync: Boolean(equipo.pendiente_sync),
+  };
+}
+
+function mapEquiposLocal(lista) {
+  return (lista || []).map(mapEquipoLocal).filter(Boolean);
 }
 
 /**
- * Convierte el shape frontend al formato snake_case para SQLite.
- * @param {object} data - Datos del formulario frontend.
- * @returns {object} Datos para SQLite.
+ * Mapea los datos del formulario frontend al formato snake_case para SQLite local.
  */
-function mapEquipoALocal(data) {
-    const today = new Date();
-    const defaultDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+function mapEquipoFrontendALocal(data) {
+  const today = new Date();
+  const defaultDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
 
-    const payload = {
-        identificador: (data.codigo || data.codigoInterno || "").trim(),
-        nombre_equipo: (data.nombre || "").trim(),
-        descripcion: (data.descripcion || "").trim(),
-        tipo_equipo: TIPO_FRONTEND_A_LOCAL[data.tipo] || data.tipoEquipo || "Otro",
-        fecha_instalacion: data.fechaInstalacion || defaultDate,
-        funcion_equipo: (data.funcionEquipo || "").trim(),
-        estado_operativo: ESTADO_OPERATIVO_FRONTEND_A_LOCAL[data.estado] || data.estadoOperativo || "Activo",
-    };
+  const payload = {
+    identificador: (data.codigo || data.codigoInterno || "").trim(),
+    nombre_equipo: (data.nombre || "").trim(),
+    descripcion: (data.descripcion || "").trim(),
+    tipo_equipo: TIPO_FRONTEND_A_BACKEND[data.tipo] || data.tipoEquipo || "Otro",
+    fecha_instalacion: data.fechaInstalacion || defaultDate,
+    funcion_equipo: (data.funcionEquipo || "").trim(),
+    estado_operativo: ESTADO_OPERATIVO_FRONTEND_A_BACKEND[data.estado] || data.estadoOperativo || "Activo",
+  };
 
-    if (data.estanqueId !== undefined || data.ubicacion !== undefined) {
-        const estId = data.estanqueId || data.ubicacion;
-        payload.estanque_id = estId ? Number(estId) : null;
-    }
+  if (data.estanqueId !== undefined || data.ubicacion !== undefined) {
+    const estId = data.estanqueId || data.ubicacion;
+    payload.estanque_id = estId ? Number(estId) : null;
+  }
 
-    if (data.horasMantenimiento !== undefined) {
-        payload.horas_mantenimiento = data.horasMantenimiento
-            ? Number(data.horasMantenimiento)
-            : null;
-    }
+  if (data.horasMantenimiento !== undefined) {
+    payload.horas_mantenimiento = data.horasMantenimiento
+      ? Number(data.horasMantenimiento)
+      : null;
+  }
 
-    if (data.estadoEncendido !== undefined) {
-        payload.estado = data.estadoEncendido ? "Encendido" : "Apagado";
-    }
+  if (data.estadoEncendido !== undefined) {
+    payload.estado = data.estadoEncendido ? "Encendido" : "Apagado";
+  }
 
-    if (data.horasActuales !== undefined || data.horasUso !== undefined) {
-        payload.horas_actuales = Number(data.horasActuales ?? data.horasUso ?? 0);
-    }
+  if (data.horasActuales !== undefined || data.horasUso !== undefined) {
+    payload.horas_actuales = Number(data.horasActuales ?? data.horasUso ?? 0);
+  }
 
-    return payload;
+  return payload;
 }
 
-/**
- * Determina si el equipo necesita mantenimiento proximo.
- * @param {object} equipo - Equipo en formato frontend.
- * @param {number} umbral - Horas de anticipacion.
- * @returns {boolean}
- */
 function necesitaMantenimientoProximo(equipo, umbral = 100) {
-    if (!equipo.horasMantenimiento) return false;
-    const restantes = equipo.horasMantenimiento - equipo.horasUso;
-    return restantes > 0 && restantes <= umbral;
+  if (!equipo.horasMantenimiento) return false;
+  const restantes = equipo.horasMantenimiento - equipo.horasUso;
+  return restantes > 0 && restantes <= umbral;
 }
 
-/*
-//////////////////////////////////////////////////////////
-SERVICIO PRINCIPAL
-//////////////////////////////////////////////////////////
-*/
+// ============================================================
+// EXPORTACIÓN DE FUNCIONES
+// ============================================================
 
 export const equiposService = {
-    /**
-     * Obtiene todos los equipos con filtros opcionales desde SQLite.
-     */
-    async getEquipos(filtros = {}) {
-        try {
-            const dbFiltros = {};
-            if (filtros.estanqueId) dbFiltros.estanque_id = filtros.estanqueId;
+  /**
+   * Obtiene todos los equipos con filtros opcionales desde SQLite local.
+   */
+  async getEquipos(filtros = {}) {
+    try {
+      const dbFiltros = {};
+      if (filtros.estanqueId) dbFiltros.estanque_id = filtros.estanqueId;
 
-            const respuesta = await localApi.equipos.obtenerTodos(dbFiltros);
+      const respuesta = await localApi.equipos.obtenerTodos(dbFiltros);
+      if (!respuesta.success) {
+        throw new Error(respuesta.message || "No se pudieron obtener los equipos");
+      }
 
-            if (!respuesta.success) {
-                throw new Error(respuesta.message || "Error al obtener equipos.");
-            }
+      let resultados = mapEquiposLocal(respuesta.data);
 
-            let resultados = (respuesta.data || []).map(mapEquipoLocal);
-
-            if (filtros.tipo) {
-                resultados = resultados.filter((e) => e.tipo === filtros.tipo);
-            }
-            if (filtros.estado) {
-                resultados = resultados.filter((e) => e.estado === filtros.estado);
-            }
-            if (filtros.encendido !== undefined) {
-                resultados = resultados.filter((e) => e.encendido === filtros.encendido);
-            }
-            if (filtros.busqueda) {
-                const q = filtros.busqueda.toLowerCase();
-                resultados = resultados.filter(
-                    (e) =>
-                        (e.nombre || "").toLowerCase().includes(q) ||
-                        (e.descripcion || "").toLowerCase().includes(q) ||
-                        (e.codigo || "").toLowerCase().includes(q)
-                );
-            }
-
-            resultados.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
-            return resultados;
-        } catch (err) {
-            throw new Error(err.message || "No se pudieron obtener los equipos.");
-        }
-    },
-
-    /**
-     * Obtiene un equipo por su ID local.
-     */
-    async getEquipoById(id) {
-        try {
-            const respuesta = await localApi.equipos.obtenerPorId(Number(id));
-
-            if (!respuesta.success || !respuesta.data) {
-                throw new Error("Equipo no encontrado.");
-            }
-
-            return mapEquipoLocal(respuesta.data);
-        } catch (err) {
-            throw new Error(err.message || "Equipo no encontrado.");
-        }
-    },
-
-    /**
-     * Crea un nuevo equipo en SQLite local.
-     */
-    async createEquipo(data) {
-        try {
-            const auditoria = await obtenerCamposAuditoria();
-            const payload = {
-                ...mapEquipoALocal(data),
-                ...auditoria,
-                horas_actuales: Number(data.horasActuales ?? data.horasUso ?? 0),
-                estado: data.estadoEncendido ? "Encendido" : "Apagado",
-            };
-
-            const respuesta = await localApi.equipos.crear(payload);
-
-            if (!respuesta.success) {
-                const detalleMsg = respuesta.error ? `${respuesta.message} (${respuesta.error})` : respuesta.message;
-                throw new Error(detalleMsg || "No se pudo crear el equipo.");
-            }
-
-            return mapEquipoLocal(respuesta.data);
-        } catch (err) {
-            throw new Error(err.message || "No se pudo crear el equipo.");
-        }
-    },
-
-    /**
-     * Actualiza un equipo existente en SQLite local.
-     */
-    async updateEquipo(id, data) {
-        try {
-            const payload = mapEquipoALocal(data);
-
-            const respuesta = await localApi.equipos.actualizar(Number(id), payload);
-
-            if (!respuesta.success) {
-                throw new Error(respuesta.message || "No se pudo actualizar el equipo.");
-            }
-
-            return mapEquipoLocal(respuesta.data);
-        } catch (err) {
-            throw new Error(err.message || "No se pudo actualizar el equipo.");
-        }
-    },
-
-    /**
-     * Elimina logicamente un equipo en SQLite local (soft delete).
-     */
-    async deleteEquipo(id) {
-        try {
-            const respuesta = await localApi.equipos.eliminar(Number(id));
-
-            if (!respuesta.success) {
-                throw new Error(respuesta.message || "No se pudo eliminar el equipo.");
-            }
-
-            return true;
-        } catch (err) {
-            throw new Error(err.message || "No se pudo eliminar el equipo.");
-        }
-    },
-
-    /**
-     * Cambia el estado de encendido/apagado de un equipo en SQLite local.
-     */
-    async toggleEquipoEstado(id, equipoActual) {
-        try {
-            const nuevoEstado = equipoActual.encendido ? "Apagado" : "Encendido";
-
-            const respuesta = await localApi.equipos.actualizar(Number(id), {
-                estado: nuevoEstado,
-            });
-
-            if (!respuesta.success) {
-                throw new Error(respuesta.message || "No se pudo cambiar el estado del equipo.");
-            }
-
-            return mapEquipoLocal(respuesta.data);
-        } catch (err) {
-            throw new Error(err.message || "No se pudo cambiar el estado del equipo.");
-        }
-    },
-
-    /**
-     * Obtiene equipos proximos a mantenimiento — calculado en cliente.
-     */
-    async getEquiposProximosMantenimiento(umbral = 100) {
-        const equipos = await this.getEquipos();
-        const activos = equipos.filter((e) => e.estado === "activo");
-        const proximos = activos.filter((e) => necesitaMantenimientoProximo(e, umbral));
-
-        proximos.sort(
-            (a, b) =>
-                (a.horasMantenimiento - a.horasUso) -
-                (b.horasMantenimiento - b.horasUso)
+      if (filtros.tipo) {
+        resultados = resultados.filter((e) => e.tipo === filtros.tipo);
+      }
+      if (filtros.estado) {
+        resultados = resultados.filter((e) => e.estado === filtros.estado);
+      }
+      if (filtros.encendido !== undefined) {
+        resultados = resultados.filter((e) => e.encendido === filtros.encendido);
+      }
+      if (filtros.busqueda) {
+        const q = filtros.busqueda.toLowerCase();
+        resultados = resultados.filter(
+          (e) =>
+            e.nombre.toLowerCase().includes(q) ||
+            e.descripcion.toLowerCase().includes(q) ||
+            e.codigo.toLowerCase().includes(q)
         );
-        return proximos;
-    },
+      }
 
-    /**
-     * Obtiene estadisticas generales de equipos — calculado en cliente.
-     */
-    async getEstadisticasEquipos() {
-        const equipos = await this.getEquipos();
-        const total = equipos.length;
-        const activos = equipos.filter((e) => e.estado === "activo").length;
-        const mantenimiento = equipos.filter((e) => e.estado === "mantenimiento").length;
-        const encendidos = equipos.filter((e) => e.encendido).length;
-        const proximosMantenimiento = equipos.filter(
-            (e) => e.estado === "activo" && necesitaMantenimientoProximo(e)
-        ).length;
+      resultados.sort((a, b) => a.nombre.localeCompare(b.nombre));
+      return resultados;
+    } catch (err) {
+      throw new Error(err.message || "No se pudieron obtener los equipos");
+    }
+  },
 
-        return { total, activos, mantenimiento, encendidos, proximosMantenimiento };
-    },
+  /**
+   * Obtiene un equipo por su ID local de SQLite.
+   */
+  async getEquipoById(id) {
+    try {
+      const respuesta = await localApi.equipos.obtenerPorId(Number(id));
+      if (!respuesta.success || !respuesta.data) {
+        throw new Error("No se pudo encontrar el equipo");
+      }
+      return mapEquipoLocal(respuesta.data);
+    } catch (err) {
+      throw new Error(err.message || "No se pudo encontrar el equipo");
+    }
+  },
 
-    /**
-     * Obtiene los tipos de equipo disponibles.
-     */
-    getTiposEquipo() {
-        return TIPOS_EQUIPO;
-    },
+  /**
+   * Crea un nuevo equipo localmente en SQLite.
+   */
+  async createEquipo(data) {
+    try {
+      const auditoria = await obtenerCamposAuditoria();
+      const payloadLocal = mapEquipoFrontendALocal(data);
 
-    /**
-     * Obtiene estanques disponibles para asociar desde SQLite local.
-     */
-    async getEstanquesDisponibles() {
-        try {
-            const respuesta = await localApi.estanques.obtenerTodos();
-
-            if (!respuesta.success) return [];
-
-            return (respuesta.data || []).map((estanque) => ({
-                label: `${estanque.codigo} (${estanque.tipo_estanque})`,
-                value: String(estanque.id),
-            }));
-        } catch {
-            return [];
+      // Validar que no exista un equipo activo con el mismo identificador (código)
+      const identificador = payloadLocal.identificador;
+      if (identificador) {
+        const existentes = await localApi.equipos.obtenerTodos();
+        if (existentes.success && Array.isArray(existentes.data)) {
+          const duplicado = existentes.data.find(
+            (e) => e.identificador === identificador && e.activo === 1
+          );
+          if (duplicado) {
+            throw new Error(`Ya existe un equipo con el código "${identificador}"`);
+          }
         }
-    },
+      }
 
-    /**
-     * Formatea las horas de uso para mostrar.
-     */
-    formatearHoras(horas) {
-        if (horas < 1) {
-            return `${Math.round(horas * 60)} min`;
+      // Regla de negocio: Si el equipo está en Mantenimiento o Inactivo, debe estar Apagado.
+      let estadoEncendido = data.estadoEncendido !== undefined ? (data.estadoEncendido ? "Encendido" : "Apagado") : "Apagado";
+      if (payloadLocal.estado_operativo === "Mantenimiento" || payloadLocal.estado_operativo === "Inactivo") {
+        estadoEncendido = "Apagado";
+      }
+
+      const payload = {
+        ...payloadLocal,
+        ...auditoria,
+        horas_actuales: Number(data.horasActuales ?? data.horasUso ?? 0),
+        estado: estadoEncendido,
+      };
+
+      const respuesta = await localApi.equipos.crear(payload);
+      if (!respuesta.success) {
+        const detalleMsg = respuesta.error ? `${respuesta.message} (${respuesta.error})` : respuesta.message;
+        throw new Error(detalleMsg || "No se pudo crear el equipo");
+      }
+
+      return mapEquipoLocal(respuesta.data);
+    } catch (err) {
+      throw new Error(err.message || "No se pudo crear el equipo");
+    }
+  },
+
+  /**
+   * Actualiza un equipo existente en SQLite local.
+   */
+  async updateEquipo(id, data) {
+    try {
+      const payload = mapEquipoFrontendALocal(data);
+      const targetId = Number(id);
+
+      // Validar código duplicado al editar (excluyendo el equipo actual)
+      if (payload.identificador) {
+        const existentes = await localApi.equipos.obtenerTodos();
+        if (existentes.success && Array.isArray(existentes.data)) {
+          const duplicado = existentes.data.find(
+            (e) => e.identificador === payload.identificador && e.id !== targetId && e.activo === 1
+          );
+          if (duplicado) {
+            throw new Error(`Ya existe otro equipo con el código "${payload.identificador}"`);
+          }
         }
-        return `${Math.round(horas)} h`;
-    },
+      }
+
+      // Regla de negocio: Si se cambia el estado a Mantenimiento o Inactivo, se fuerza estado Apagado
+      if (payload.estado_operativo === "Mantenimiento" || payload.estado_operativo === "Inactivo") {
+        payload.estado = "Apagado";
+      }
+
+      if (data.horasActuales !== undefined || data.horasUso !== undefined) {
+        payload.horas_actuales = Number(data.horasActuales ?? data.horasUso ?? 0);
+      }
+
+      const respuesta = await localApi.equipos.actualizar(targetId, payload);
+      if (!respuesta.success) {
+        const detalleMsg = respuesta.error ? `${respuesta.message} (${respuesta.error})` : respuesta.message;
+        throw new Error(detalleMsg || "No se pudo actualizar el equipo");
+      }
+
+      return mapEquipoLocal(respuesta.data);
+    } catch (err) {
+      throw new Error(err.message || "No se pudo actualizar el equipo");
+    }
+  },
+
+  /**
+   * Elimina (lógicamente) un equipo en SQLite local.
+   */
+  async deleteEquipo(id) {
+    try {
+      const respuesta = await localApi.equipos.eliminar(Number(id));
+      if (!respuesta.success) {
+        throw new Error(respuesta.message || "No se pudo eliminar el equipo");
+      }
+      return true;
+    } catch (err) {
+      throw new Error(err.message || "No se pudo eliminar el equipo");
+    }
+  },
+
+  /**
+   * Cambia el estado de encendido/apagado de un equipo en SQLite local y acumula horas de uso.
+   */
+  async toggleEquipoEstado(id, equipoActual) {
+    try {
+      const targetId = Number(id);
+      const resLocal = await localApi.equipos.obtenerPorId(targetId);
+      const equipoDb = resLocal.data || {};
+
+      const estabaEncendido = equipoDb.estado === "Encendido";
+      let horasActuales = Number(equipoDb.horas_actuales || 0);
+
+      // Si estaba encendido, acumular el tiempo transcurrido en horas_actuales
+      if (estabaEncendido && equipoDb.fecha_actualizacion) {
+        const msInicio = new Date(equipoDb.fecha_actualizacion).getTime();
+        if (!isNaN(msInicio)) {
+          const msTranscurridos = Math.max(0, Date.now() - msInicio);
+          const horasTranscurridas = msTranscurridos / (1000 * 60 * 60);
+          horasActuales = parseFloat((horasActuales + horasTranscurridas).toFixed(4));
+        }
+      }
+
+      const nuevoEstado = estabaEncendido ? "Apagado" : "Encendido";
+      const fechaActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+      const respuesta = await localApi.equipos.actualizar(targetId, {
+        estado: nuevoEstado,
+        horas_actuales: horasActuales,
+        fecha_actualizacion: fechaActual,
+      });
+
+      if (!respuesta.success) {
+        throw new Error(respuesta.message || "No se pudo cambiar el estado del equipo");
+      }
+
+      return mapEquipoLocal(respuesta.data);
+    } catch (err) {
+      throw new Error(err.message || "No se pudo cambiar el estado del equipo");
+    }
+  },
+
+  /**
+   * Obtiene los equipos que están próximos a necesitar mantenimiento.
+   */
+  async getEquiposProximosMantenimiento(umbral = 100) {
+    const equipos = await this.getEquipos();
+    const activos = equipos.filter((e) => e.estado === "activo");
+    const proximos = activos.filter((e) => necesitaMantenimientoProximo(e, umbral));
+
+    proximos.sort(
+      (a, b) =>
+        (a.horasMantenimiento - a.horasUso) - (b.horasMantenimiento - b.horasUso)
+    );
+    return proximos;
+  },
+
+  /**
+   * Obtiene estadísticas generales de equipos.
+   */
+  async getEstadisticasEquipos() {
+    const equipos = await this.getEquipos();
+    const total = equipos.length;
+    const activos = equipos.filter((e) => e.estado === "activo").length;
+    const mantenimiento = equipos.filter((e) => e.estado === "mantenimiento").length;
+    const encendidos = equipos.filter((e) => e.encendido).length;
+    const proximosMantenimiento = equipos.filter(
+      (e) => e.estado === "activo" && necesitaMantenimientoProximo(e)
+    ).length;
+
+    return { total, activos, mantenimiento, encendidos, proximosMantenimiento };
+  },
+
+  /**
+   * Obtiene los tipos de equipo disponibles
+   */
+  getTiposEquipo() {
+    return TIPOS_EQUIPO;
+  },
+
+  /**
+   * Obtiene la lista de estanques disponibles para asociar desde SQLite local.
+   */
+  async getEstanquesDisponibles() {
+    try {
+      const respuesta = await localApi.estanques.obtenerTodos();
+      if (!respuesta.success) return [];
+      return (respuesta.data || []).map((estanque) => ({
+        label: `${estanque.codigo} (${estanque.tipo_estanque})`,
+        value: String(estanque.id),
+      }));
+    } catch (err) {
+      return [];
+    }
+  },
+
+  /**
+   * Formatea las horas de uso para mostrar
+   */
+  formatearHoras(horas) {
+    if (horas < 1) {
+      return `${Math.round(horas * 60)} min`;
+    }
+    return `${Math.round(horas)} h`;
+  },
 };

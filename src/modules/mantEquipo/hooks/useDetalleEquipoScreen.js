@@ -21,9 +21,48 @@
  * - handleEditar, handleEliminarPress, confirmDelete, cancelDelete, handleEstanquePress
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { equiposService } from '../services/equiposService';
+import { useError } from '../../../shared/context/ErrorContext';
+import { ICONS } from '../../../theme/icons';
+
+// Constantes de presentación que antes vivían en la pantalla
+const TIPOS_ICONS = {
+  aireacion: ICONS.wind,
+  bombeo: ICONS.waterFlow,
+  alimentacion: ICONS.food,
+  monitoreo: ICONS.chemicalContainer,
+  mantenimiento: ICONS.tools,
+  otro: ICONS.gear,
+};
+
+const TIPOS_LABELS = {
+  aireacion: 'Aireación',
+  bombeo: 'Bombeo',
+  alimentacion: 'Alimentación',
+  monitoreo: 'Monitoreo',
+  mantenimiento: 'Mantenimiento',
+  otro: 'Otro',
+};
+
+const ESTADO_LABELS = {
+  activo: 'Activo',
+  inactivo: 'Inactivo',
+  mantenimiento: 'Mantenimiento',
+};
+
+const ESTADO_VARIANTS = {
+  activo: 'success',
+  inactivo: 'danger',
+  mantenimiento: 'warning',
+};
+
+function horasRestantesMantenimiento(equipo) {
+  if (!equipo || !equipo.horasMantenimiento) return 0;
+  const restantes = equipo.horasMantenimiento - (equipo.horasUso || 0);
+  return restantes > 0 ? restantes : 0;
+}
 
 export function useDetalleEquipoScreen({ id, router }) {
   const [equipo, setEquipo] = useState(null);
@@ -32,7 +71,7 @@ export function useDetalleEquipoScreen({ id, router }) {
   const [error, setError] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [alert, setAlert] = useState(null);
+  const { mostrarError } = useError();
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -53,10 +92,11 @@ export function useDetalleEquipoScreen({ id, router }) {
       }
     } catch (err) {
       setError(err.message || 'No se pudo cargar el equipo.');
+      mostrarError(err);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, mostrarError]);
 
   useEffect(() => {
     if (id) cargarDatos();
@@ -81,11 +121,15 @@ export function useDetalleEquipoScreen({ id, router }) {
   const confirmDelete = async () => {
     try {
       await equiposService.deleteEquipo(equipo.id);
-      setAlert({ type: 'danger', message: `Equipo "${equipo.nombre}" eliminado.` });
       setShowConfirmModal(false);
-      setTimeout(() => router.replace('/equipos/equipos'), 1500);
+      router.replace({
+        pathname: '/equipos/',
+        params: {
+          alertType: 'success',
+          alertMessage: `Equipo "${equipo.nombre}" eliminado.`,
+        },
+      });
     } catch (err) {
-      setAlert({ type: 'danger', message: err.message || 'No se pudo eliminar el equipo.' });
       setShowConfirmModal(false);
     }
   };
@@ -101,12 +145,24 @@ export function useDetalleEquipoScreen({ id, router }) {
     }
   };
 
+  // Valores derivados para la UI (antes definidos en la pantalla)
+  const tipoIcon = useMemo(() => (equipo ? (TIPOS_ICONS[equipo.tipo] || ICONS.gear) : ICONS.gear), [equipo]);
+  const tipoLabel = useMemo(() => (equipo ? (TIPOS_LABELS[equipo.tipo] || equipo.tipo) : ''), [equipo]);
+  const estadoLabel = useMemo(() => (equipo ? (ESTADO_LABELS[equipo.estado] || equipo.estado) : ''), [equipo]);
+  const estadoVariant = useMemo(() => (equipo ? (ESTADO_VARIANTS[equipo.estado] || 'info') : 'info'), [equipo]);
+  const horasRestantes = useMemo(() => horasRestantesMantenimiento(equipo), [equipo]);
+  const necesitaMant = useMemo(() => horasRestantes === 0, [horasRestantes]);
+  const horasUsoFormateado = useMemo(() => {
+    if (!equipo) return '—';
+    const uso = equipo.horasUso || 0;
+    return uso < 1 ? `${Math.round(uso * 60)} min` : `${Math.round(uso)} h`;
+  }, [equipo]);
+
   return {
     equipo,
     estanque,
     loading,
     error,
-    alert,
     showConfirmModal,
     deleteTarget,
     handleEditar,
@@ -114,5 +170,13 @@ export function useDetalleEquipoScreen({ id, router }) {
     confirmDelete,
     cancelDelete,
     handleEstanquePress,
+    // Valores derivados para facilitar la pantalla
+    tipoIcon,
+    tipoLabel,
+    estadoLabel,
+    estadoVariant,
+    horasRestantes,
+    necesitaMant,
+    horasUsoFormateado,
   };
 }
