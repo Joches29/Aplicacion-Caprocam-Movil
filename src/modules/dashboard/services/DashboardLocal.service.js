@@ -13,6 +13,7 @@ leyendo los datos desde SQLite.
 */
 
 import { localApi } from "../../../database/local/localApi.service";
+import { getLecturasLocal } from "../../mantAgua/services/FisicoQuimicaLocalService";
 
 /*
 //////////////////////////////////////////////////////////
@@ -100,20 +101,6 @@ async function obtenerRegistrosLocales(seccion) {
   const data = obtenerDataRespuesta(respuesta);
 
   return obtenerListaSegura(data);
-}
-
-async function obtenerRegistrosLocalesOpciones(secciones) {
-  await localApi.inicializar();
-
-  for (let i = 0; i < secciones.length; i += 1) {
-    const registros = await obtenerRegistrosLocales(secciones[i]);
-
-    if (registros.length > 0) {
-      return registros;
-    }
-  }
-
-  return [];
 }
 
 /*
@@ -627,18 +614,18 @@ function mapearFisicoQuimico(registro) {
     idEstanque: estanqueId,
     estanque_id: estanqueId,
     fecha,
-    ph: obtenerValor(registro, ["ph"], "[]"),
-    salinidad: obtenerValor(registro, ["salinidad"], "[]"),
-    temperatura: obtenerValor(registro, ["temperatura"], "[]"),
+    ph: obtenerValor(registro, ["ph"], []),
+    salinidad: obtenerValor(registro, ["salinidad"], []),
+    temperatura: obtenerValor(registro, ["temperatura"], []),
     oxigenoDisuelto: obtenerValor(
       registro,
-      ["oxigeno_disuelto", "oxigenoDisuelto"],
-      "[]"
+      ["oxigenoDisuelto", "oxigeno_disuelto"],
+      []
     ),
     oxigeno_disuelto: obtenerValor(
       registro,
-      ["oxigeno_disuelto", "oxigenoDisuelto"],
-      "[]"
+      ["oxigenoDisuelto", "oxigeno_disuelto"],
+      []
     ),
     timestamp: obtenerValor(
       registro,
@@ -760,10 +747,7 @@ async function getParasitologias() {
 }
 
 async function getFisicoQuimicos() {
-  const registros = await obtenerRegistrosLocalesOpciones([
-    "fisicoQuimico",
-    "fisicoQuimicos",
-  ]);
+  const registros = await getLecturasLocal();
 
   return registros.map(mapearFisicoQuimico);
 }

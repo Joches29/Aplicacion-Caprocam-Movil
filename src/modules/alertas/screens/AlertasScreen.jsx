@@ -119,7 +119,16 @@ function DropdownAlertas({
     <Card style={styles.dropdownCard}>
       <Button
         variant="ghost"
-        style={styles.dropdownHeader}
+        style={[
+          styles.dropdownHeader,
+          {
+            marginTop: 0,
+            paddingVertical: 14,
+            paddingHorizontal: 14,
+            borderWidth: 0,
+            backgroundColor: "transparent",
+          },
+        ]}
         onPress={onToggle}
       >
         <View
@@ -205,7 +214,18 @@ function AlertaItem({ alerta, onDismiss, onPressAlerta }) {
     <View style={obtenerEstiloAlerta(alerta.tipo)}>
       <Button
         variant="ghost"
-        style={styles.alertBodyButton}
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "flex-start",
+          minHeight: 0,
+          marginTop: 0,
+          paddingHorizontal: 0,
+          paddingVertical: 0,
+          borderWidth: 0,
+          backgroundColor: "transparent",
+        }}
         onPress={function () {
           onPressAlerta(alerta);
         }}
@@ -247,7 +267,16 @@ function AlertaItem({ alerta, onDismiss, onPressAlerta }) {
 
       <Button
         variant="ghost"
-        style={styles.dismissButton}
+        style={[
+          styles.dismissButton,
+          {
+            minHeight: 26,
+            marginTop: 0,
+            paddingHorizontal: 0,
+            paddingVertical: 0,
+            borderWidth: 0,
+          },
+        ]}
         onPress={function () {
           onDismiss(alerta.id);
         }}
@@ -398,6 +427,22 @@ export default function AlertasScreen() {
       }
 
       router.push("/registros/Parasitologia");
+      return;
+    }
+
+    if (alerta.modulo === "fisicoQuimica") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/registros/EditarFisicoQuimica",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/registros/FisicoQuimica");
       return;
     }
 
