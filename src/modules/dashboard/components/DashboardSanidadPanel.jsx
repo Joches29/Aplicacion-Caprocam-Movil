@@ -7,13 +7,14 @@ Autor: Gerald Andres Alfaro Solorzano
 Fecha: 31/07/2026
 Modulo: Dashboard
 Descripcion:
-Renderiza el detalle de casos sanitarios y mortalidad
-registrada dentro del Dashboard.
+Renderiza el detalle de casos sanitarios registrados
+de enfermedades y parasitologia dentro del Dashboard.
 //////////////////////////////////////////////////////////
 */
 
 import { View } from "react-native";
 
+import Button from "../../../shared/components/Button";
 import Card from "../../../shared/components/Card";
 import Icon from "../../../shared/components/Icons";
 import CustomText from "../../../shared/components/Text";
@@ -24,10 +25,7 @@ import { ICONS } from "../../../theme/icons";
 
 import {
   formatearFechaCorta,
-  formatearNumero,
   obtenerCasosSanitarios,
-  obtenerMortalidadTotal,
-  obtenerRegistrosMortalidad,
   obtenerTextoSeguro,
 } from "../utils/DashboardUtils";
 
@@ -123,11 +121,12 @@ function obtenerCantidadFrecuente(item) {
   return Number.isFinite(cantidad) ? cantidad : 0;
 }
 
-function CasosSanitariosPanel({
+export default function DashboardSanidadPanel({
   resumenEnfermedades,
   resumenParasitologia,
   registrosEnfermedades,
   registrosParasitologia,
+  onPressCaso,
 }) {
   const enfermedadesFrecuentes = Array.isArray(
     resumenEnfermedades?.enfermedadesFrecuentes
@@ -282,9 +281,18 @@ function CasosSanitariosPanel({
           const tipo = obtenerTextoSeguro(caso.tipo, "enfermedad");
 
           return (
-            <View
+            <Button
               key={caso.id ?? `caso-sanitario-${index}`}
-              style={styles.caseRow}
+              variant="ghost"
+              style={[
+                styles.caseRow,
+                {
+                  marginTop: 0,
+                  borderWidth: 0,
+                  justifyContent: "flex-start",
+                },
+              ]}
+              onPress={() => onPressCaso?.(caso)}
             >
               <Icon
                 icon={ICONS.alertTriangle}
@@ -337,128 +345,10 @@ function CasosSanitariosPanel({
                   </CustomText>
                 </View>
               </View>
-            </View>
+            </Button>
           );
         })
       )}
     </Card>
-  );
-}
-
-function MortalidadPanel({ resumenEnfermedades, registrosEnfermedades }) {
-  const registrosMortalidad =
-    obtenerRegistrosMortalidad(registrosEnfermedades);
-
-  const totalMortalidad = obtenerMortalidadTotal(resumenEnfermedades);
-
-  return (
-    <Card style={styles.detailCard}>
-      <SectionHeader
-        icon={ICONS.mortality}
-        title="Mortalidad registrada"
-        color={COLORS.error}
-      />
-
-      <View style={styles.divider} />
-
-      <View style={styles.mortalityTotalBox}>
-        <Icon icon={ICONS.report} size={34} color={COLORS.error} />
-
-        <View style={styles.totalBoxText}>
-          <CustomText size={32} weight="900" color={COLORS.error}>
-            {formatearNumero(totalMortalidad)}
-          </CustomText>
-
-          <CustomText size={13} color={COLORS.error}>
-            individuos totales registrados
-          </CustomText>
-        </View>
-      </View>
-
-      <CustomText
-        size={13}
-        color={COLORS.textTertiary}
-        style={styles.panelSubtitleSecondary}
-      >
-        POR ESTANQUE
-      </CustomText>
-
-      {registrosMortalidad.length === 0 ? (
-        <EmptyMessage text="No hay mortalidad registrada en enfermedades." />
-      ) : (
-        registrosMortalidad.map(function (item, index) {
-          const estanque = obtenerTextoSeguro(
-            item.estanque,
-            "Sin estanque"
-          );
-          const finca = obtenerTextoSeguro(item.finca, "Sin finca");
-          const nombre = obtenerTextoSeguro(
-            item.nombre,
-            "Enfermedad registrada"
-          );
-
-          return (
-            <View
-              key={item.id ?? `mortalidad-${index}`}
-              style={styles.mortalityRow}
-            >
-              <Icon icon={ICONS.shrimp} size={18} color={COLORS.error} />
-
-              <View style={styles.rowContent}>
-                <CustomText
-                  size={15}
-                  weight="700"
-                  color={COLORS.textSecondary}
-                  numberOfLines={1}
-                >
-                  {estanque} · {finca}
-                </CustomText>
-
-                <CustomText
-                  size={12}
-                  color={COLORS.textTertiary}
-                  style={styles.rowDescription}
-                  numberOfLines={1}
-                >
-                  {nombre} · {formatearFechaCorta(item.fecha)}
-                </CustomText>
-              </View>
-
-              <View style={styles.rowRight}>
-                <CustomText size={17} weight="900" color={COLORS.error}>
-                  {formatearNumero(item.mortalidad)}
-                </CustomText>
-
-                <CustomText size={11} color={COLORS.textTertiary}>
-                  ind.
-                </CustomText>
-              </View>
-            </View>
-          );
-        })
-      )}
-    </Card>
-  );
-}
-
-export default function DashboardSanidadPanel({
-  tipo,
-  resumenEnfermedades,
-  resumenParasitologia,
-  registrosEnfermedades,
-  registrosParasitologia,
-}) {
-  return tipo === "mortalidad" ? (
-    <MortalidadPanel
-      resumenEnfermedades={resumenEnfermedades}
-      registrosEnfermedades={registrosEnfermedades}
-    />
-  ) : (
-    <CasosSanitariosPanel
-      resumenEnfermedades={resumenEnfermedades}
-      resumenParasitologia={resumenParasitologia}
-      registrosEnfermedades={registrosEnfermedades}
-      registrosParasitologia={registrosParasitologia}
-    />
   );
 }

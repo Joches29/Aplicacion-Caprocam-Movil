@@ -124,6 +124,7 @@ MAPEADORES LOCALES
 
 function mapearFinca(registro) {
   const servidorId = obtenerValor(registro, ["servidor_id", "servidorId"], null);
+
   const nombre = obtenerValor(
     registro,
     ["nombre", "nombre_finca", "nombreFinca"],
@@ -167,21 +168,25 @@ function mapearFinca(registro) {
 
 function mapearEstanque(registro) {
   const servidorId = obtenerValor(registro, ["servidor_id", "servidorId"], null);
+
   const fincaId = obtenerValor(
     registro,
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const tipoEstanque = obtenerValor(
     registro,
     ["tipo_estanque", "tipoEstanque"],
     ""
   );
+
   const fuenteAgua = obtenerValor(
     registro,
     ["fuente_agua", "fuenteAgua"],
     ""
   );
+
   const fechaMantenimiento = obtenerValor(
     registro,
     ["fecha_mantenimiento", "fechaMantenimiento"],
@@ -225,15 +230,18 @@ function mapearAlimentacion(registro) {
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const estanqueId = obtenerValor(
     registro,
     ["estanque_id", "estanqueId", "idEstanque"],
     null
   );
+
   const cantidadKg = convertirNumero(
     obtenerValor(registro, ["cantidad_kg", "cantidadKg", "cantidad"], 0),
     0
   );
+
   const fecha = obtenerValor(
     registro,
     ["fecha", "fecha_registro", "fechaRegistro"],
@@ -273,16 +281,19 @@ function mapearSiembra(registro) {
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const estanqueId = obtenerValor(
     registro,
     ["estanque_id", "estanqueId", "idEstanque"],
     null
   );
+
   const fechaSiembra = obtenerValor(
     registro,
     ["fecha_siembra", "fechaSiembra", "fecha"],
     null
   );
+
   const duracionCiclo = convertirNumero(
     obtenerValor(
       registro,
@@ -348,11 +359,13 @@ function mapearInventario(registro) {
     ["producto_id", "productoId"],
     null
   );
+
   const proveedorId = obtenerValor(
     registro,
     ["proveedor_id", "proveedorId"],
     null
   );
+
   const nombre = obtenerValor(
     registro,
     ["nombre", "nombreProducto", "nombre_producto"],
@@ -399,21 +412,25 @@ function mapearEquipo(registro) {
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const estanqueId = obtenerValor(
     registro,
     ["estanque_id", "estanqueId", "idEstanque"],
     null
   );
+
   const nombre = obtenerValor(
     registro,
     ["nombre_equipo", "nombreEquipo", "nombre"],
     "Equipo"
   );
+
   const tipo = obtenerValor(
     registro,
     ["tipo_equipo", "tipoEquipo", "tipo"],
     "Otro"
   );
+
   const identificador = obtenerValor(
     registro,
     ["identificador", "serie"],
@@ -473,30 +490,26 @@ function mapearEnfermedad(registro) {
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const estanqueId = obtenerValor(
     registro,
     ["estanque_id", "estanqueId", "idEstanque"],
     null
   );
+
   const fechaReporte = obtenerValor(
     registro,
     ["fecha_reporte", "fechaReporte", "fecha"],
     null
   );
+
   const enfermedad = obtenerValor(
     registro,
     ["enfermedad"],
     "Enfermedad registrada"
   );
+
   const severidad = obtenerValor(registro, ["severidad"], "");
-  const mortalidadRegistrada = convertirNumero(
-    obtenerValor(
-      registro,
-      ["mortalidad_registrada", "mortalidadRegistrada", "mortalidad"],
-      0
-    ),
-    0
-  );
 
   return {
     ...registro,
@@ -516,9 +529,7 @@ function mapearEnfermedad(registro) {
     enfermedadNombre: capitalizar(enfermedad),
     severidad,
     severidadNombre: capitalizar(severidad),
-    mortalidadRegistrada,
-    mortalidad_registrada: mortalidadRegistrada,
-    mortalidad: mortalidadRegistrada,
+    responsable: obtenerValor(registro, ["responsable"], ""),
     reporte: obtenerValor(registro, ["reporte"], ""),
     timestamp: obtenerValor(
       registro,
@@ -534,17 +545,21 @@ function mapearParasitologia(registro) {
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const estanqueId = obtenerValor(
     registro,
     ["estanque_id", "estanqueId", "idEstanque"],
     null
   );
+
   const fechaReporte = obtenerValor(
     registro,
     ["fecha_reporte", "fechaReporte", "fecha"],
     null
   );
+
   const parasito = obtenerValor(registro, ["parasito"], "otro");
+
   const gradoInfeccion = obtenerValor(
     registro,
     ["grado_infeccion", "gradoInfeccion"],
@@ -567,57 +582,10 @@ function mapearParasitologia(registro) {
     fecha_reporte: fechaReporte,
     parasito,
     parasitoNombre: capitalizar(parasito),
-    camaronesMuestreados: convertirNumero(
-      obtenerValor(
-        registro,
-        ["camarones_muestreados", "camaronesMuestreados"],
-        0
-      ),
-      0
-    ),
-    camarones_muestreados: convertirNumero(
-      obtenerValor(
-        registro,
-        ["camarones_muestreados", "camaronesMuestreados"],
-        0
-      ),
-      0
-    ),
-    camaronesInfectados: convertirNumero(
-      obtenerValor(
-        registro,
-        ["camarones_infectados", "camaronesInfectados"],
-        0
-      ),
-      0
-    ),
-    camarones_infectados: convertirNumero(
-      obtenerValor(
-        registro,
-        ["camarones_infectados", "camaronesInfectados"],
-        0
-      ),
-      0
-    ),
-    porcentajeInfeccion: convertirNumero(
-      obtenerValor(
-        registro,
-        ["porcentaje_infeccion", "porcentajeInfeccion"],
-        0
-      ),
-      0
-    ),
-    porcentaje_infeccion: convertirNumero(
-      obtenerValor(
-        registro,
-        ["porcentaje_infeccion", "porcentajeInfeccion"],
-        0
-      ),
-      0
-    ),
     gradoInfeccion,
     grado_infeccion: gradoInfeccion,
     nombreGrado: capitalizar(gradoInfeccion),
+    responsable: obtenerValor(registro, ["responsable"], ""),
     observaciones: obtenerValor(registro, ["observaciones"], ""),
     timestamp: obtenerValor(
       registro,
@@ -633,11 +601,13 @@ function mapearFisicoQuimico(registro) {
     ["finca_id", "fincaId", "idFinca"],
     null
   );
+
   const estanqueId = obtenerValor(
     registro,
     ["estanque_id", "estanqueId", "idEstanque"],
     null
   );
+
   const fecha = obtenerValor(
     registro,
     ["fecha", "fecha_registro", "fechaRegistro"],
@@ -713,22 +683,9 @@ function contarFrecuencias(registros, campoPrincipal, campoAlterno = null) {
 async function getResumenEnfermedades() {
   const registros = await getEnfermedades();
 
-  const totalMortalidad = registros.reduce((total, item) => {
-    return total + convertirNumero(
-      obtenerValor(
-        item,
-        ["mortalidad_registrada", "mortalidadRegistrada", "mortalidad"],
-        0
-      ),
-      0
-    );
-  }, 0);
-
   return {
     totalCasos: registros.length,
     totalRegistros: registros.length,
-    totalMortalidad,
-    totalMortalidadRegistrada: totalMortalidad,
     enfermedadesFrecuentes: contarFrecuencias(registros, "enfermedad"),
     severidadesFrecuentes: contarFrecuencias(registros, "severidad"),
   };
@@ -737,51 +694,8 @@ async function getResumenEnfermedades() {
 async function getResumenParasitologias() {
   const registros = await getParasitologias();
 
-  const totalMuestreados = registros.reduce((total, item) => {
-    return total + convertirNumero(
-      obtenerValor(
-        item,
-        ["camarones_muestreados", "camaronesMuestreados"],
-        0
-      ),
-      0
-    );
-  }, 0);
-
-  const totalInfectados = registros.reduce((total, item) => {
-    return total + convertirNumero(
-      obtenerValor(
-        item,
-        ["camarones_infectados", "camaronesInfectados"],
-        0
-      ),
-      0
-    );
-  }, 0);
-
-  const sumaPorcentaje = registros.reduce((total, item) => {
-    return total + convertirNumero(
-      obtenerValor(
-        item,
-        ["porcentaje_infeccion", "porcentajeInfeccion"],
-        0
-      ),
-      0
-    );
-  }, 0);
-
-  const promedioInfeccion = registros.length > 0
-    ? Number((sumaPorcentaje / registros.length).toFixed(2))
-    : 0;
-
   return {
     totalRegistros: registros.length,
-    totalMuestreados,
-    totalCamaronesMuestreados: totalMuestreados,
-    totalInfectados,
-    totalCamaronesInfectados: totalInfectados,
-    porcentajePromedio: promedioInfeccion,
-    promedioInfeccion,
     parasitosFrecuentes: contarFrecuencias(registros, "parasito"),
     gradosFrecuentes: contarFrecuencias(
       registros,

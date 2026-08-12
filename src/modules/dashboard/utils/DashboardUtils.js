@@ -101,8 +101,6 @@ export function obtenerResumenEnfermedadesVacio() {
   return {
     totalCasos: 0,
     totalRegistros: 0,
-    totalMortalidad: 0,
-    totalMortalidadRegistrada: 0,
     enfermedadesFrecuentes: [],
     severidadesFrecuentes: [],
   };
@@ -111,12 +109,6 @@ export function obtenerResumenEnfermedadesVacio() {
 export function obtenerResumenParasitologiasVacio() {
   return {
     totalRegistros: 0,
-    totalMuestreados: 0,
-    totalCamaronesMuestreados: 0,
-    totalInfectados: 0,
-    totalCamaronesInfectados: 0,
-    porcentajePromedio: 0,
-    promedioInfeccion: 0,
     parasitosFrecuentes: [],
     gradosFrecuentes: [],
   };
@@ -138,6 +130,7 @@ export function construirFincasDashboard(fincas, estanques) {
 
   estanquesSeguros.forEach(function (estanque) {
     const fincaNombre = obtenerTextoSeguro(estanque.fincaNombre, estanque.finca);
+
     const existe = resultado.some(function (finca) {
       return finca.nombre === fincaNombre;
     });
@@ -165,6 +158,7 @@ export function contarEstanquesPorFinca(finca, estanques) {
   return estanquesSeguros.filter(function (estanque) {
     const estanqueFincaId = Number(estanque.fincaId ?? estanque.idFinca);
     const estanqueFincaNombre = obtenerTextoSeguro(estanque.fincaNombre, estanque.finca);
+
     return fincaId > 0 && estanqueFincaId > 0 ? fincaId === estanqueFincaId : fincaNombre === estanqueFincaNombre;
   }).length;
 }
@@ -225,6 +219,7 @@ export function obtenerAlimentacionSemanal(alimentaciones) {
     }
 
     const diaRegistro = obtenerDiaSemana(registro.fecha);
+
     const dia = dias.find(function (item) {
       return item.dia === diaRegistro;
     });
@@ -257,10 +252,6 @@ export function obtenerTotalCasosSanitarios(resumenEnfermedades, resumenParasito
   return totalEnfermedades + totalParasitologias;
 }
 
-export function obtenerMortalidadTotal(resumenEnfermedades) {
-  return obtenerNumeroSeguro(resumenEnfermedades?.totalMortalidad ?? resumenEnfermedades?.totalMortalidadRegistrada);
-}
-
 export function obtenerCasosSanitarios(registrosEnfermedades, registrosParasitologias) {
   const enfermedades = Array.isArray(registrosEnfermedades) ? registrosEnfermedades : [];
   const parasitologias = Array.isArray(registrosParasitologias) ? registrosParasitologias : [];
@@ -270,6 +261,7 @@ export function obtenerCasosSanitarios(registrosEnfermedades, registrosParasitol
 
     return {
       id: `enfermedad-${registro.id}`,
+      registroId: registro.id,
       tipo: "enfermedad",
       nombre: obtenerTextoSeguro(registro.enfermedadNombre, registro.enfermedad),
       finca: obtenerTextoSeguro(registro.fincaNombre, registro.finca),
@@ -287,6 +279,7 @@ export function obtenerCasosSanitarios(registrosEnfermedades, registrosParasitol
 
     return {
       id: `parasitologia-${registro.id}`,
+      registroId: registro.id,
       tipo: "parasitologia",
       nombre: obtenerTextoSeguro(registro.parasitoNombre, registro.parasito),
       finca: obtenerTextoSeguro(registro.fincaNombre, registro.finca),
@@ -298,31 +291,11 @@ export function obtenerCasosSanitarios(registrosEnfermedades, registrosParasitol
     };
   });
 
-  return [...casosEnfermedades, ...casosParasitologias].sort(function (a, b) {
-    return b.fechaOrden - a.fechaOrden;
-  }).slice(0, 6);
-}
-
-export function obtenerRegistrosMortalidad(registrosEnfermedades) {
-  const lista = Array.isArray(registrosEnfermedades) ? registrosEnfermedades : [];
-
-  return lista.map(function (registro) {
-    const fecha = obtenerTextoSeguro(registro.fechaReporte, registro.timestamp);
-
-    return {
-      id: registro.id,
-      nombre: obtenerTextoSeguro(registro.enfermedadNombre, registro.enfermedad),
-      finca: obtenerTextoSeguro(registro.fincaNombre, registro.finca),
-      estanque: obtenerTextoSeguro(registro.estanqueCodigo, registro.estanque),
-      fecha,
-      mortalidad: obtenerNumeroSeguro(registro.mortalidadRegistrada ?? registro.mortalidad),
-      fechaOrden: obtenerTiempo(registro.timestamp ?? fecha),
-    };
-  }).filter(function (registro) {
-    return registro.mortalidad > 0;
-  }).sort(function (a, b) {
-    return b.fechaOrden - a.fechaOrden;
-  }).slice(0, 6);
+  return [...casosEnfermedades, ...casosParasitologias]
+    .sort(function (a, b) {
+      return b.fechaOrden - a.fechaOrden;
+    })
+    .slice(0, 6);
 }
 
 function crearUltimoRegistro(id, modulo, detalle, fecha, fechaVisible) {
@@ -346,36 +319,79 @@ export function obtenerUltimosRegistros(alimentaciones, siembras, enfermedades, 
   alimentacionesSeguras.forEach(function (registro) {
     const fecha = obtenerTextoSeguro(registro.timestamp, registro.fecha);
     const detalle = `${obtenerTextoSeguro(registro.estanque, "Sin estanque")} · ${obtenerTextoSeguro(registro.finca, "Sin finca")}`;
-    registros.push(crearUltimoRegistro(`alimentacion-${registro.id}`, "Alimentacion", detalle, fecha, registro.hora));
+
+    registros.push(
+      crearUltimoRegistro(
+        `alimentacion-${registro.id}`,
+        "Alimentacion",
+        detalle,
+        fecha,
+        registro.hora
+      )
+    );
   });
 
   siembrasSeguras.forEach(function (registro) {
     const fecha = obtenerTextoSeguro(registro.fechaSiembra, registro.timestamp);
     const detalle = `${obtenerTextoSeguro(registro.estanque, "Sin estanque")} · ${obtenerTextoSeguro(registro.finca, "Sin finca")}`;
-    registros.push(crearUltimoRegistro(`siembra-${registro.id}`, "Siembra", detalle, fecha));
+
+    registros.push(
+      crearUltimoRegistro(
+        `siembra-${registro.id}`,
+        "Siembra",
+        detalle,
+        fecha
+      )
+    );
   });
 
   enfermedadesSeguras.forEach(function (registro) {
     const fecha = obtenerTextoSeguro(registro.timestamp, registro.fechaReporte);
     const detalle = `${obtenerTextoSeguro(registro.estanque, "Sin estanque")} · ${obtenerTextoSeguro(registro.fincaNombre, registro.finca)}`;
-    registros.push(crearUltimoRegistro(`enfermedad-${registro.id}`, "Enfermedades", detalle, fecha));
+
+    registros.push(
+      crearUltimoRegistro(
+        `enfermedad-${registro.id}`,
+        "Enfermedades",
+        detalle,
+        fecha
+      )
+    );
   });
 
   parasitologiasSeguras.forEach(function (registro) {
     const fecha = obtenerTextoSeguro(registro.timestamp, registro.fechaReporte);
     const detalle = `${obtenerTextoSeguro(registro.estanque, "Sin estanque")} · ${obtenerTextoSeguro(registro.fincaNombre, registro.finca)}`;
-    registros.push(crearUltimoRegistro(`parasitologia-${registro.id}`, "Parasitologia", detalle, fecha));
+
+    registros.push(
+      crearUltimoRegistro(
+        `parasitologia-${registro.id}`,
+        "Parasitologia",
+        detalle,
+        fecha
+      )
+    );
   });
 
   fisicoQuimicosSeguros.forEach(function (registro) {
     const fecha = obtenerTextoSeguro(registro.timestamp, registro.fecha);
     const detalle = `${obtenerTextoSeguro(registro.estanque, "Sin estanque")} · ${obtenerTextoSeguro(registro.fincaNombre, registro.finca)}`;
-    registros.push(crearUltimoRegistro(`fisico-quimica-${registro.id}`, "Fisico Quimica", detalle, fecha));
+
+    registros.push(
+      crearUltimoRegistro(
+        `fisico-quimica-${registro.id}`,
+        "Fisico Quimica",
+        detalle,
+        fecha
+      )
+    );
   });
 
-  return registros.sort(function (a, b) {
-    return b.fechaOrden - a.fechaOrden;
-  }).slice(0, 5);
+  return registros
+    .sort(function (a, b) {
+      return b.fechaOrden - a.fechaOrden;
+    })
+    .slice(0, 5);
 }
 
 export function obtenerCategoriasAlertas(alertas) {

@@ -12,7 +12,7 @@ componentes separados y datos preparados desde el hook.
 //////////////////////////////////////////////////////////
 */
 
-import React, { useMemo } from "react";
+import React from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -46,18 +46,11 @@ export default function DashboardScreen() {
       />
     ) : pantalla.selectedCard === "casos" ? (
       <DashboardSanidadPanel
-        tipo="casos"
         resumenEnfermedades={pantalla.resumenEnfermedades}
         resumenParasitologia={pantalla.resumenParasitologia}
         registrosEnfermedades={pantalla.registrosEnfermedades}
         registrosParasitologia={pantalla.registrosParasitologia}
-      />
-    ) : pantalla.selectedCard === "mortalidad" ? (
-      <DashboardSanidadPanel
-        tipo="mortalidad"
-        resumenEnfermedades={pantalla.resumenEnfermedades}
-        registrosEnfermedades={pantalla.registrosEnfermedades}
-        registrosParasitologia={pantalla.registrosParasitologia}
+        onPressCaso={pantalla.irACasoSanitario}
       />
     ) : null;
 
@@ -91,12 +84,9 @@ export default function DashboardScreen() {
           totalFincas={pantalla.fincasDashboard.length}
           totalEstanques={pantalla.estanquesData.length}
           totalCasosSanitarios={pantalla.totalCasosSanitarios}
-          totalMortalidad={pantalla.totalMortalidad}
           onSelect={pantalla.manejarSeleccionCard}
           panelSeleccionado={panelSeleccionado}
         />
-
-        {panelSeleccionado}
 
         <DashboardUltimosRegistros registros={pantalla.ultimosRegistros} />
       </ScrollView>

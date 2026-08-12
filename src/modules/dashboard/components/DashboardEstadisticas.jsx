@@ -20,7 +20,6 @@ import CustomText from "../../../shared/components/Text";
 
 import { COLORS } from "../../../theme/colors";
 import { ICONS } from "../../../theme/icons";
-import { formatearNumero } from "../utils/DashboardUtils";
 import { styles } from "../styles/DashboardStyle";
 
 function StatCard({
@@ -33,7 +32,6 @@ function StatCard({
   cardStyle,
   iconStyle,
   iconColor,
-  danger,
   isTablet,
 }) {
   const cardStyles = [
@@ -41,11 +39,6 @@ function StatCard({
     cardStyle,
     isTablet ? styles.statCardTablet : null,
     selectedId === id ? styles.statCardActive : null,
-  ];
-
-  const valueStyles = [
-    styles.statValue,
-    danger ? styles.statValueDanger : null,
   ];
 
   return (
@@ -63,9 +56,15 @@ function StatCard({
       </View>
 
       <View style={styles.statBottom}>
-        <CustomText style={valueStyles}>{value}</CustomText>
+        <CustomText style={styles.statValue}>
+          {value}
+        </CustomText>
 
-        <CustomText size={12} color={COLORS.textTertiary} style={styles.statLabel}>
+        <CustomText
+          size={12}
+          color={COLORS.textTertiary}
+          style={styles.statLabel}
+        >
           {label}
         </CustomText>
       </View>
@@ -74,11 +73,15 @@ function StatCard({
 }
 
 function PanelDebajoCard({ id, selectedId, children }) {
-  return selectedId === id && children ? (
+  if (selectedId !== id || !children) {
+    return null;
+  }
+
+  return (
     <View style={styles.statPanelInline}>
       {children}
     </View>
-  ) : null;
+  );
 }
 
 export default function DashboardEstadisticas({
@@ -87,7 +90,6 @@ export default function DashboardEstadisticas({
   totalFincas,
   totalEstanques,
   totalCasosSanitarios,
-  totalMortalidad,
   onSelect,
   panelSeleccionado,
 }) {
@@ -141,24 +143,6 @@ export default function DashboardEstadisticas({
       />
 
       <PanelDebajoCard id="casos" selectedId={selectedCard}>
-        {panelSeleccionado}
-      </PanelDebajoCard>
-
-      <StatCard
-        id="mortalidad"
-        selectedId={selectedCard}
-        onPress={onSelect}
-        icon={ICONS.mortality}
-        value={formatearNumero(totalMortalidad)}
-        label="Mortalidad total"
-        cardStyle={styles.cardRed}
-        iconStyle={styles.iconRed}
-        iconColor={COLORS.error}
-        danger={true}
-        isTablet={isTablet}
-      />
-
-      <PanelDebajoCard id="mortalidad" selectedId={selectedCard}>
         {panelSeleccionado}
       </PanelDebajoCard>
     </View>
