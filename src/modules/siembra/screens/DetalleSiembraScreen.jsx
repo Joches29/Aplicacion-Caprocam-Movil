@@ -111,7 +111,7 @@ import { STYLE } from "../../../theme/style";
 import useDetalleSiembra from "../hooks/useDetalleSiembra";
 
 export default function DetalleSiembraScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, tipoRegistro } = useLocalSearchParams();
   const router = useRouter();
 
   const {
@@ -153,7 +153,9 @@ export default function DetalleSiembraScreen() {
     handleCrearSiembraDesdePrecria,
 
     fieldHelpers,
-  } = useDetalleSiembra(id);
+    fincaLabel,
+    estanqueLabel,
+  } = useDetalleSiembra(id, tipoRegistro);
 
   // El resultado de "Finalizar Siembra" (éxito o error) se muestra en
   // la pantalla principal, no aquí - por eso se navega apenas termina
@@ -187,30 +189,7 @@ export default function DetalleSiembraScreen() {
     );
   }
 
-  // Busca el nombre real en los catálogos con comparación flexible y fallback.
-  const fincaObj = fincas.find(
-    (f) => String(f.value) === String(formData.finca) || String(f.id) === String(formData.finca)
-  );
-  const fincaLabel =
-    fincaObj?.label || (formData.finca ? `Finca #${formData.finca}` : "Sin finca");
-
-  const estanqueObj =
-    estanques.find(
-      (e) => String(e.value) === String(formData.estanque) || String(e.id) === String(formData.estanque)
-    ) ||
-    (todosEstanques || []).find(
-      (e) => String(e.id) === String(formData.estanque) || String(e.value) === String(formData.estanque) || String(e.servidorId) === String(formData.estanque)
-    );
-
-  const estanqueLabel =
-    estanqueObj?.label ||
-    (estanqueObj?.codigo
-      ? estanqueObj.codigo.toLowerCase().startsWith("estanque") || estanqueObj.codigo.toLowerCase().startsWith("tanque")
-        ? estanqueObj.codigo
-        : `Estanque ${estanqueObj.codigo}`
-      : null) ||
-    (estanqueObj?.nombre ? estanqueObj.nombre : null) ||
-    (formData.estanque ? `Estanque #${formData.estanque}` : "Sin estanque");
+  // Los labels (fincaLabel, estanqueLabel) vienen calculados desde el hook.
 
   return (
     <>

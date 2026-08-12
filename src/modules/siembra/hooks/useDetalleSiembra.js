@@ -28,8 +28,8 @@
  * de detalle sin manejar lógica de negocio.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useNavigation, useRouter } from "expo-router";
 
 import {
   useFieldValidation,
@@ -277,10 +277,9 @@ function calcularEtapa(progreso) {
   return 1;
 }
 
-export default function useDetalleSiembra() {
+export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = false) {
   const router = useRouter();
   const navigation = useNavigation();
-  const { id, tipoRegistro: tipoRegistroParam } = useLocalSearchParams();
 
   const [siembra, setSiembra] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -992,6 +991,45 @@ export default function useDetalleSiembra() {
     });
   }, [construirParamsSiembraDesdePrecria, router]);
 
+  const fincaObj = fincas.find(
+    (f) => String(f.value) === String(formData?.finca) || String(f.id) === String(formData?.finca)
+  );
+  const fincaLabel =
+    fincaObj?.label || (formData?.finca ? `Finca #${formData.finca}` : "Sin finca");
+
+  const estanqueObj =
+    estanques.find(
+      (e) => String(e.value) === String(formData?.estanque) || String(e.id) === String(formData?.estanque)
+    ) ||
+    (todosEstanques || []).find(
+      (e) => String(e.id) === String(formData?.estanque) || String(e.value) === String(formData?.estanque) || String(e.servidorId) === String(formData?.estanque)
+    );
+
+  const estanqueLabel =
+    estanqueObj?.label ||
+    (estanqueObj?.codigo
+      ? estanqueObj.codigo.toLowerCase().startsWith("estanque") || estanqueObj.codigo.toLowerCase().startsWith("tanque")
+        ? estanqueObj.codigo
+        : `Estanque ${estanqueObj.codigo}`
+      : null) ||
+    (estanqueObj?.nombre ? estanqueObj.nombre : null) ||
+    (formData?.estanque ? `Estanque #${formData.estanque}` : "Sin estanque");
+
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (mensaje !== "" && mensajeVariant === "danger") {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [mensaje, mensajeVariant]);
+
+  const handlePresionarGuardar = useCallback(() => {
+    if (esFinalizar) {
+      handleFinalizarPreCria();
+    } else {
+      guardar();
+    }
+  }, [esFinalizar, handleFinalizarPreCria, guardar]);
+
   return {
     siembra,
     formData,
@@ -1034,5 +1072,11 @@ export default function useDetalleSiembra() {
     handleEliminarLaboratorioLarva,
     handleEliminarProcedenciaLarva,
     fieldHelpers: { hasError, requiredLabel },
+
+    // Nuevos retornos compartidos con las pantallas
+    fincaLabel,
+    estanqueLabel,
+    scrollRef,
+    handlePresionarGuardar,
   };
 }
