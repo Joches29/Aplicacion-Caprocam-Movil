@@ -85,18 +85,20 @@ function parsearFecha(fechaStr) {
   return new Date(anio, mes - 1, dia);
 }
 
-// Días transcurridos entre fechaInicio (dd/mm/aaaa) y hoy. Nunca
+// Días transcurridos entre fechaInicio (dd/mm/aaaa) y hoy (o fechaFinStr si se provee). Nunca
 // negativo (si fechaInicio es futura, devuelve 0).
-export function diasTranscurridosDesde(fechaInicioStr) {
+export function diasTranscurridosDesde(fechaInicioStr, fechaFinStr = null) {
   const fechaInicio = parsearFecha(fechaInicioStr);
   if (!fechaInicio) return 0;
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const fechaFinal = fechaFinStr ? parsearFecha(fechaFinStr) : new Date();
+  if (!fechaFinal) return 0;
+
+  fechaFinal.setHours(0, 0, 0, 0);
   fechaInicio.setHours(0, 0, 0, 0);
 
   const msPorDia = 1000 * 60 * 60 * 24;
-  const dias = Math.floor((hoy - fechaInicio) / msPorDia);
+  const dias = Math.floor((fechaFinal - fechaInicio) / msPorDia);
 
   return dias < 0 ? 0 : dias;
 }

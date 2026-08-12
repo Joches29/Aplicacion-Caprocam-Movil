@@ -12,7 +12,7 @@
  *
  * No depende de React ni componentes visuales.
  */
-import { diasTranscurridosDesde } from "./dateUtils";
+import { diasTranscurridosDesde, formatearFechaDesdeISO } from "./dateUtils";
 
 /**
  * Inverso de calcularCantidadSembrada: a partir de la cantidad de
@@ -59,7 +59,18 @@ export function calcularProgresoCiclo(registro) {
     ? registro.fechaInicio
     : registro.fechaSiembra;
 
-  const diasCalculados = diasTranscurridosDesde(fechaInicioStr);
+  let fechaFinStr = null;
+  if (esPrecria && registro.fechaFin) {
+    fechaFinStr = registro.fechaFin;
+  } else if (!esPrecria && String(registro.estado || "").toLowerCase() === "finalizada") {
+    // Para siembras finalizadas, usamos la fecha de actualización si no hay fecha_fin.
+    const fechaFinRaw = registro.fechaFin || registro.fecha_fin || registro.fecha_actualizacion || registro.updated_at;
+    fechaFinStr = fechaFinRaw && String(fechaFinRaw).includes("-") 
+      ? formatearFechaDesdeISO(fechaFinRaw) 
+      : fechaFinRaw;
+  }
+
+  const diasCalculados = diasTranscurridosDesde(fechaInicioStr, fechaFinStr);
   const diaActual =
     totalDias > 0 ? Math.min(diasCalculados, totalDias) : diasCalculados;
 
