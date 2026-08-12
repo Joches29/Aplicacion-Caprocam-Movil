@@ -131,7 +131,7 @@ export default function CardDensidadPoblacional({ fincaId, estanqueId, onEditar,
                             <Text style={styles.label}>Área muestreada</Text>
                             <Text style={styles.value}>{registro.areaMuestreada} m²</Text>
                         </View>
-                        
+
                         <View style={styles.infoItem}>
                             <Text style={styles.label}>Notas del conteo</Text>
                             <Text style={styles.value}>{registro.notasConteo}</Text>
@@ -147,7 +147,7 @@ export default function CardDensidadPoblacional({ fincaId, estanqueId, onEditar,
                             <Text
                                 style={[
                                     styles.muestreoHeaderText,
-                                    styles.muestreoNumero,
+                                    styles.tiroNumero,
                                 ]}
                             >
                                 #
@@ -156,7 +156,7 @@ export default function CardDensidadPoblacional({ fincaId, estanqueId, onEditar,
                             <Text
                                 style={[
                                     styles.muestreoHeaderText,
-                                    styles.muestreoCantidad,
+                                    styles.tiroCantidad,
                                 ]}
                             >
                                 Cantidad de Camarones
@@ -168,11 +168,11 @@ export default function CardDensidadPoblacional({ fincaId, estanqueId, onEditar,
                                 key={tiro.numeroTiro}
                                 style={styles.muestreoRow}
                             >
-                                <Text style={styles.muestreoNumero}>
+                                <Text style={styles.tiroNumero}>
                                     {index + 1}
                                 </Text>
 
-                                <Text style={styles.muestreoCantidad}>
+                                <Text style={styles.tiroCantidad}>
                                     {tiro.cantidadCamarones}
                                 </Text>
                             </View>
@@ -197,7 +197,7 @@ export default function CardDensidadPoblacional({ fincaId, estanqueId, onEditar,
 
                         <Button
                             style={styles.Editar}
-                            onPress={() => {onEditar(registro.id)}}
+                            onPress={() => { onEditar(registro.id) }}
                         >
                             <Icon icon={ICONS.edit} color={COLORS.primary} size={20} />
                             <Text size={12} color={COLORS.primary}>
