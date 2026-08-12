@@ -1,5 +1,3 @@
-
-
 /**
  * ============================================================
  * LOOKUP DE PROVEEDORES (uso interno del módulo Productos)
@@ -10,39 +8,67 @@
  * Proveedores como tal no es responsabilidad de este equipo. Solo
  * se usa GET, nunca se crea/edita/borra un proveedor desde acá.
  *
- * El shape de la respuesta es idéntico al de /productos:
- * { success, message, data }, así que se lee igual.
- *
+ * IMPORTANTE:
+ * - Versión SQLite (offline-first), igual que producto.service.js.
+ *   Antes llamaba a /proveedores por HTTP (api.js), pero el resto
+ *   del módulo ya corre 100% contra la base local -- esa llamada
+ *   HTTP fallaba en silencio (sin backend/token real) y por eso
+ *   el proveedor no se veía ni en el detalle ni en los selects de
+ *   Agregar/Editar Producto.
+ * - Se filtra por grupo_datos de la sesión activa, igual que
+ *   producto.service.js, para no mezclar datos entre fincas.
+ * - Mantiene los mismos nombres de función y el mismo shape de
+ *   respuesta que la versión anterior, para no tener que tocar
+ *   useAgregarProducto.js, useEditarProducto.js ni
+ *   useDetalleProductoScreen.js.
  * ============================================================
  */
 
-import api from "../../../api/api";
+import { localApi } from "../../../database/local/localApi.service";
+import { obtenerGrupoDatosSesion } from "../../../shared/utils/sessionUtils";
 
-function mapProveedor(apiProveedor) {
-  if (!apiProveedor) return null;
+let baseInicializada = false;
+
+async function asegurarBaseInicializada() {
+  if (baseInicializada) return;
+  await localApi.inicializar();
+  baseInicializada = true;
+}
+
+function mapProveedor(row) {
+  if (!row) return null;
   return {
-    id: apiProveedor.id,
-    nombre: apiProveedor.nombreEmpresa,
-    tipoProducto: apiProveedor.tipoProducto ?? "",
+    id: row.id,
+    nombre: row.nombre_empresa,
+    tipoProducto: row.tipo_producto ?? "",
   };
 }
 
 export async function getProveedores() {
-  try {
-    const response = await api.get("/proveedores");
-    return (response.data.data || []).map(mapProveedor);
-  } catch (error) {
-    throw error;
+  await asegurarBaseInicializada();
+  const grupoDatos = await obtenerGrupoDatosSesion();
+
+  const resultado = await localApi.proveedores.obtenerTodos({
+    grupo_datos: grupoDatos,
+  });
+
+  if (!resultado?.success) {
+    throw new Error("No se pudieron obtener los proveedores.");
   }
+
+  return (resultado.data || []).map(mapProveedor);
 }
 
 export async function getProveedorPorId(id) {
-  try {
-    const response = await api.get(`/proveedores/${id}`);
-    return mapProveedor(response.data.data);
-  } catch (error) {
-    throw error;
+  await asegurarBaseInicializada();
+
+  const resultado = await localApi.proveedores.obtenerPorId(Number(id));
+
+  if (!resultado?.success) {
+    throw new Error("No se pudo obtener el proveedor.");
   }
+
+  return mapProveedor(resultado.data);
 }
 
 // Quita tildes y pasa a minúsculas, para comparar "Alimentación" con
