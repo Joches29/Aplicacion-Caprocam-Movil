@@ -6,10 +6,21 @@
  * Centraliza la lógica para editar registros locales de raleo
  * usando SQLite.
  *
+ * RECONECTADO: la version "web" de este hook cargaba y guardaba
+ * el registro con Raleo.service.js (HTTP). Se restaura el uso de
+ * RaleoLocalService (SQLite), igual que useRaleoScreen.js para
+ * crear, e igual que la version local original de este modulo.
+ *
+ * CORREGIDO: RaleoForm.jsx y este hook leian/escribian
+ * `form.biomasaAntes`, un campo que no existe en el estado que
+ * expone useRaleo.js (el campo real es `biomasaEstimada`). Se
+ * unifica todo a `biomasaEstimada`.
+ *
  * Mantiene la misma API que espera EditarRaleoScreen:
  *
  * - form
  * - updateField
+ * - porcentajeRaleo
  * - biomasaRestante
  * - submitted
  * - errores
@@ -33,22 +44,21 @@
  * ============================================================
  */
 
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import useRaleo from "./useRaleo";
+import { calcularRaleo } from "./useRaleoScreen";
 
 import RaleoLocalService from "../services/RaleoLocal.service";
 
 import { localApi } from "../../../database/local/localApi.service";
-
+import { useError } from "../../../shared/context/ErrorContext.js";
 
 /*
 ============================================================
 HELPERS
 ============================================================
 */
-
 
 function obtenerValor(objeto, llaves, valorDefecto = null) {
     if (!objeto) return valorDefecto;
@@ -72,14 +82,13 @@ FECHAS
 */
 
 function formatearFechaUI(fecha) {
-
     if (!fecha) return "";
     if (
         typeof fecha === "string" &&
         /^\d{4}-\d{2}-\d{2}/.test(fecha)
     ) {
         const [anio, mes, dia] = fecha
-            .slice(0,10)
+            .slice(0, 10)
             .split("-");
         return `${dia}/${mes}/${anio}`;
     }
@@ -87,13 +96,12 @@ function formatearFechaUI(fecha) {
 }
 
 function convertirFechaBackend(fecha) {
-
     if (!fecha) return "";
     if (
         fecha.includes("-") &&
         !fecha.includes("/")
     ) {
-        return fecha.slice(0,10);
+        return fecha.slice(0, 10);
     }
     const partes = fecha.split("/");
     if (partes.length !== 3) {
@@ -110,121 +118,67 @@ MAPPER FORMULARIO
 */
 
 function registroAForm(registro) {
-
     if (!registro) return {};
     return {
         finca: String(
-            obtenerValor(
-                registro,
-                [
-                    "fincaId",
-                    "finca_id"
-                ],
-                ""
-            )
+            obtenerValor(registro, ["fincaId", "finca_id"], "")
         ),
         estanque: String(
-            obtenerValor(
-                registro,
-                [
-                    "estanqueId",
-                    "estanque_id"
-                ],
-                ""
-            )
+            obtenerValor(registro, ["estanqueId", "estanque_id"], "")
         ),
         fecha: formatearFechaUI(
+            obtenerValor(registro, ["fecha"], "")
+        ),
+        biomasaEstimada: String(
             obtenerValor(
                 registro,
-                [
-                    "fecha"
-                ],
+                ["biomasaEstimada", "biomasa_estimada"],
                 ""
             )
         ),
-        porcentajeRaleo: String(
+        kgRetirados: String(
             obtenerValor(
                 registro,
-                [
-                    "porcentaje"
-                ],
+                ["kgRetirados", "kg_retirados"],
                 ""
             )
-        ),
-        pesoPromedio: String(
-            obtenerValor(
-                registro,
-                [
-                    "pesoEstimado",
-                    "peso_estimado"
-                ],
-                ""
-            )
-        ),
-        biomasaActual: String(
-            obtenerValor(
-                registro,
-                [
-                    "biomasaEstimada",
-                    "biomasa_estimada"
-                ],
-                ""
-            )
-        ),
-        objetivo: obtenerValor(
-            registro,
-            [
-                "objetivo"
-            ],
-            ""
-        ),
-        metodo: obtenerValor(
-            registro,
-            [
-                "metodo",
-                "metodos"
-            ],
-            ""
         ),
         observaciones: obtenerValor(
             registro,
-            [
-                "observaciones"
-            ],
+            ["observaciones"],
             ""
-        )
+        ),
     };
 }
+
 /*
 ============================================================
 DTO UPDATE
 ============================================================
 */
 
-function formADto(form) {
+function formADto(form, porcentajeRaleo, biomasaRestante) {
+    /*
+    Solo se envian los datos que el usuario captura mas los
+    calculados (porcentaje y biomasa restante), calculados con
+    la misma formula que en el alta (calcularRaleo), para que
+    exista una sola fuente de verdad.
+    */
     return {
         fincaId: Number(form.finca),
         estanqueId: Number(form.estanque),
-        fecha: convertirFechaBackend(
-            form.fecha
-        ),
-        porcentaje: Number(
-            form.porcentajeRaleo
-        ),
-        pesoEstimado: Number(
-            form.pesoPromedio
-        ),
-        biomasaEstimada: Number(
-            form.biomasaActual
-        ),
-        objetivo: form.objetivo,
-        metodo: form.metodo,
+        fecha: convertirFechaBackend(form.fecha),
+        biomasaEstimada: Number(form.biomasaEstimada),
+        kgRetirados: Number(form.kgRetirados),
+        porcentaje: porcentajeRaleo !== "" ? Number(porcentajeRaleo) : null,
+        biomasaRestante: biomasaRestante !== "" ? Number(biomasaRestante) : null,
         observaciones:
             form.observaciones?.trim()
                 ? form.observaciones.trim()
-                : "No se realizan observaciones"
+                : "No se realizan observaciones",
     };
 }
+
 /*
 ============================================================
 HOOK PRINCIPAL
@@ -239,6 +193,9 @@ export default function useEditarRaleo(
         updateField,
         validarForm
     } = useRaleo();
+
+    const { mostrarError } = useError();
+
     const [
         submitted,
         setSubmitted
@@ -251,24 +208,25 @@ export default function useEditarRaleo(
         alerta,
         setAlerta
     ] = useState({
-        visible:false,
-        variant:"success",
-        mensaje:""
+        visible: false,
+        variant: "success",
+        mensaje: ""
     });
     const [
         cargando,
         setCargando
     ] = useState(true);
+
     /*
     ========================================================
     CARGAR REGISTRO
     ========================================================
     */
 
-    useEffect(()=>{
+    useEffect(() => {
         let activo = true;
-        async function cargarRegistro(){
-            if(!registroId){
+        async function cargarRegistro() {
+            if (!registroId) {
                 setCargando(false);
                 return;
             }
@@ -279,17 +237,17 @@ export default function useEditarRaleo(
                     await RaleoLocalService.getById(
                         registroId
                     );
-                if(
+                if (
                     !activo ||
                     !registro
-                ){
+                ) {
                     return;
                 }
                 const datos =
                     registroAForm(registro);
                 Object.entries(datos)
                     .forEach(
-                        ([campo,valor])=>{
+                        ([campo, valor]) => {
                             updateField(
                                 campo,
                                 valor
@@ -297,56 +255,42 @@ export default function useEditarRaleo(
                         }
                     );
             }
-            catch(error){
+            catch (error) {
                 console.error(
                     "Error cargando raleo local:",
                     error
                 );
-                if(activo){
+                if (activo) {
                     setAlerta({
-                        visible:true,
-                        variant:"danger",
+                        visible: true,
+                        variant: "danger",
                         mensaje:
-                        "No se pudo cargar el registro."
+                            "No se pudo cargar el registro."
                     });
                 }
             }
-            finally{
-                if(activo){
+            finally {
+                if (activo) {
                     setCargando(false);
                 }
             }
         }
         cargarRegistro();
-        return ()=>{
-            activo=false;
+        return () => {
+            activo = false;
         };
-    },[registroId]);
+    }, [registroId]);
+
     /*
     ========================================================
-    BIOMASA RESTANTE
+    CALCULOS DEL RALEO
     ========================================================
     */
-    const biomasaRestante = useMemo(()=>{
-        const biomasa =
-            Number(form.biomasaActual);
-        const porcentaje =
-            Number(form.porcentajeRaleo);
-        if(
-            Number.isNaN(biomasa) ||
-            Number.isNaN(porcentaje)
-        ){
-            return "";
-        }
-        return (
-            biomasa *
-            (1 - porcentaje / 100)
-        ).toFixed(2);
+    const { porcentaje: porcentajeRaleo, biomasaRestante } = useMemo(
+        () => calcularRaleo(form.biomasaEstimada, form.kgRetirados),
+        [form.biomasaEstimada, form.kgRetirados]
+    );
 
-    },[
-        form.biomasaActual,
-        form.porcentajeRaleo
-    ]);
     /*
     ========================================================
     GUARDAR CAMBIOS
@@ -354,58 +298,60 @@ export default function useEditarRaleo(
     */
 
     const handleGuardar = useCallback(
-    async(onError)=>{
-        setSubmitted(true);
+        async () => {
+            setSubmitted(true);
 
-        const resultado =
-            validarForm();
+            const resultado =
+                validarForm();
 
-        setErrores( resultado.errores);
-        if(!resultado.valido){
-            setAlerta({
-            visible:true,
-            variant:"danger",
-            mensaje:
-            "Rellene los datos requeridos correctamente."
-            });
-            return;
-        }
-
-        try{
-            await RaleoLocalService.update(
-                registroId,
-                formADto(form)
-            );
-            setAlerta({
-                visible:true,
-                variant:"success",
-                mensaje:
-                "Raleo actualizado correctamente."
-            });
-            if(
-                typeof onGuardado === "function"
-            ){
-                onGuardado();
+            setErrores(resultado.errores);
+            if (!resultado.valido) {
+                setAlerta({
+                    visible: true,
+                    variant: "danger",
+                    mensaje:
+                        "Rellene los datos requeridos correctamente."
+                });
+                return;
             }
-        }
-        catch(error){
-            console.error(
-                "Error actualizando raleo local:",
-                error
-            );
-            if(onError){onError(error);}
-            setAlerta({
-                visible:true,
-                variant:"danger",
-                mensaje:
-                "No se pudo actualizar el raleo."
-            });
-        }
-    },
-    [registroId, form, validarForm, onGuardado]);
+
+            try {
+                await RaleoLocalService.update(
+                    registroId,
+                    formADto(form, porcentajeRaleo, biomasaRestante)
+                );
+                setAlerta({
+                    visible: true,
+                    variant: "success",
+                    mensaje:
+                        "Raleo actualizado correctamente."
+                });
+                if (
+                    typeof onGuardado === "function"
+                ) {
+                    onGuardado();
+                }
+            }
+            catch (error) {
+                console.error(
+                    "Error actualizando raleo local:",
+                    error
+                );
+                mostrarError?.(error);
+                setAlerta({
+                    visible: true,
+                    variant: "danger",
+                    mensaje:
+                        "No se pudo actualizar el raleo."
+                });
+            }
+        },
+        [registroId, form, porcentajeRaleo, biomasaRestante, validarForm, onGuardado, mostrarError]);
+
     return {
         form,
         updateField,
+        porcentajeRaleo,
         biomasaRestante,
         submitted,
         errores,

@@ -3,113 +3,265 @@
  * HOOK USERALEOSCREEN
  * ============================================================
  *
- * Orquesta la pantalla principal del módulo de Raleo: estado del
- * formulario (useRaleo), validación, guardado real del registro
- * (Raleo.service.js) y la alerta de feedback tras guardar. Antes
- * vivía como lógica inline dentro de RaleoScreen.jsx; se extrajo
- * aquí para seguir el mismo patrón de separación de hooks que
- * useAlimentacionScreen.js / useDensidadPoblacional.js.
+ * Orquesta la pantalla principal del módulo de Raleo:
  *
- * Funcionalidad:
- * - alerta.visible se mantiene 3s si es "success" y 6s si es
- *   "danger" antes de ocultarse (estándar de duración de alerts
- *   de error en formularios).
- * - Al ocultarse una alerta de éxito, se limpia el formulario,
- *   sin navegar fuera del módulo, para permitir registrar varios
- *   raleos seguidos sin salir de la pantalla.
- * - `observaciones` no es obligatorio: si el usuario no escribe
- *   nada, se completa con "No se realizan observaciones" antes de
- *   persistir el registro.
- * - Los errores que devuelve el backend al guardar se propagan
- *   con throw para que RaleoScreen.jsx los muestre con el
- *   ModalError global (useError().mostrarError), igual que antes.
+ * - Estado del formulario (useRaleo).
+ * - Validación.
+ * - Cálculo del porcentaje.
+ * - Cálculo de la biomasa restante.
+ * - Guardado real del registro.
+ * - Alerta de feedback tras guardar.
  *
- * Retorna:
- * - form, updateField, biomasaRestante: estado del formulario.
- * - submitted, errores: estado de validación.
- * - alerta: { visible, variant, mensaje }.
- * - handleGuardar(onError): valida y persiste el registro; si el
- *   guardado falla, llama a onError(error) en vez de manejarlo.
+ * El usuario digita:
  *
- * Ejemplo:
- * const { form, updateField, handleGuardar, alerta } = useRaleoScreen();
- * handleGuardar(mostrarError);
+ * - biomasaEstimada
+ * - kgRetirados
+ *
+ * El sistema calcula:
+ *
+ * porcentaje = (kgRetirados / biomasaEstimada) * 100
+ *
+ * biomasaRestante = biomasaEstimada - kgRetirados
+ *
+ * Ambos valores calculados se persisten en el registro.
  */
-
 import { useEffect, useState } from "react";
 import useRaleo from "./useRaleo";
 import raleoLocalService from "../services/RaleoLocal.service.js";
+import { useError } from "../../../shared/context/ErrorContext.js";
 
+/*
+ * ============================================================
+ * CONVERTIR FECHA
+ * ============================================================
+ */
 function convertirFecha(fecha) {
   const [dia, mes, anio] = fecha.split("/");
   return `${anio}-${mes}-${dia}`;
 }
+/*
+ * ============================================================
+ * CALCULAR RALEO
+ * ============================================================
+ */
 
+/**
+ * Calcula el porcentaje de raleo y la biomasa restante.
+ *
+ * Formula porcentaje:
+ *
+ * porcentaje = (kgRetirados / biomasaEstimada) * 100
+ *
+ * Formula biomasa restante:
+ *
+ * biomasaRestante = biomasaEstimada - kgRetirados
+ *
+ * @param {number|string} biomasaEstimada
+ * @param {number|string} kgRetirados
+ *
+ * @returns {{
+ *   porcentaje: string,
+ *   biomasaRestante: string
+ * }}
+ */
+
+export function calcularRaleo(
+  biomasaEstimada,
+  kgRetirados
+) {
+  const antes = Number(biomasaEstimada);
+  const retirados = Number(kgRetirados);
+  /*
+   * --------------------------------------------------------
+   * VALIDAR DATOS PARA EL CALCULO
+   * --------------------------------------------------------
+   */
+  const datosIncompletos =
+    biomasaEstimada === "" ||
+    kgRetirados === "" ||
+    Number.isNaN(antes) ||
+    Number.isNaN(retirados) ||
+    antes <= 0 ||
+    retirados <= 0;
+  if (datosIncompletos) {
+    return {
+      porcentaje: "",
+      biomasaRestante: "",
+    };
+  }
+  /*
+   * --------------------------------------------------------
+   * CALCULOS
+   * --------------------------------------------------------
+   */
+  return {
+    porcentaje: (
+      (retirados / antes) * 100
+    ).toFixed(2),
+    biomasaRestante: (
+      antes - retirados
+    ).toFixed(2),
+
+  };
+}
+/*
+ * ============================================================
+ * HOOK USERALEOSCREEN
+ * ============================================================
+ */
 export default function useRaleoScreen() {
-  const { form, updateField, resetForm, validarForm } = useRaleo();
+  const {
+    form,
+    updateField,
+    resetForm,
+    validarForm,
+  } = useRaleo();
+  const {
+    mostrarError,
+  } = useError();
+
+
+  /*
+   * ========================================================
+   * ESTADOS
+   * ========================================================
+   */
   const [submitted, setSubmitted] = useState(false);
   const [errores, setErrores] = useState({});
-  const [alerta, setAlerta] = useState({ visible: false, variant: "success", mensaje: "" });
-
-  const biomasaActual = Number(form.biomasaActual);
-  const porcentaje = Number(form.porcentajeRaleo);
-
-  const biomasaRestante =
-    form.biomasaActual !== "" && form.porcentajeRaleo !== ""
-      ? biomasaActual * (1 - porcentaje / 100)
-      : "";
-
+  const [alerta, setAlerta] = useState({
+    visible: false,
+    variant: "success",
+    mensaje: "",
+  });
+  /*
+   * ========================================================
+   * CALCULOS DEL RALEO
+   * ========================================================
+   */
+  const {
+    porcentaje: porcentajeRaleo,
+    biomasaRestante,
+  } = calcularRaleo(
+    form.biomasaEstimada,
+    form.kgRetirados
+  );
+  /*
+   * ========================================================
+   * MANEJO DE ALERTA
+   * ========================================================
+   */
   useEffect(() => {
-    if (!alerta.visible) return;
-
-    const duracion = alerta.variant === "success" ? 3000 : 6000;
+    if (!alerta.visible) {
+      return;
+    }
+    const duracion =
+      alerta.variant === "success"
+        ? 3000
+        : 6000;
 
     const timer = setTimeout(() => {
+      /*
+       * Si el registro fue exitoso,
+       * se limpia el formulario.
+       */
       if (alerta.variant === "success") {
         resetForm();
         setSubmitted(false);
         setErrores({});
       }
-      setAlerta((prev) => ({ ...prev, visible: false }));
+      setAlerta((prev) => ({
+        ...prev,
+        visible: false,
+      }));
     }, duracion);
-
     return () => clearTimeout(timer);
-  }, [alerta.visible, alerta.variant]);
-
-  const handleGuardar = async (onError) => {
+  }, [
+    alerta.visible,
+    alerta.variant,
+  ]);
+  /*
+   * ========================================================
+   * GUARDAR RALEO
+   * ========================================================
+   */
+  const handleGuardar = async () => {
     setSubmitted(true);
-    const { valido, errores: erroresValidacion } = validarForm();
+    /*
+     * ----------------------------------------------------
+     * VALIDACION
+     * ----------------------------------------------------
+     */
+    const {
+      valido,
+      errores: erroresValidacion,
+    } = validarForm();
     setErrores(erroresValidacion);
-
     if (!valido) {
-      setAlerta({ visible: true, variant: "danger", mensaje: "Rellenar campos obligatorios." });
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje: "Rellenar campos obligatorios.",
+      });
       return;
     }
+    /*
+     * ----------------------------------------------------
+     * GUARDAR
+     * ----------------------------------------------------
+     */
 
     try {
+      /*
+       * Se preparan los datos utilizando los nombres
+       * esperados por el servicio.
+       */
+
       const registro = {
         idFinca: form.finca,
         idEstanque: form.estanque,
         fecha: convertirFecha(form.fecha),
-        porcentaje: Number(form.porcentajeRaleo),
-        pesoEstimado: Number(form.pesoPromedio),
-        biomasaEstimado: Number(form.biomasaActual),
-        objetivo: form.objetivo,
-        metodo: form.metodo,
-        observaciones: form.observaciones?.trim()
-          ? form.observaciones
-          : "No se realizan observaciones",
+        biomasaEstimada:
+          Number(form.biomasaEstimada),
+        kgRetirados:
+          Number(form.kgRetirados),
+        porcentaje:
+          Number(porcentajeRaleo),
+        biomasaRestante:
+          Number(biomasaRestante),
+        observaciones:
+          form.observaciones?.trim()
+            ? form.observaciones
+            : "No se realizan observaciones",
       };
+      /*
+       * Se mantiene el service como punto de entrada
+       * para guardar el registro.
+       */
       await raleoLocalService.create(registro);
-      setAlerta({ visible: true, variant: "success", mensaje: "Raleo registrado correctamente" });
+      /*
+       * ------------------------------------------------
+       * ALERTA DE EXITO
+       * ------------------------------------------------
+       */
+      setAlerta({
+        visible: true,
+        variant: "success",
+        mensaje: "Raleo registrado correctamente",
+      });
     } catch (error) {
-      onError?.(error);
+      mostrarError(error);
     }
   };
+  /*
+   * ========================================================
+   * RETORNO
+   * ========================================================
+   */
 
   return {
     form,
     updateField,
+    porcentajeRaleo,
     biomasaRestante,
     submitted,
     errores,
