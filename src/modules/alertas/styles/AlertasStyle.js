@@ -61,7 +61,12 @@ export const styles = StyleSheet.create({
   dropdownHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 0,
+    marginTop: 0,
     padding: 14,
+    borderWidth: 0,
+    backgroundColor: "transparent",
   },
 
   dropdownIconBox: {
@@ -133,6 +138,19 @@ export const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
 
+  alertBodyButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    minHeight: 0,
+    marginTop: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+  },
+
   alertIconBox: {
     width: 34,
     height: 34,
@@ -162,11 +180,16 @@ export const styles = StyleSheet.create({
   dismissButton: {
     width: 26,
     height: 26,
+    minHeight: 26,
     borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.white,
+    marginTop: 0,
     marginLeft: 8,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
   },
 
   alertMessage: {

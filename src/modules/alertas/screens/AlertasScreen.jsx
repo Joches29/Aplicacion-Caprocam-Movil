@@ -10,9 +10,10 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { RefreshControl, ScrollView, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
 
+import Button from "../../../shared/components/Button";
 import Card from "../../../shared/components/Card";
 import CustomText from "../../../shared/components/Text";
 import Icon from "../../../shared/components/Icons";
@@ -101,7 +102,14 @@ function ResumenItem({ label, value, color }) {
   );
 }
 
-function DropdownAlertas({ tipo, alertas, abierto, onToggle, onDismiss }) {
+function DropdownAlertas({
+  tipo,
+  alertas,
+  abierto,
+  onToggle,
+  onDismiss,
+  onPressAlerta,
+}) {
   const color = obtenerColorTipo(tipo);
   const categorias = agruparPorCategoria(alertas);
   const nombresCategorias = Object.keys(categorias);
@@ -109,7 +117,11 @@ function DropdownAlertas({ tipo, alertas, abierto, onToggle, onDismiss }) {
 
   return (
     <Card style={styles.dropdownCard}>
-      <Pressable style={styles.dropdownHeader} onPress={onToggle}>
+      <Button
+        variant="ghost"
+        style={styles.dropdownHeader}
+        onPress={onToggle}
+      >
         <View
           style={[
             styles.dropdownIconBox,
@@ -146,7 +158,7 @@ function DropdownAlertas({ tipo, alertas, abierto, onToggle, onDismiss }) {
         </View>
 
         <Icon icon={chevron} size={22} color={COLORS.textTertiary} />
-      </Pressable>
+      </Button>
 
       {abierto === true && (
         <View style={styles.alertList}>
@@ -175,6 +187,7 @@ function DropdownAlertas({ tipo, alertas, abierto, onToggle, onDismiss }) {
                       key={alerta.id}
                       alerta={alerta}
                       onDismiss={onDismiss}
+                      onPressAlerta={onPressAlerta}
                     />
                   );
                 })}
@@ -187,51 +200,60 @@ function DropdownAlertas({ tipo, alertas, abierto, onToggle, onDismiss }) {
   );
 }
 
-function AlertaItem({ alerta, onDismiss }) {
+function AlertaItem({ alerta, onDismiss, onPressAlerta }) {
   return (
     <View style={obtenerEstiloAlerta(alerta.tipo)}>
-      <View style={styles.alertIconBox}>
-        <Icon icon={alerta.icono} size={18} color={alerta.color} />
-      </View>
-
-      <View style={styles.alertContent}>
-        <View style={styles.alertTitleRow}>
-          <CustomText
-            size={14}
-            color={COLORS.textSecondary}
-            style={styles.alertTitle}
-          >
-            {alerta.titulo}
-          </CustomText>
-
-          <Pressable
-            style={styles.dismissButton}
-            onPress={function () {
-              onDismiss(alerta.id);
-            }}
-          >
-            <Icon icon={ICONS.close} size={16} color={COLORS.textTertiary} />
-          </Pressable>
+      <Button
+        variant="ghost"
+        style={styles.alertBodyButton}
+        onPress={function () {
+          onPressAlerta(alerta);
+        }}
+      >
+        <View style={styles.alertIconBox}>
+          <Icon icon={alerta.icono} size={18} color={alerta.color} />
         </View>
 
-        <CustomText
-          size={12}
-          color={COLORS.textTertiary}
-          style={styles.alertMessage}
-        >
-          {alerta.mensaje}
-        </CustomText>
+        <View style={styles.alertContent}>
+          <View style={styles.alertTitleRow}>
+            <CustomText
+              size={14}
+              color={COLORS.textSecondary}
+              style={styles.alertTitle}
+            >
+              {alerta.titulo}
+            </CustomText>
+          </View>
 
-        {alerta.detalle !== "" && (
           <CustomText
             size={12}
-            color={COLORS.textSecondary}
-            style={styles.alertDetail}
+            color={COLORS.textTertiary}
+            style={styles.alertMessage}
           >
-            {alerta.detalle}
+            {alerta.mensaje}
           </CustomText>
-        )}
-      </View>
+
+          {alerta.detalle !== "" && (
+            <CustomText
+              size={12}
+              color={COLORS.textSecondary}
+              style={styles.alertDetail}
+            >
+              {alerta.detalle}
+            </CustomText>
+          )}
+        </View>
+      </Button>
+
+      <Button
+        variant="ghost"
+        style={styles.dismissButton}
+        onPress={function () {
+          onDismiss(alerta.id);
+        }}
+      >
+        <Icon icon={ICONS.close} size={16} color={COLORS.textTertiary} />
+      </Button>
     </View>
   );
 }
@@ -243,6 +265,8 @@ SCREEN PRINCIPAL
 */
 
 export default function AlertasScreen() {
+  const router = useRouter();
+
   const {
     fincas,
     estanques,
@@ -340,6 +364,79 @@ export default function AlertasScreen() {
     setDescartadas(Array.isArray(ids) ? ids : []);
   }
 
+  function irAAlerta(alerta) {
+    if (!alerta?.modulo) {
+      return;
+    }
+
+    if (alerta.modulo === "enfermedades") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/registros/EditarEnfermedad",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/registros/Enfermedades");
+      return;
+    }
+
+    if (alerta.modulo === "parasitologia") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/registros/EditarParasitologia",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/registros/Parasitologia");
+      return;
+    }
+
+    if (alerta.modulo === "estanques") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/finca/detalleEstanque",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/finca");
+      return;
+    }
+
+    if (alerta.modulo === "siembra") {
+      router.push("/siembra");
+      return;
+    }
+
+    if (alerta.modulo === "alimentacion") {
+      router.push("/registros/Alimentacion");
+      return;
+    }
+
+    if (alerta.modulo === "inventario") {
+      router.push("/inventarios");
+      return;
+    }
+
+    if (alerta.modulo === "equipos") {
+      router.push("/equipos");
+    }
+  }
+
   return (
     <>
       <NavbarRegistro
@@ -371,6 +468,7 @@ export default function AlertasScreen() {
               cambiarDropdown("critica");
             }}
             onDismiss={descartar}
+            onPressAlerta={irAAlerta}
           />
 
           <DropdownAlertas
@@ -381,6 +479,7 @@ export default function AlertasScreen() {
               cambiarDropdown("advertencia");
             }}
             onDismiss={descartar}
+            onPressAlerta={irAAlerta}
           />
 
           <DropdownAlertas
@@ -391,6 +490,7 @@ export default function AlertasScreen() {
               cambiarDropdown("info");
             }}
             onDismiss={descartar}
+            onPressAlerta={irAAlerta}
           />
         </View>
       </ScrollView>

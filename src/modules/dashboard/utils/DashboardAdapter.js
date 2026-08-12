@@ -627,13 +627,6 @@ export function adaptarEnfermedadesDashboard(registros, fincas, estanques) {
       "Enfermedad registrada"
     );
     const severidad = obtenerTexto(registro.severidad);
-    const mortalidad = obtenerNumero(
-      obtenerValor(registro, [
-        "mortalidadRegistrada",
-        "mortalidad_registrada",
-        "mortalidad",
-      ])
-    );
 
     return {
       ...registro,
@@ -658,8 +651,8 @@ export function adaptarEnfermedadesDashboard(registros, fincas, estanques) {
         registro.severidadNombre,
         capitalizar(severidad)
       ),
-      mortalidad,
-      mortalidadRegistrada: mortalidad,
+      responsable: obtenerTexto(registro.responsable),
+      reporte: obtenerTexto(registro.reporte),
       timestamp: obtenerTexto(
         obtenerValor(registro, [
           "fechaCreacion",
@@ -682,13 +675,6 @@ export function adaptarResumenEnfermedadesDashboard(resumen) {
 
   const totalCasos = obtenerNumero(
     obtenerValor(datos, ["totalCasos", "totalRegistros"])
-  );
-
-  const totalMortalidad = obtenerNumero(
-    obtenerValor(datos, [
-      "totalMortalidad",
-      "totalMortalidadRegistrada",
-    ])
   );
 
   const enfermedadesFrecuentes = obtenerArreglo(
@@ -742,8 +728,6 @@ export function adaptarResumenEnfermedadesDashboard(resumen) {
     ...datos,
     totalCasos,
     totalRegistros: totalCasos,
-    totalMortalidad,
-    totalMortalidadRegistrada: totalMortalidad,
     enfermedadesFrecuentes,
     severidadesFrecuentes,
   };
@@ -788,29 +772,14 @@ export function adaptarParasitologiasDashboard(
         registro.parasitoNombre,
         capitalizar(parasito)
       ),
-      camaronesMuestreados: obtenerNumero(
-        obtenerValor(registro, [
-          "camaronesMuestreados",
-          "camarones_muestreados",
-        ])
-      ),
-      camaronesInfectados: obtenerNumero(
-        obtenerValor(registro, [
-          "camaronesInfectados",
-          "camarones_infectados",
-        ])
-      ),
-      porcentajeInfeccion: obtenerNumero(
-        obtenerValor(registro, [
-          "porcentajeInfeccion",
-          "porcentaje_infeccion",
-        ])
-      ),
       gradoInfeccion: grado,
+      grado_infeccion: grado,
       nombreGrado: obtenerTexto(
         registro.nombreGrado,
         capitalizar(grado)
       ),
+      responsable: obtenerTexto(registro.responsable),
+      observaciones: obtenerTexto(registro.observaciones),
       timestamp: obtenerTexto(
         obtenerValor(registro, [
           "fechaCreacion",
@@ -831,33 +800,9 @@ export function adaptarResumenParasitologiasDashboard(resumen) {
       ? resumen
       : {};
 
-  const totalMuestreados = obtenerNumero(
-    obtenerValor(datos, [
-      "totalMuestreados",
-      "totalCamaronesMuestreados",
-    ])
-  );
-
-  const totalInfectados = obtenerNumero(
-    obtenerValor(datos, [
-      "totalInfectados",
-      "totalCamaronesInfectados",
-    ])
-  );
-
-  const promedioInfeccion = obtenerNumero(
-    obtenerValor(datos, ["promedioInfeccion", "porcentajePromedio"])
-  );
-
   return {
     ...datos,
     totalRegistros: obtenerNumero(datos.totalRegistros),
-    totalMuestreados,
-    totalCamaronesMuestreados: totalMuestreados,
-    totalInfectados,
-    totalCamaronesInfectados: totalInfectados,
-    porcentajePromedio: promedioInfeccion,
-    promedioInfeccion,
     parasitosFrecuentes: obtenerArreglo(datos.parasitosFrecuentes),
     gradosFrecuentes: obtenerArreglo(datos.gradosFrecuentes),
   };
@@ -960,7 +905,7 @@ export function adaptarDatosDashboard(datos = {}) {
       estanques
     ),
     inventario: adaptarInventarioDashboard(datos.inventario),
-    equipos: adaptarEquiposDashboard(datos.equipos, fincas, estanques),
+    equipos: adaptarEquiposDashboard(equiposSeguro(datos.equipos), fincas, estanques),
     enfermedades: adaptarEnfermedadesDashboard(
       datos.enfermedades,
       fincas,
@@ -983,4 +928,8 @@ export function adaptarDatosDashboard(datos = {}) {
       estanques
     ),
   };
+}
+
+function equiposSeguro(equipos) {
+  return Array.isArray(equipos) ? equipos : [];
 }

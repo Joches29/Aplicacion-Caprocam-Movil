@@ -29,7 +29,6 @@ import useDashboard from "./useDashboard";
 import {
   construirFincasDashboard,
   obtenerAlimentacionSemanal,
-  obtenerMortalidadTotal,
   obtenerTotalCasosSanitarios,
   obtenerUltimosRegistros,
 } from "../utils/DashboardUtils";
@@ -172,10 +171,6 @@ export default function useDashboardScreen() {
     );
   }, [resumenEnfermedadesSeguro, resumenParasitologiasSeguro]);
 
-  const totalMortalidad = useMemo(function () {
-    return obtenerMortalidadTotal(resumenEnfermedadesSeguro);
-  }, [resumenEnfermedadesSeguro]);
-
   const alertasBase = useMemo(function () {
     return construirAlertasOperativas({
       productosInventario: inventarioSeguro,
@@ -275,8 +270,113 @@ export default function useDashboardScreen() {
     }
   }, [mostrarError]);
 
+  /*
+  //////////////////////////////////////////////////////////
+  NAVEGACION
+  //////////////////////////////////////////////////////////
+  */
+
   const irAAlertas = useCallback(function () {
     router.push("/alertas");
+  }, [router]);
+
+  const irACasoSanitario = useCallback(function (caso) {
+    if (!caso?.registroId) {
+      return;
+    }
+
+    if (caso.tipo === "parasitologia") {
+      router.push({
+        pathname: "/registros/EditarParasitologia",
+        params: {
+          id: caso.registroId,
+        },
+      });
+
+      return;
+    }
+
+    if (caso.tipo === "enfermedad") {
+      router.push({
+        pathname: "/registros/EditarEnfermedad",
+        params: {
+          id: caso.registroId,
+        },
+      });
+    }
+  }, [router]);
+
+  const irAAlerta = useCallback(function (alerta) {
+    if (!alerta?.modulo) {
+      return;
+    }
+
+    if (alerta.modulo === "enfermedades") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/registros/EditarEnfermedad",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/registros/Enfermedades");
+      return;
+    }
+
+    if (alerta.modulo === "parasitologia") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/registros/EditarParasitologia",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/registros/Parasitologia");
+      return;
+    }
+
+    if (alerta.modulo === "estanques") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/finca/detalleEstanque",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/finca");
+      return;
+    }
+
+    if (alerta.modulo === "siembra") {
+      router.push("/siembra");
+      return;
+    }
+
+    if (alerta.modulo === "alimentacion") {
+      router.push("/registros/Alimentacion");
+      return;
+    }
+
+    if (alerta.modulo === "inventario") {
+      router.push("/inventarios");
+      return;
+    }
+
+    if (alerta.modulo === "equipos") {
+      router.push("/equipos");
+    }
   }, [router]);
 
   /*
@@ -309,7 +409,6 @@ export default function useDashboardScreen() {
     registrosFisicoQuimicos: fisicoQuimicosSeguros,
 
     totalCasosSanitarios,
-    totalMortalidad,
     alertasDashboard,
     ultimosRegistros,
 
@@ -317,6 +416,9 @@ export default function useDashboardScreen() {
     manejarSeleccionCard,
     alternarAlertas,
     descartarAlertaDashboard,
+
     irAAlertas,
+    irACasoSanitario,
+    irAAlerta,
   };
 }

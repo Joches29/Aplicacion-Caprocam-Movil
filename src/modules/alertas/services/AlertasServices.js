@@ -5,9 +5,7 @@
  *
  * Descripcion:
  * Construye alertas operativas usando los datos reales
- * recibidos desde el backend.
- *
- * Fisico quimica queda temporalmente fuera.
+ * recibidos desde SQLite local.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -80,6 +78,8 @@ function agregarAlerta(alertas, alerta) {
     icono: alerta.icono,
     color: alerta.color,
     prioridad: alerta.prioridad,
+    modulo: obtenerTextoSeguro(alerta.modulo),
+    registroId: alerta.registroId ?? null,
   });
 }
 
@@ -108,6 +108,8 @@ function obtenerAlertasInventario(productosInventario) {
         icono: ICONS.notification,
         color: COLORS.error,
         prioridad: 3,
+        modulo: "inventario",
+        registroId: producto.id,
       });
     }
 
@@ -121,6 +123,8 @@ function obtenerAlertasInventario(productosInventario) {
         icono: ICONS.notification,
         color: COLORS.warning,
         prioridad: 7,
+        modulo: "inventario",
+        registroId: producto.id,
       });
     }
   });
@@ -150,12 +154,13 @@ function obtenerAlertasCosecha(siembras) {
     const fecha = obtenerTextoSeguro(siembra.fechaSiembra);
     const fechaVisible = formatearFechaCorta(fecha);
     const activa = estado.includes("activa") || estado.includes("activo");
+    const registroId = siembra.siembraId ?? siembra.id ?? null;
 
     if (!activa) return;
 
     if (diasMaduracion > 0 && diasRestantes <= 0) {
       agregarAlerta(alertas, {
-        id: "cosecha-vencida-" + siembra.siembraId,
+        id: "cosecha-vencida-" + registroId,
         tipo: "critica",
         categoria: "Cosecha",
         titulo: "Cosecha pendiente",
@@ -166,12 +171,14 @@ function obtenerAlertasCosecha(siembras) {
         icono: ICONS.shrimp,
         color: COLORS.error,
         prioridad: 2,
+        modulo: "siembra",
+        registroId,
       });
     }
 
     if (diasMaduracion > 0 && diasRestantes > 0 && diasRestantes <= 20) {
       agregarAlerta(alertas, {
-        id: "cosecha-pronta-" + siembra.siembraId,
+        id: "cosecha-pronta-" + registroId,
         tipo: "advertencia",
         categoria: "Cosecha",
         titulo: "Cosecha proxima",
@@ -182,6 +189,8 @@ function obtenerAlertasCosecha(siembras) {
         icono: ICONS.shrimp,
         color: COLORS.warning,
         prioridad: 3,
+        modulo: "siembra",
+        registroId,
       });
     }
   });
@@ -214,6 +223,8 @@ function obtenerAlertasEstanques(estanques) {
         icono: ICONS.waterFlow,
         color: COLORS.warning,
         prioridad: 5,
+        modulo: "estanques",
+        registroId: estanque.id,
       });
     }
 
@@ -227,6 +238,8 @@ function obtenerAlertasEstanques(estanques) {
         icono: ICONS.waterFlow,
         color: COLORS.primary,
         prioridad: 9,
+        modulo: "estanques",
+        registroId: estanque.id,
       });
     }
   });
@@ -296,6 +309,7 @@ function obtenerAlertasAlimentacion(alimentaciones) {
         icono: ICONS.food,
         color: COLORS.warning,
         prioridad: 8,
+        modulo: "alimentacion",
       });
     }
 
@@ -309,6 +323,7 @@ function obtenerAlertasAlimentacion(alimentaciones) {
         icono: ICONS.clock,
         color: COLORS.primary,
         prioridad: 10,
+        modulo: "alimentacion",
       });
     }
   });
@@ -404,6 +419,7 @@ function obtenerAlertasBombeo(equipos) {
       icono: ICONS.waterFlow,
       color: COLORS.primary,
       prioridad: 9,
+      modulo: "equipos",
     });
   }
 
@@ -417,6 +433,7 @@ function obtenerAlertasBombeo(equipos) {
       icono: ICONS.waterFlow,
       color: COLORS.warning,
       prioridad: 6,
+      modulo: "equipos",
     });
   }
 
@@ -453,6 +470,8 @@ function obtenerAlertasAireadores(equipos) {
         icono: ICONS.wind,
         color: COLORS.error,
         prioridad: 3,
+        modulo: "equipos",
+        registroId: equipo.id,
       });
     }
 
@@ -466,6 +485,8 @@ function obtenerAlertasAireadores(equipos) {
         icono: ICONS.wind,
         color: COLORS.warning,
         prioridad: 6,
+        modulo: "equipos",
+        registroId: equipo.id,
       });
     }
   });
@@ -495,6 +516,8 @@ function obtenerAlertasSanitarias(registrosEnfermedades, registrosParasitologia)
         icono: ICONS.shieldAlert,
         color: COLORS.error,
         prioridad: 1,
+        modulo: "enfermedades",
+        registroId: registro.id,
       });
     }
   });
@@ -512,6 +535,8 @@ function obtenerAlertasSanitarias(registrosEnfermedades, registrosParasitologia)
         icono: ICONS.parasite,
         color: COLORS.warning,
         prioridad: 2,
+        modulo: "parasitologia",
+        registroId: registro.id,
       });
     }
   });
