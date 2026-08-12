@@ -37,10 +37,10 @@ import {
 } from "./useFieldValidation";
 import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
 import {
-  calcularCantidadSembrada,
+  calcularDensidadDesdeCantidad,
   calcularProgresoCiclo,
 } from "./siembraCalculos";
-import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
+import { obtenerFechaHoy, formatearFechaDesdeISO, esFechaAnterior } from "./dateUtils";
 import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
 import FincaLocalService from "../../../modules/finca/services/fincaLocal.service";
 
@@ -55,6 +55,7 @@ import {
   SiembraDTO,
   PrecriaDTO,
   FinalizarPrecriaDTO,
+  LoteLarvaDTO,
 } from "../dtos/siembra.dto";
 
 function mapCatalogo(items) {
@@ -69,11 +70,14 @@ function adaptarSiembraLocal(s) {
     finca_id: s.fincaId,
     estanque_id: s.estanqueId,
     fecha_siembra: s.fechaSiembra,
+    tecnica_cultivo: s.tecnicaCultivo,
+    densidad_poblacional: s.densidadPoblacional,
     cantidad_sembrada: s.cantidadSembrada,
     pl_siembra: s.plSiembra,
     precria_id: s.precriaId,
     lote_larva_id: s.loteLarvaId,
     duracion_ciclo: s.duracionCiclo,
+    produccion_kg: s.produccionKg,
     estado: s.estado,
   };
 }
@@ -141,10 +145,15 @@ function mapSiembraAFormData(siembra, lote, precriaOrigen, areaHectareas = "") {
 
     fechaSiembra: formatearFechaDesdeISO(siembra.fecha_siembra),
     tecnicaCultivo: siembra.tecnica_cultivo || "semi",
-    densidadPoblacional: String(siembra.densidad_poblacional || 8),
+    densidadPoblacional: siembra.densidad_poblacional
+      ? String(siembra.densidad_poblacional)
+      : (siembra.cantidad_sembrada && areaHectareas
+          ? calcularDensidadDesdeCantidad(areaHectareas, siembra.cantidad_sembrada)
+          : ""),
     cantidadSembrada: String(siembra.cantidad_sembrada || ""),
     plSiembra: siembra.pl_siembra != null ? `PL${siembra.pl_siembra}` : "",
-    diasMaduracion: String(siembra.duracion_ciclo || 90),
+    duracionCiclo: String(siembra.duracion_ciclo || 90),
+    produccionKg: siembra.produccion_kg != null ? String(siembra.produccion_kg) : "",
     areaHectareas: String(areaHectareas),
 
     fechaInicio: "",
@@ -189,10 +198,10 @@ function mapPrecriaAFormData(precria, lote, areaHectareas = "") {
 
     fechaSiembra: "",
     tecnicaCultivo: "semi",
-    densidadPoblacional: "8",
+    densidadPoblacional: "",
     cantidadSembrada: "",
     plSiembra: "",
-    diasMaduracion: "90",
+    duracionCiclo: "90",
     areaHectareas: String(areaHectareas),
 
     fechaInicio: formatearFechaDesdeISO(precria.fecha_inicio),
@@ -237,12 +246,26 @@ function validarCoherenciaCierrePrecria(formData) {
   const plInicialNumero = obtenerNumeroPL(formData.plInicial);
   const plFinalNumero = obtenerNumeroPL(formData.plFinal);
 
+  // obtenerNumeroPL devuelve null (no NaN) cuando el campo esta vacio,
+  // asi que se compara contra null en vez de Number.isNaN. Antes,
+  // Number.isNaN(null) era false, entonces cuando plFinal aun estaba
+  // vacio (Pre-Cria en curso, caso normal) el null se coaccionaba a 0
+  // en la comparacion y disparaba el error de coherencia aunque el
+  // usuario no hubiera tocado los campos de cierre.
   if (
-    !Number.isNaN(plInicialNumero) &&
-    !Number.isNaN(plFinalNumero) &&
+    plInicialNumero !== null &&
+    plFinalNumero !== null &&
     plFinalNumero < plInicialNumero
   ) {
     errores.plFinal = "No puede ser un estadio menor al PL inicial.";
+  }
+
+  if (
+    formData.fechaInicio &&
+    formData.fechaFin &&
+    esFechaAnterior(formData.fechaFin, formData.fechaInicio)
+  ) {
+    errores.fechaFin = "La fecha de fin de Pre-Cría no puede ser anterior a la fecha de inicio.";
   }
 
   return errores;
@@ -264,6 +287,7 @@ export default function useDetalleSiembra() {
   const [isEditing, setIsEditing] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
 
   const [mensaje, setMensaje] = useState("");
   const [mensajeVariant, setMensajeVariant] = useState("info");
@@ -364,10 +388,10 @@ export default function useDetalleSiembra() {
       setFormData((previousData) => {
         const updatedData = { ...previousData, [field]: value };
 
-        if (field === "areaHectareas" || field === "densidadPoblacional") {
-          updatedData.cantidadSembrada = calcularCantidadSembrada(
+        if (field === "areaHectareas" || field === "cantidadSembrada") {
+          updatedData.densidadPoblacional = calcularDensidadDesdeCantidad(
             updatedData.areaHectareas,
-            updatedData.densidadPoblacional,
+            updatedData.cantidadSembrada,
           );
         }
 
@@ -426,9 +450,9 @@ export default function useDetalleSiembra() {
         ...previousData,
         estanque: value,
         areaHectareas: areaStr,
-        cantidadSembrada: calcularCantidadSembrada(
+        densidadPoblacional: calcularDensidadDesdeCantidad(
           areaStr,
-          previousData.densidadPoblacional,
+          previousData.cantidadSembrada,
         ),
       }));
     },
@@ -673,11 +697,21 @@ export default function useDetalleSiembra() {
       formData,
       obtenerCamposObligatorios(),
     );
+
+    if (formData.tipoRegistro === "siembra" && formData.pasoPorPrecria === "si") {
+      const sembrada = Number(formData.cantidadSembrada || 0);
+      const sobrevivientes = Number(formData.cantidadSobrevivientePrecria || 0);
+      if (sembrada > sobrevivientes) {
+        erroresObligatorios.cantidadSembrada = "No puede superar los sobrevivientes de Pre-Cría.";
+      }
+    }
+
     if (Object.keys(erroresObligatorios).length > 0) {
       setErrors(erroresObligatorios);
-      setMensaje(
-        "Revisa los campos obligatorios marcados con * antes de guardar.",
-      );
+      const msj = erroresObligatorios.cantidadSembrada === "No puede superar los sobrevivientes de Pre-Cría."
+        ? "La cantidad sembrada no puede superar la cantidad de sobrevivientes de la Pre-Cría de origen."
+        : "Revisa los campos obligatorios marcados con * antes de guardar.";
+      setMensaje(msj);
       setMensajeVariant("danger");
       return;
     }
@@ -686,18 +720,71 @@ export default function useDetalleSiembra() {
       const erroresCoherencia = validarCoherenciaCierrePrecria(formData);
       if (Object.keys(erroresCoherencia).length > 0) {
         setErrors(erroresCoherencia);
-        setMensaje(
-          "Revisa los datos de cierre: la cantidad final o el PL final no son coherentes con los datos iniciales de la Pre-Cría.",
-        );
+        const msj = erroresCoherencia.fechaFin
+          ? "La fecha de fin de Pre-Cría no puede ser anterior a la fecha de inicio."
+          : "Revisa los datos de cierre: la cantidad final o el PL final no son coherentes con los datos iniciales de la Pre-Cría.";
+        setMensaje(msj);
         setMensajeVariant("danger");
         return;
       }
     }
 
-    setErrors({});
     setGuardando(true);
     try {
       await localApi.inicializar();
+
+      if (String(formData.estanque) !== String(siembra?.estanque)) {
+        const estanqueSeleccionado = todosEstanques.find(
+          (e) => String(e.id) === String(formData.estanque) || String(e.servidorId) === String(formData.estanque)
+        );
+        if (estanqueSeleccionado) {
+          const estadoEst = String(estanqueSeleccionado.estado || estanqueSeleccionado.estadoEstanque || "").toLowerCase();
+          if (estadoEst !== "" && estadoEst !== "activo") {
+            setMensaje("El estanque seleccionado no se encuentra en estado 'Activo'.");
+            setMensajeVariant("danger");
+            setGuardando(false);
+            return;
+          }
+        }
+
+        const [todasSiembras, todasPrecrias] = await Promise.all([
+          SiembraLocalService.getAll(),
+          PrecriaLocalService.getAll(),
+        ]);
+
+        const tieneSiembraActiva = (todasSiembras || []).some(
+          (s) => String(s.id) !== String(formData.id) && String(s.estanqueId || s.estanque_id) === String(formData.estanque) && String(s.estado || "").toLowerCase() !== "finalizada"
+        );
+        const tienePrecriaActiva = (todasPrecrias || []).some(
+          (p) => String(p.id) !== String(formData.id) && String(p.estanqueId || p.estanque_id) === String(formData.estanque) && String(p.estado || "").toLowerCase() !== "finalizada"
+        );
+
+        if (tieneSiembraActiva || tienePrecriaActiva) {
+          setMensaje("El estanque seleccionado ya cuenta con un ciclo de cultivo (Siembra o Pre-Cría) activo.");
+          setMensajeVariant("danger");
+          setGuardando(false);
+          return;
+        }
+      }
+
+      // Los campos de "Datos de Larva" (proveedor, laboratorio,
+      // procedencia, código de lote, certificado) viven en el Lote
+      // de Larva, no en Siembra/Pre-Cría, y en esta pantalla se
+      // muestran editables salvo cuando la Siembra viene de una
+      // Pre-Cría (ahí son heredados/solo lectura, ver DatosLarvaSection
+      // con mode="view"). Sin este guardado, los cambios del usuario
+      // en esos campos se perdían: solo quedaban en memoria hasta
+      // salir de la pantalla, y el Detalle volvía a mostrar los
+      // valores viejos al releer el Lote desde la base local.
+      const loteEsEditable = !(
+        formData.tipoRegistro === "siembra" && formData.pasoPorPrecria === "si"
+      );
+      if (loteEsEditable && formData.loteId) {
+        await LoteLarvaLocalService.update(
+          formData.loteId,
+          new LoteLarvaDTO(formData),
+        );
+      }
 
       let actualizado;
       if (formData.tipoRegistro === "precria") {
@@ -718,8 +805,9 @@ export default function useDetalleSiembra() {
         actualizado = mapSiembraAFormData(actualizado, null);
       }
 
-      // El lote no cambia al actualizar siembra/pre-cría, así que se
-      // conservan sus datos (proveedor/laboratorio/etc.) del formData actual.
+      // El lote ya se guardó arriba (o no era editable en este caso);
+      // acá solo se conservan sus valores actuales del formData para
+      // reflejarlos de inmediato en pantalla sin esperar otra lectura.
       const conLote = {
         ...actualizado,
         ...(formData.pasoPorPrecria === "si"
@@ -743,7 +831,11 @@ export default function useDetalleSiembra() {
       setFormData(conLote);
       setIsEditing(false);
       setSubmitted(false);
-      setMensaje("Registro actualizado correctamente.");
+      
+      const msjExito = formData.tipoRegistro === "precria"
+        ? "Pre-Cría editada correctamente."
+        : "Siembra editada correctamente.";
+      setMensaje(msjExito);
       setMensajeVariant("success");
     } catch (err) {
       const mensajeError = err.response?.data?.message || err.message;
@@ -780,9 +872,10 @@ export default function useDetalleSiembra() {
     if (Object.keys(erroresCoherencia).length > 0) {
       setErrors(erroresCoherencia);
       setIsEditing(true);
-      setMensaje(
-        "Revisa los datos de cierre: la cantidad final o el PL final no son coherentes con los datos iniciales de la Pre-Cría.",
-      );
+      const msj = erroresCoherencia.fechaFin
+        ? "La fecha de fin de Pre-Cría no puede ser anterior a la fecha de inicio."
+        : "Revisa los datos de cierre: la cantidad final o el PL final no son coherentes con los datos iniciales de la Pre-Cría.";
+      setMensaje(msj);
       setMensajeVariant("danger");
       return null;
     }
@@ -859,6 +952,39 @@ export default function useDetalleSiembra() {
     }, 3000);
   }, [finalizarPreCria, construirParamsSiembraDesdePrecria, router]);
 
+  const handleFinalizarSiembra = useCallback(async () => {
+    setGuardando(true);
+    try {
+      await localApi.inicializar();
+      const registro = adaptarSiembraLocal(
+        await SiembraLocalService.finalizar(id)
+      );
+
+      const conLote = {
+        ...mapSiembraAFormData(registro, null),
+        ...mapLoteAFormData({
+          codigo_lote: formData.codigoLoteLarva,
+          proveedor_id: formData.proveedorLarva,
+          laboratorio: formData.laboratorioLarva,
+          procedencia: formData.procedenciaLarva,
+          certificado_larva: formData.certificadoLarva,
+        }),
+      };
+
+      setSiembra(conLote);
+      setFormData(conLote);
+      setIsEditing(false);
+      setMensaje("Siembra finalizada correctamente.");
+      setMensajeVariant("success");
+    } catch (err) {
+      const mensajeError = err.response?.data?.message || err.message;
+      setMensaje(mensajeError || "No fue posible finalizar la siembra.");
+      setMensajeVariant("danger");
+    } finally {
+      setGuardando(false);
+    }
+  }, [id, formData]);
+
   const handleCrearSiembraDesdePrecria = useCallback(() => {
     router.push({
       pathname: "/(drawer)/siembra/nueva",
@@ -882,6 +1008,8 @@ export default function useDetalleSiembra() {
     mensajeVariant,
     cargando,
     guardando,
+    confirmarFinalizar,
+    setConfirmarFinalizar,
     diaActual,
     totalDias,
     etapa,
@@ -893,6 +1021,7 @@ export default function useDetalleSiembra() {
     cancelarEdicion,
     guardar,
     handleFinalizarPreCria,
+    handleFinalizarSiembra,
     handleCrearSiembraDesdePrecria,
     datosCierrePreCriaCompletos,
     handleAgregarProveedorLarva,

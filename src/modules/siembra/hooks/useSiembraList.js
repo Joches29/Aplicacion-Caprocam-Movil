@@ -30,8 +30,8 @@
  * solo conserva la navegación (useRouter).
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigation, useRouter } from "expo-router";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
 import { calcularProgresoCiclo } from "./siembraCalculos";
 import SiembraLocalService from "../services/SiembraLocal.services";
 import PrecriaLocalService from "../services/PrecriaLocal.service";
@@ -59,9 +59,7 @@ function adaptarSiembraLocalABackend(s) {
 }
 
 function haFinalizado(registro) {
-  if (registro.tipoRegistro === "precria")
-    return registro.estado === "Finalizada";
-  return calcularProgresoCiclo(registro).progreso >= 100;
+  return String(registro.estado || "").toLowerCase() === "finalizada";
 }
 
 export default function useSiembraList() {
@@ -73,8 +71,39 @@ export default function useSiembraList() {
   const [estanques, setEstanques] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState({ categories: [] });
+  const [vista, setVista] = useState("activas");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const { mensajeExito, mensajeVariant: mensajeVariantParam } = useLocalSearchParams();
+  const [mensaje, setMensaje] = useState("");
+  const [mensajeVariant, setMensajeVariant] = useState("info");
+  const mensajeTimeoutRef = useRef(null);
+
+  function mostrarMensaje(texto, variant) {
+    if (mensajeTimeoutRef.current) {
+      clearTimeout(mensajeTimeoutRef.current);
+    }
+    setMensaje(texto);
+    setMensajeVariant(variant);
+
+    const duracion = variant === "success" ? 3000 : 6000;
+    mensajeTimeoutRef.current = setTimeout(() => {
+      setMensaje("");
+      router.setParams({ mensajeExito: undefined, mensajeVariant: undefined });
+    }, duracion);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (mensajeTimeoutRef.current) clearTimeout(mensajeTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mensajeExito) {
+      mostrarMensaje(mensajeExito, mensajeVariantParam || "success");
+    }
+  }, [mensajeExito, mensajeVariantParam]);
 
   const tiposRegistro = [
     { label: "Siembra", value: "siembra" },
@@ -132,6 +161,7 @@ export default function useSiembraList() {
       cantidadSembrada: s.cantidad_sembrada,
       plSiembra: s.pl_siembra != null ? `PL${s.pl_siembra}` : "",
       diasMaduracion: s.duracion_ciclo || 90, 
+      produccionKg: s.produccion_kg || s.produccionKg || 0,
       ...obtenerDatosLote(s.lote_larva_id, lotesPorId),
     };
     const { diaActual, totalDias } = calcularProgresoCiclo(base);
@@ -201,7 +231,9 @@ export default function useSiembraList() {
 
   const siembrasFiltradas = useMemo(() => {
     return registros
-      .filter((r) => !haFinalizado(r))
+      .filter((r) =>
+        vista === "activas" ? !haFinalizado(r) : haFinalizado(r),
+      )
       .map((r) => ({ ...r, ...obtenerNombresFincaEstanque(r) }))
       .filter((r) => {
         const texto = busqueda.toLowerCase();
@@ -217,7 +249,7 @@ export default function useSiembraList() {
 
         return coincideTexto && coincideTipo;
       });
-  }, [busqueda, filtros, registros, fincas, estanques]);
+  }, [busqueda, filtros, registros, fincas, estanques, vista]);
 
   const handleNuevaSiembra = useCallback(
     () => router.push("/siembra/nueva"),
@@ -238,9 +270,13 @@ export default function useSiembraList() {
     setBusqueda,
     filtros,
     setFiltros,
+    vista,
+    setVista,
     tiposRegistro,
     cargando,
     error,
+    mensaje,
+    mensajeVariant,
     handleNuevaSiembra,
     handleDetalleSiembra,
     recargar: cargar,

@@ -40,31 +40,63 @@ export function obtenerFechaHoy() {
 // siembra.dto.js (aFechaISO) al enviar datos al backend.
 export function formatearFechaDesdeISO(fechaISO) {
   if (!fechaISO) return "";
-  const fecha = new Date(fechaISO);
+
+  // Se toma solo la parte de fecha (antes de la "T", si la hay) y se
+  // construye el Date en hora LOCAL con el constructor (anio, mes, dia).
+  // No se usa new Date(fechaISO) directo porque, cuando el string viene
+  // sin hora (ej. "2026-07-21", como llegan las columnas DATE de MySQL),
+  // el motor lo interpreta como medianoche UTC. En husos horarios
+  // negativos (Costa Rica, UTC-6) eso corre el día un dia hacia atras
+  // al formatear en hora local. Tomar solo la parte de fecha y armarla
+  // en local evita el desfase tanto para fechas "aaaa-mm-dd" como para
+  // datetimes ISO completos (ej. "2026-07-21T06:00:00.000Z").
+  const soloFecha = String(fechaISO).split("T")[0];
+  const partes = soloFecha.split("-");
+  if (partes.length !== 3) return "";
+
+  const [anio, mes, dia] = partes.map(Number);
+  if (!anio || !mes || !dia) return "";
+
+  const fecha = new Date(anio, mes - 1, dia);
   if (Number.isNaN(fecha.getTime())) return "";
   return formatearFecha(fecha);
 }
 
-export function calcularDiasTranscurridos(fechaDDMMAAAA) {
+// Compara dos fechas en formato dd/mm/aaaa. Devuelve true si fechaA
+// es anterior a fechaB. Compara como texto "aaaa-mm-dd" en vez de
+// new Date() para evitar el desfase de horas que sí afecta al backend.
+export function esFechaAnterior(fechaA, fechaB) {
+  if (!fechaA || !fechaB) return false;
+  const aISO = fechaA.split("/").reverse().join("-");
+  const bISO = fechaB.split("/").reverse().join("-");
+  return aISO < bISO;
+}
 
-  if (!fechaDDMMAAAA) return 0;
-
-  const  partes = fechaDDMMAAAA.split("/");
-  if (partes.length !== 3) return 0;
+// Convierte "dd/mm/aaaa" a un objeto Date, en hora local a medianoche
+// (evita el problema de timezone que sí afecta a new Date(isoString)).
+function parsearFecha(fechaStr) {
+  if (!fechaStr) return null;
+  const partes = fechaStr.split("/");
+  if (partes.length !== 3) return null;
 
   const [dia, mes, anio] = partes.map(Number);
-  if(!dia || !mes || !anio) return 0;
+  if (!dia || !mes || !anio) return null;
 
-  const inicio = new Date(anio, mes - 1, dia);
-  if (Number.isNaN(inicio.getTime())) return 0;
+  return new Date(anio, mes - 1, dia);
+}
+
+// Días transcurridos entre fechaInicio (dd/mm/aaaa) y hoy. Nunca
+// negativo (si fechaInicio es futura, devuelve 0).
+export function diasTranscurridosDesde(fechaInicioStr) {
+  const fechaInicio = parsearFecha(fechaInicioStr);
+  if (!fechaInicio) return 0;
 
   const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  fechaInicio.setHours(0, 0, 0, 0);
 
-  const inicioSinhora = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
-  const hoySinhora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-
-  const diffMs = hoySinhora - inicioSinhora;
-  const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const msPorDia = 1000 * 60 * 60 * 24;
+  const dias = Math.floor((hoy - fechaInicio) / msPorDia);
 
   return dias < 0 ? 0 : dias;
 }

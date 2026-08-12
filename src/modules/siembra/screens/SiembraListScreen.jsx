@@ -58,6 +58,7 @@ import Button from "../../../shared/components/Button";
 import Icon from "../../../shared/components/Icons";
 import EmptyState from "../../../shared/components/EmptyState";
 import SearchBar from "../../../shared/components/SearchBar";
+import Alert from "../../../shared/components/Alert";
 import FilterButton from "../../../shared/components/FilterButton";
 import { ICONS } from "../../../theme/icons";
 import { COLORS } from "../../../theme/colors";
@@ -74,12 +75,13 @@ export default function SiembraListScreen() {
     filtros,
     setFiltros,
 
+    vista,
+    setVista,
     tiposRegistro,
-
     siembrasFiltradas,
-
+    mensaje,
+    mensajeVariant,
     handleNuevaSiembra,
-
     handleDetalleSiembra,
   } = useSiembraList();
 
@@ -90,6 +92,13 @@ export default function SiembraListScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={STYLE.contentWrapper}>
+          {mensaje !== "" && (
+            <Alert
+              message={mensaje}
+              variant={mensajeVariant}
+              textStyle={{ textAlign: "center" }}
+            />
+          )}
           <View style={styles.contentHeader}>
             <View style={styles.cardTitleRow}>
               <Icon icon={ICONS.shrimp} color={COLORS.primary} />
@@ -99,6 +108,23 @@ export default function SiembraListScreen() {
             </View>
           </View>
 
+          <View style={styles.toggleContainer}>
+            <Button
+              variant={vista === "activas" ? "primary" : "outline"}
+              onPress={() => setVista("activas")}
+              style={styles.toggleButton}
+            >
+              Activas
+            </Button>
+            <Button
+              variant={vista === "finalizadas" ? "primary" : "outline"}
+              onPress={() => setVista("finalizadas")}
+              style={styles.toggleButton}
+            >
+              Finalizadas
+            </Button>
+          </View>
+
           <View style={styles.barraBusqueda}>
             <SearchBar
               value={busqueda}
@@ -106,30 +132,16 @@ export default function SiembraListScreen() {
               placeholder="Buscar finca, estanque, lote, proveedor..."
               containerStyle={styles.searchBarContainer}
             />
-            <View style={styles.filterColumn}>
-              <FilterButton
-                categories={tiposRegistro}
-                suppliers={[]}
-                units={[]}
-                activeFilters={filtros}
-                onApply={setFiltros}
-                showLowStock={false}
-                showExpiryDate={false}
-                buttonStyle={styles.filterButton}
-              />
-              <Button
-                variant="outline"
-                onPress={handleNuevaSiembra}
-                style={[styles.newButton, styles.newButtonCompact]}
-              >
-                <View style={styles.newButtonContent}>
-                  <Icon icon={ICONS.add} color={COLORS.primary} />
-                  <Text style={styles.newButtonText} numberOfLines={1}>
-                    Nueva Siembra
-                  </Text>
-                </View>
-              </Button>
-            </View>
+            <FilterButton
+              categories={tiposRegistro}
+              suppliers={[]}
+              units={[]}
+              activeFilters={filtros}
+              onApply={setFiltros}
+              showLowStock={false}
+              showExpiryDate={false}
+              buttonStyle={styles.filterButton}
+            />
           </View>
 
           <Text style={styles.contadorResultados}>
@@ -157,6 +169,19 @@ export default function SiembraListScreen() {
           )}
         </View>
       </ScrollView>
+
+      <View style={styles.buttonWrapper}>
+        <Button
+          variant="outline"
+          onPress={handleNuevaSiembra}
+          style={styles.addButton}
+        >
+          <View style={styles.newButtonContent}>
+            <Icon icon={ICONS.add} color={COLORS.primary} />
+            <Text style={styles.newButtonText}>Añadir Siembra</Text>
+          </View>
+        </Button>
+      </View>
     </View>
   );
 }
