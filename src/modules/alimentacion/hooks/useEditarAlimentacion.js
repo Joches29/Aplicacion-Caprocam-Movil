@@ -1,535 +1,156 @@
 /**
  * ============================================================
- * HOOK USEEDITARALIMENTACION
+ * HOOK USEEDITARALIMENTACIONSCREEN
  * ============================================================
  *
- * Maneja la edición de registros de alimentación usando SQLite.
+ * Carga un registro de alimentación por id, precarga el form
+ * de useAlimentacionForm con esos valores, y persiste los
+ * cambios en SQLite vía AlimentacionLocalService.update().
+ * Reusa la misma validación que la creación (useAlimentacionForm).
  *
- * Funcionalidad:
+ * RECONECTADO: getById/update usaban alimentacionService (HTTP);
+ * ahora usan AlimentacionLocalService (SQLite), con
+ * localApi.inicializar() antes de leer, igual que el resto del
+ * módulo.
  *
- * - Carga el registro existente por id.
- * - Convierte la estructura SQLite al formato usado por
- *   AlimentacionForm.
- * - Mantiene validaciones independientes de la pantalla.
- * - Guarda cambios mediante AlimentacionLocalService.update().
- * - No maneja navegación: recibe callback externo.
+ * CORREGIDO: formADto enviaba `idProveedor`/`idProducto` como
+ * llaves, pero AlimentacionLocalService.mapearAlimentacionParaLocal
+ * solo reconoce `proveedorId`/`proveedor_id` y
+ * `productoId`/`producto_id` (no `idProveedor`/`idProducto`), por
+ * lo que proveedor_id y producto_id se hubieran guardado siempre
+ * en null al editar. Se corrigen los nombres de llave.
  *
- * Campos editables:
- * - finca
- * - estanque
- * - fecha
- * - hora
- * - método
- * - cantidadKg
- * - proveedor
- * - producto
- * - tipoAlimento
- * - presentación
- * - observaciones
+ * ELIMINADOS: racionesDia, totalKg, tasaAlimentacion, lecturaAM,
+ * lecturaPM (no existen en el schema ni en ningún input del
+ * formulario; ver useAlimentacionForm.js).
  *
- * Colaborador:
- * - Eliminado del flujo de edición.
- *
- * Observaciones:
- * - Opcionales.
- * - Si vienen vacías se completa antes de guardar.
- *
- * ============================================================
+ * Retorna:
+ * - form, updateField: estado y setter del formulario.
+ * - cargando: true mientras se trae el registro original.
+ * - submitted, errores: estado de validación para AlimentacionForm.
+ * - alerta: { visible, variant, mensaje } feedback de guardado.
+ * - guardando: true mientras se persiste el cambio.
+ * - handleGuardar: valida y actualiza si es válido.
  */
 
-import { useEffect, useState } from "react";
-
+import { useState, useEffect, useCallback } from "react";
+import useAlimentacionForm from "./useAlimentacionForm";
 import AlimentacionLocalService from "../services/AlimentacionLocal.service";
+import { localApi } from "../../../database/local/localApi.service";
 
+function registroAForm(registro) {
+  if (!registro) return {};
+  return {
+    finca: registro.fincaId != null ? String(registro.fincaId) : "",
+    estanque: registro.estanqueId != null ? String(registro.estanqueId) : "",
+    fecha: registro.fecha ?? "",
+    hora: registro.hora ?? "",
+    metodo: registro.metodo ?? "",
+    cantidadKg: registro.cantidadKg != null ? String(registro.cantidadKg) : "",
 
-const FORM_INICIAL = {
-    finca: "",
-    estanque: "",
-    fecha: "",
-    hora: "",
-    metodo: "",
+    idProveedor: registro.proveedorId != null ? String(registro.proveedorId) : "",
+    proveedor: registro.proveedor ?? "",
 
-    cantidadKg: "",
-
-    idProveedor: "",
-    proveedor: "",
-
-    idProducto: "",
-
-    tipoAlimento: "",
-    presentacion: "",
-
-    observaciones: "",
-};
-
-
-/*
-============================================================
-MAPEAR REGISTRO SQLITE -> FORMULARIO
-============================================================
-*/
-
-function mapearRegistroFormulario(registro) {
-
-    if (!registro) return FORM_INICIAL;
-
-    return {
-
-        finca:
-            registro.fincaId ??
-            registro.finca_id ??
-            "",
-
-
-        estanque:
-            registro.estanqueId ??
-            registro.estanque_id ??
-            "",
-
-
-        fecha:
-            registro.fecha ?? "",
-
-
-        hora:
-            registro.hora ?? "",
-
-
-        metodo:
-            registro.metodo ?? "",
-
-
-        cantidadKg:
-            String(
-                registro.cantidadKg ??
-                registro.cantidad_kg ??
-                ""
-            ),
-
-
-        idProveedor:
-            registro.proveedorId ??
-            registro.proveedor_id ??
-            "",
-
-
-        proveedor:
-            registro.proveedor ??
-            "",
-
-
-        idProducto:
-            registro.productoId ??
-            registro.producto_id ??
-            "",
-
-
-        tipoAlimento:
-            registro.tipoAlimento ??
-            registro.tipo_alimento ??
-            "",
-
-
-        presentacion:
-            registro.presentacion ??
-            "",
-
-
-        observaciones:
-            registro.observaciones ??
-            "",
-    };
+    idProducto: registro.productoId != null ? String(registro.productoId) : "",
+    idColaborador: registro.colaboradorId ?? "",
+    observaciones: registro.observaciones ?? "",
+    tipoAlimento: registro.tipoAlimento ?? "",
+    presentacion: registro.presentacion ?? "",
+  };
 }
 
+function formADto(form) {
+  return {
+    idFinca: form.finca,
+    idEstanque: form.estanque,
+    fecha: form.fecha,
+    hora: form.hora,
+    metodo: form.metodo,
+    cantidadKg: Number(form.cantidadKg),
+    proveedorId: form.idProveedor,
+    proveedor: form.proveedor,
+    productoId: form.idProducto,
+    idColaborador: form.idColaborador,
+    observaciones: form.observaciones?.trim()
+      ? form.observaciones.trim()
+      : "No se realizan observaciones",
+    tipoAlimento: form.tipoAlimento,
+    presentacion: form.presentacion,
+  };
+}
 
+export default function useEditarAlimentacionScreen(registroId, onGuardado) {
+  const [cargando, setCargando] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [alerta, setAlerta] = useState({ visible: false, variant: "success", mensaje: "" });
 
-/*
-============================================================
-HOOK
-============================================================
-*/
+  const { form, updateField, validarForm } = useAlimentacionForm();
 
+  useEffect(() => {
+    if (!registroId) {
+      setCargando(false);
+      return;
+    }
 
-export default function useEditarAlimentacion(
-    registroId,
-    onGuardado
-) {
+    let activo = true;
+    setCargando(true);
 
-
-    const [form, setForm] =
-        useState(FORM_INICIAL);
-
-
-    const [cargando, setCargando] =
-        useState(true);
-
-
-    const [guardando, setGuardando] =
-        useState(false);
-
-
-    const [submitted, setSubmitted] =
-        useState(false);
-
-
-    const [errores, setErrores] =
-        useState({});
-
-
-    const [alerta, setAlerta] =
-        useState({
-            visible:false,
-            variant:"",
-            mensaje:"",
-        });
-
-
-
-/*
-============================================================
-CARGAR REGISTRO
-============================================================
-*/
-
-
-useEffect(() => {
-
-
-    async function cargarRegistro(){
-
-        try {
-
-            setCargando(true);
-
-
-            const registro =
-                await AlimentacionLocalService.getById(
-                    registroId
-                );
-
-
-            setForm(
-                mapearRegistroFormulario(registro)
-            );
-
-
-        } catch(error){
-
-            console.error(
-                "Error cargando alimentación:",
-                error
-            );
-
-
-            setAlerta({
-                visible:true,
-                variant:"danger",
-                mensaje:
-                    "No se pudo cargar el registro."
-            });
-
-
-        } finally {
-
-            setCargando(false);
-
+    (async () => {
+      try {
+        await localApi.inicializar();
+        const registro = await AlimentacionLocalService.getById(registroId);
+        if (!activo) return;
+        const valores = registroAForm(registro);
+        Object.entries(valores).forEach(([campo, valor]) => updateField(campo, valor));
+      } catch (error) {
+        if (activo) {
+          setAlerta({
+            visible: true,
+            variant: "danger",
+            mensaje: error?.message || "No se pudo cargar el registro.",
+          });
         }
+      } finally {
+        if (activo) setCargando(false);
+      }
+    })();
 
-    }
-
-
-    if(registroId){
-        cargarRegistro();
-    }
-
-
-},[registroId]);
-
-
-
-/*
-============================================================
-UPDATE FIELD
-============================================================
-*/
-
-
-function updateField(
-    campo,
-    valor
-){
-
-    setForm(prev => ({
-        ...prev,
-        [campo]:valor
-    }));
-
-}
-
-
-
-/*
-============================================================
-VALIDACIONES
-============================================================
-*/
-
-
-function validarForm(){
-
-    const erroresTemp = {};
-
-
-    if(!form.finca)
-        erroresTemp.finca =
-            "Finca es obligatoria";
-
-
-    if(!form.estanque)
-        erroresTemp.estanque =
-            "Estanque es obligatorio";
-
-
-    if(!form.fecha)
-        erroresTemp.fecha =
-            "Fecha es obligatoria";
-
-
-    if(!form.hora)
-        erroresTemp.hora =
-            "Hora es obligatoria";
-
-
-    if(!form.metodo)
-        erroresTemp.metodo =
-            "Método es obligatorio";
-
-
-    if(
-        !form.cantidadKg ||
-        Number(form.cantidadKg)<=0
-    ){
-        erroresTemp.cantidadKg =
-            "La cantidad debe ser mayor a 0";
-    }
-
-
-    if(
-        !Number.isInteger(
-            Number(form.cantidadKg)
-        )
-    ){
-        erroresTemp.cantidadKg =
-            "Solo se permiten números enteros";
-    }
-
-
-    if(!form.tipoAlimento)
-        erroresTemp.tipoAlimento =
-            "Tipo de alimento es obligatorio";
-
-
-    if(!form.presentacion)
-        erroresTemp.presentacion =
-            "Presentación es obligatoria";
-
-
-    if(!form.idProveedor)
-        erroresTemp.proveedor =
-            "Proveedor es obligatorio";
-
-
-    if(!form.idProducto)
-        erroresTemp.producto =
-            "Producto es obligatorio";
-
-
-
-    setErrores(erroresTemp);
-
-
-    return {
-        valido:
-            Object.keys(erroresTemp).length === 0,
-        errores:
-            erroresTemp
+    return () => {
+      activo = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registroId]);
 
-}
+  const [errores, setErrores] = useState({});
 
-
-
-/*
-============================================================
-GUARDAR CAMBIOS
-============================================================
-*/
-
-
-async function handleGuardar(
-    mostrarError
-){
-
+  const handleGuardar = useCallback(async () => {
     setSubmitted(true);
+    const { valido, errores: erroresValidacion } = validarForm();
+    setErrores(erroresValidacion);
 
-
-    const validacion =
-        validarForm();
-
-
-    if(!validacion.valido){
-
-        setAlerta({
-            visible:true,
-            variant:"danger",
-            mensaje:
-                "Complete los campos obligatorios."
-        });
-
-        return;
+    if (!valido) {
+      setAlerta({ visible: true, variant: "danger", mensaje: "Revisá los campos marcados." });
+      return;
     }
 
-
+    setGuardando(true);
+    setAlerta({ visible: false, variant: "success", mensaje: "" });
 
     try {
-
-
-        setGuardando(true);
-
-
-
-        const datos = {
-
-            fincaId:
-                form.finca,
-
-
-            estanqueId:
-                form.estanque,
-
-
-            fecha:
-                form.fecha,
-
-
-            hora:
-                form.hora,
-
-
-            metodo:
-                form.metodo,
-
-
-            cantidadKg:
-                Number(form.cantidadKg),
-
-
-            proveedorId:
-                form.idProveedor,
-
-
-            proveedor:
-                form.proveedor,
-
-
-            productoId:
-                form.idProducto,
-
-
-            tipoAlimento:
-                form.tipoAlimento,
-
-
-            presentacion:
-                form.presentacion,
-
-
-            observaciones:
-                form.observaciones?.trim()
-                    ?
-                    form.observaciones.trim()
-                    :
-                    "No se realizan observaciones",
-        };
-
-
-
-        await AlimentacionLocalService.update(
-            registroId,
-            datos
-        );
-
-
-
-        if(onGuardado){
-            onGuardado();
-        }
-
-
-
-    } catch(error){
-
-
-        console.error(
-            "Error actualizando alimentación:",
-            error
-        );
-
-
-        if(mostrarError){
-
-            mostrarError(
-                "No se pudo actualizar el registro."
-            );
-
-        }else{
-
-            setAlerta({
-                visible:true,
-                variant:"danger",
-                mensaje:
-                    "Error al guardar cambios."
-            });
-
-        }
-
-
-
+      await AlimentacionLocalService.update(registroId, formADto(form));
+      setAlerta({ visible: true, variant: "success", mensaje: "Registro actualizado correctamente." });
+      onGuardado?.();
+    } catch (error) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje: error?.message || "No se pudo actualizar el registro.",
+      });
     } finally {
-
-        setGuardando(false);
-
+      setGuardando(false);
     }
+  }, [form, registroId, onGuardado, validarForm]);
 
-}
-
-
-
-/*
-============================================================
-RETURN
-============================================================
-*/
-
-
-return {
-
-    form,
-
-    updateField,
-
-    cargando,
-
-    guardando,
-
-    submitted,
-
-    errores,
-
-    alerta,
-
-    handleGuardar,
-
-};
-
+  return { form, updateField, cargando, submitted, errores, alerta, guardando, handleGuardar };
 }

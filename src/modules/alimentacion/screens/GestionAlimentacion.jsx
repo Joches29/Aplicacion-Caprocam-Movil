@@ -3,32 +3,40 @@
  * SCREEN GESTIONALIMENTACION
  * ============================================================
  *
- * Compone las estadísticas del día, el formulario de registro y
- * la lista de registros ya guardados dentro de la pantalla de
+ * Compone el formulario de registro dentro de la pantalla de
  * Alimentación. No contiene lógica de negocio propia: recibe
  * todo (datos, callbacks y estado de validación) desde
  * AlimentacionScreen.
  *
+ * QUITADO: AlimentacionStats (fila de tarjetas con
+ * registros-de-hoy/kg-suministrados/estanques-activos) se retiró
+ * del módulo. Sobrecargaba la pantalla en móvil, ya que para
+ * calcular esos 3 números requería traer TODOS los registros de
+ * alimentación en una pantalla que solo sirve para crear uno
+ * nuevo. Junto con el componente se quitó `calcularStats` y las
+ * props `alimentaciones`/`errorListado` que solo alimentaban esa
+ * sección.
+ *
  * Props principales:
- * - alimentaciones: lista de registros ya guardados.
  * - form / updateField: estado y setter del formulario.
  * - submitted / errores: estado de validación, se reenvían tal
  *   cual a AlimentacionForm.
+ * - alerta: { visible, variant, mensaje } feedback de guardado.
  * - handleGuardar: callback del botón de guardar.
  * - onBack: callback opcional de navegación hacia atrás.
  *
  * Ejemplo:
  * <GestionAlimentacion
- *   alimentaciones={alimentaciones}
  *   form={form}
  *   updateField={updateField}
  *   submitted={submitted}
  *   errores={errores}
+ *   alerta={alerta}
  *   handleGuardar={handleGuardar}
  * />
  */
- 
-import React, { useEffect, useRef } from "react";
+
+import React, { useEffect, useRef, useState } from "react";
 import { View, ScrollView } from "react-native";
 
 import AlimentacionForm from "../components/AlimentacionForm";
@@ -44,7 +52,6 @@ import { ICONS } from "../../../theme/icons";
 import { STYLE } from "../../../theme/style";
 
 export default function GestionAlimentacion({
-  alimentaciones,
   form,
   updateField,
   submitted,
@@ -52,35 +59,25 @@ export default function GestionAlimentacion({
   alerta,
   handleGuardar,
 }) {
+  const [catalogoErrors, setCatalogoErrors] = useState({
+    infoGeneral: "",
+    consumo: "",
+  });
+
   const scrollRef = useRef(null);
+  const catalogoError = catalogoErrors.infoGeneral || catalogoErrors.consumo;
+  // Prioridad: alerta de guardado > error de catálogos.
+  const alertVisible = alerta.visible || !!catalogoError;
+  const alertMessage = alerta.visible ? alerta.mensaje : catalogoError;
+  const alertVariant = alerta.visible ? alerta.variant : "danger";
 
   useEffect(() => {
-    if (alerta.visible) {
+    if (alertVisible) {
       scrollRef.current?.scrollToEnd({
         animated: true,
       });
     }
-  }, [alerta.visible]);
-
-  const calcularStats = (registros = []) => {
-    const registrosHoy = registros.length;
-
-    const kgSuministrados = registros.reduce((total, registro) => {
-      return total + Number(registro.cantidadKg || 0);
-    }, 0);
-
-    const estanquesActivos = new Set(
-      registros
-        .map((registro) => registro.estanque)
-        .filter(Boolean)
-    ).size;
-
-    return {
-      registrosHoy,
-      kgSuministrados,
-      estanquesActivos,
-    };
-  };
+  }, [alertVisible]);
 
   return (
     <ScrollView
@@ -91,18 +88,23 @@ export default function GestionAlimentacion({
       keyboardShouldPersistTaps="handled"
     >
       <View style={STYLE.contentWrapper}>
-
         <AlimentacionForm
           form={form}
           updateField={updateField}
           submitted={submitted}
           errores={errores}
+          onCatalogoErrorChange={(section, message) =>
+            setCatalogoErrors((prev) => ({
+              ...prev,
+              [section]: message || "",
+            }))
+          }
         />
 
-        {alerta.visible && (
+        {alertVisible && (
           <Alert
-            variant={alerta.variant}
-            message={alerta.mensaje}
+            variant={alertVariant}
+            message={alertMessage}
             style={styles.alert}
           />
         )}

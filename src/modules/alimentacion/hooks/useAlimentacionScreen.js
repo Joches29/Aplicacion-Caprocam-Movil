@@ -4,11 +4,20 @@
  * ============================================================
  *
  * Orquesta la pantalla principal del módulo de Alimentación:
- * combina la carga de registros (useAlimentacion), el estado del
- * formulario (useAlimentacionForm) y el guardado real del
- * registro. Antes vivía como lógica inline dentro de
- * AlimentacionScreen.jsx; se extrajo aquí para seguir el mismo
- * patrón de separación de hooks que useDensidadPoblacional.js.
+ * estado del formulario (useAlimentacionForm), validación,
+ * guardado real del registro en SQLite y feedback del proceso.
+ *
+ * RECONECTADO: el guardado usa AlimentacionLocalService.create
+ * (SQLite) en vez de alimentacionService.create (HTTP).
+ *
+ * QUITADO: ya no llama a useAlimentacion() ni expone
+ * alimentaciones/loading/errorListado. Esa carga del listado
+ * completo solo se usaba para AlimentacionStats (retirado del
+ * módulo por sobrecargar la pantalla en móvil) y para un
+ * `calcularStats` que ni siquiera se usa en GestionAlimentacion.
+ * Esta pantalla es de creación, no de listado, así que no tiene
+ * sentido traer todos los registros solo para entrar a registrar
+ * uno nuevo.
  *
  * Funcionalidad:
  * - `submitted` se activa dentro de handleGuardar, ANTES de
@@ -17,13 +26,8 @@
  * - `alerta` maneja tanto el mensaje de éxito (top de pantalla,
  *   3s) como el de error de validación/guardado (in-form, junto
  *   al botón, 6s): la duración depende de `alerta.variant`.
- * - Un guardado fallido por el backend (no por validación local)
- *   usa extraerMensaje(err) de ErrorContext.js para mostrar el
- *   error específico devuelto por el backend cuando existe, en
- *   vez de un mensaje genérico fijo.
  *
  * Retorna:
- * - alimentaciones, loading: datos y estado de carga de la lista.
  * - form, updateField: estado y setter del formulario.
  * - submitted, errores: estado de validación para la UI.
  * - alerta: { visible, variant, mensaje } para el feedback de guardado.
@@ -35,55 +39,10 @@
 
 import { useEffect, useState } from "react";
 
-import useAlimentacion from "./useAlimentacion";
 import useAlimentacionForm from "./useAlimentacionForm";
-import { localApi } from "../../../database/local/localApi.service";
-
-const extraerMensajeAlimentacion = (error) => {
-  const data = error?.response?.data;
-
-  if (typeof data === "string") {
-    return data;
-  }
-
-  if (Array.isArray(data?.error) && data.error.length > 0) {
-    return data.error.join(" ");
-  }
-
-  if (Array.isArray(data?.errors) && data.errors.length > 0) {
-    return data.errors.join(" ");
-  }
-
-  if (Array.isArray(data?.errores) && data.errores.length > 0) {
-    return data.errores.join(" ");
-  }
-
-  if (typeof data?.message === "string") {
-    return data.message;
-  }
-
-  if (typeof data?.mensaje === "string") {
-    return data.mensaje;
-  }
-
-  if (typeof data?.error === "string") {
-    return data.error;
-  }
-
-  if (typeof error?.message === "string") {
-    return error.message;
-  }
-
-  return "No se pudo registrar la alimentación.";
-};
+import AlimentacionLocalService from "../services/AlimentacionLocal.service";
 
 export default function useAlimentacionScreen(navigation) {
-  const {
-    alimentaciones,
-    loading,
-    recargar,
-  } = useAlimentacion();
-
   const {
     form,
     updateField: updateFormField,
@@ -101,18 +60,6 @@ export default function useAlimentacionScreen(navigation) {
   });
 
   useEffect(() => {
-    if (!navigation?.addListener) {
-      return undefined;
-    }
-
-    const unsubscribe = navigation.addListener("focus", () => {
-      recargar();
-    });
-
-    return unsubscribe;
-  }, [navigation, recargar]);
-
-  useEffect(() => {
     if (!alerta.visible) {
       return undefined;
     }
@@ -125,7 +72,6 @@ export default function useAlimentacionScreen(navigation) {
         resetForm();
         setSubmitted(false);
         setErrores({});
-        recargar();
       }
 
       setAlerta((alertaActual) => ({
@@ -139,7 +85,6 @@ export default function useAlimentacionScreen(navigation) {
     alerta.visible,
     alerta.variant,
     resetForm,
-    recargar,
   ]);
 
   const updateField = (campo, valor) => {
@@ -201,33 +146,23 @@ export default function useAlimentacionScreen(navigation) {
     }
 
     try {
-      await localApi.inicializar();
-
-const alimentacion =
-    await localApi.alimentaciones.crear({
-        grupo_datos: 1001,
-        finca_id: Number(form.finca),
-        estanque_id: Number(form.estanque),
-        colaborador_id: Number(form.idColaborador),
-        proveedor_id: Number(form.idProveedor),
-        producto_id: Number(form.idProducto),
+      const registro = {
+        idFinca: form.finca,
+        idEstanque: form.estanque,
         fecha: form.fecha,
         hora: form.hora,
         metodo: form.metodo,
-        cantidad_kg: Number(form.cantidadKg),
-        presentacion: form.presentacion,
+        cantidadKg: Number(form.cantidadKg),
+        proveedorId: form.idProveedor,
         proveedor: form.proveedor,
-        tipo_alimento: form.tipoAlimento,
-        observaciones: form.observaciones,
-        raciones_dia: Number(form.racionesDia),
-        total_kg: Number(form.totalKg),
-        tasa_alimentacion: Number(form.tasaAlimentacion),
-        lectura_am: Number(form.lecturaAM),
-        lectura_pm: Number(form.lecturaPM),
-        creado_por_colaborador_id: Number(form.idColaborador)
-    });
-      
-    console.log("ALIMENTACION SQLITE:",alimentacion);
+        productoId: form.idProducto,
+        idColaborador: form.idColaborador,
+        tipoAlimento: form.tipoAlimento,
+        presentacion: form.presentacion,
+        observaciones: form.observaciones?.trim() || "",
+      };
+
+      await AlimentacionLocalService.create(registro);
 
       /*
        * No se utiliza router.back() ni navigation.goBack().
@@ -240,22 +175,15 @@ const alimentacion =
           "Alimentación registrada correctamente.",
       });
     } catch (error) {
-      console.error(
-        "Error registrando alimentación:",
-        error?.response?.data || error
-      );
-
       setAlerta({
         visible: true,
         variant: "danger",
-        mensaje: extraerMensajeAlimentacion(error),
+        mensaje: error?.message || "No se pudo registrar la alimentación.",
       });
     }
   };
 
   return {
-    alimentaciones,
-    loading,
     form,
     updateField,
     submitted,

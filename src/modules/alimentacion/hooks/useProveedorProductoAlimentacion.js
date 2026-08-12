@@ -5,13 +5,21 @@
  *
  * Carga proveedores y productos desde SQLite local.
  *
- * Mantiene el mismo patrón usado por:
- * useFincaEstanqueAlimentacion.
+ * Mantiene el mismo patrón usado por: useFincaEstanqueAlimentacion.
  *
  * - Trae todos los proveedores y productos una sola vez.
+ * - proveedoresOptions solo incluye proveedores cuyo tipo_producto
+ *   sea "Alimento" (columna real en la tabla local `proveedores`),
+ *   para que el Select de Proveedor en Alimentación solo muestre
+ *   proveedores de alimento balanceado. Se conserva este filtro de
+ *   la version "web", adaptado al nombre de columna snake_case que
+ *   devuelve SQLite.
  * - Productos se filtran por proveedor seleccionado.
  * - Retorna opciones listas para Select.
  *
+ * RECONECTADO: la version "web" de este hook usaba getProveedores /
+ * productoService (HTTP). Se restaura localApi.proveedores /
+ * localApi.productos (SQLite).
  */
 import { useEffect, useMemo, useState } from "react";
 import { localApi } from "../../../database/local/localApi.service";
@@ -156,6 +164,15 @@ export function useProveedorProductoAlimentacion(
     const proveedoresOptions = useMemo(
         () =>
             proveedores
+                .filter((proveedor) => {
+                    const tipoProducto =
+                        obtenerValor(
+                            proveedor,
+                            ["tipo_producto", "tipoProducto"],
+                            null
+                        );
+                    return tipoProducto === "Alimento";
+                })
                 .map((proveedor) => {
                     const id =
                         obtenerValor(
@@ -189,7 +206,6 @@ export function useProveedorProductoAlimentacion(
     OPCIONES PRODUCTOS
     ============================================================
     */
-
     const productosOptions = useMemo(() => {
 
         if (!idProveedorSeleccionado) {

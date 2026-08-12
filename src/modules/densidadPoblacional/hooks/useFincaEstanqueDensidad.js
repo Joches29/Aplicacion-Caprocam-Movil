@@ -1,13 +1,16 @@
 /**
  * ============================================================
- * HOOK USEFINCAESTANQUERALEO
+ * HOOK USEFINCAESTANQUEDENSIDAD
  * ============================================================
  *
  * carga de opciones de finca y estanque transformando datos para el Select del form
  *
- * Trabaja con SQLite para fincas, estanques y raleo.
+ * Trabaja con SQLite para fincas y estanques.
+ *
+ * RECONECTADO: la version "web" de este hook usaba fincaService /
+ * estanqueService (HTTP). Se restaura el patron local (localApi +
+ * ejecutarMetodoLocal), igual que el resto del modulo.
  */
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useMemo, useState } from "react";
 import { localApi } from "../../../database/local/localApi.service";
 
@@ -16,8 +19,6 @@ import { localApi } from "../../../database/local/localApi.service";
 CONSTANTES
 ============================================================
 */
-
-const STORAGE_COLABORADOR_ACTUAL = "caprocam_colaborador_actual";
 
 const METODOS_LOCAL_API = {
   obtenerTodos: ["obtenerTodos", "getAll", "listar"],
@@ -28,9 +29,6 @@ const METODOS_LOCAL_API = {
 HELPERS GENERALES
 ============================================================
 */
-
-const primeraMayuscula = (texto) =>
-  texto ? texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase() : "";
 
 const obtenerDataRespuesta = (respuesta) =>
   respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
@@ -133,44 +131,6 @@ const obtenerNombreEstanque = (item, id) =>
 
 /*
 ============================================================
-HELPERS DE CATALOGOS
-============================================================
-*/
-
-function normalizarCatalogo(catalogo) {
-  return Array.isArray(catalogo)
-    ? catalogo
-      .map((item) => {
-        if (typeof item === "string") {
-          return {
-            label: primeraMayuscula(item),
-            value: item,
-          };
-        }
-
-        const value = obtenerValor(
-          item,
-          ["value", "valor", "codigo", "nombre"],
-          ""
-        );
-
-        const label = obtenerValor(
-          item,
-          ["label", "nombre"],
-          primeraMayuscula(String(value))
-        );
-
-        return {
-          label: String(label),
-          value: String(value),
-        };
-      })
-      .filter((item) => item.value !== "")
-    : [];
-}
-
-/*
-============================================================
 HOOK PRINCIPAL
 ============================================================
 */
@@ -199,8 +159,8 @@ export function useFincaEstanqueDensidad(
           respuestaFincas,
           respuestaEstanques,
         ] = await Promise.all([
-        ejecutarMetodoLocal("fincas","obtenerTodos"),
-        ejecutarMetodoLocal("estanques","obtenerTodos"),
+          ejecutarMetodoLocal("fincas", "obtenerTodos"),
+          ejecutarMetodoLocal("estanques", "obtenerTodos"),
         ]);
         const fincasLocales = obtenerDataRespuesta(respuestaFincas);
         const estanquesLocales = obtenerDataRespuesta(respuestaEstanques);
@@ -216,10 +176,10 @@ export function useFincaEstanqueDensidad(
             ? estanquesLocales
             : []
         );
-      } catch(error) {
-        console.error("Error cargando fincas y estanques:",error);
+      } catch (error) {
+        console.error("Error cargando fincas y estanques:", error);
         if (activo) {
-        setErrorCatalogos("No se pudieron cargar fincas y estanques.");
+          setErrorCatalogos("No se pudieron cargar fincas y estanques.");
         }
       } finally {
         if (activo) {
@@ -245,7 +205,7 @@ export function useFincaEstanqueDensidad(
             obtenerIdFinca(finca);
           return {
             label:
-              obtenerNombreFinca(finca,id),
+              obtenerNombreFinca(finca, id),
             value:
               String(id),
           };

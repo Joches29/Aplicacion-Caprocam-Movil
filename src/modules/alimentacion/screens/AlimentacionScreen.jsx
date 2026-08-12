@@ -3,9 +3,13 @@
  * ============================================================
  *
  * Pantalla principal del módulo de Alimentación. Toda la lógica
- * (carga de registros, estado del formulario, guardado y
- * feedback del proceso) vive en hooks/useAlimentacionScreen.js;
- * esta screen solo arma la UI a partir de lo que ese hook retorna.
+ * (estado del formulario, guardado y feedback del proceso) vive
+ * en hooks/useAlimentacionScreen.js; esta screen solo arma la UI
+ * a partir de lo que ese hook retorna.
+ *
+ * QUITADO: ya no espera un `loading` de listado completo antes de
+ * mostrar el formulario (useAlimentacionScreen ya no carga la
+ * lista de alimentaciones; ver ese hook para el detalle).
  *
  * Funcionalidad:
  * - Los mensajes de éxito, validación y error se muestran dentro
@@ -19,8 +23,7 @@
  *   no para navegación con botón volver + ruta contextual.
  *
  * Props principales:
- * - navigation: objeto de navegación (opcional, usado para
- *   recargar datos al enfocar la pantalla).
+ * - navigation: objeto de navegación (opcional).
  * - onBack: callback opcional para volver atrás.
  *
  * Ejemplo:
@@ -31,14 +34,11 @@ import React from "react";
 import { View } from "react-native";
 import useAlimentacionScreen from "../hooks/useAlimentacionScreen";
 import GestionAlimentacion from "./GestionAlimentacion";
-import Spinner from "../../../shared/components/Spinner";
 import NavbarRegistro from "../../../shared/components/NavbarRegistro";
 import { STYLE } from "../../../theme/style";
 
 export default function AlimentacionScreen({ navigation, onBack }) {
   const {
-    alimentaciones,
-    loading,
     form,
     updateField,
     submitted,
@@ -46,8 +46,6 @@ export default function AlimentacionScreen({ navigation, onBack }) {
     alerta,
     handleGuardar,
   } = useAlimentacionScreen(navigation);
-
-  if (loading) return <Spinner />;
 
   return (
     <>
@@ -59,7 +57,6 @@ export default function AlimentacionScreen({ navigation, onBack }) {
 
       <View style={STYLE.container}>
         <GestionAlimentacion
-          alimentaciones={alimentaciones}
           form={form}
           updateField={updateField}
           submitted={submitted}
@@ -71,4 +68,4 @@ export default function AlimentacionScreen({ navigation, onBack }) {
       </View>
     </>
   );
-} 
+}
