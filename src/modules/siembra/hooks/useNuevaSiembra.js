@@ -31,7 +31,7 @@
  * la interfaz y ejecutar acciones.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 
 import {
@@ -576,6 +576,12 @@ export default function useNuevaSiembra() {
       setGuardando(false);
     }
   }
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (mensaje !== "" && mensajeVariant === "danger") {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [mensaje, mensajeVariant]);
 
   return {
     formData,
@@ -609,5 +615,6 @@ export default function useNuevaSiembra() {
     handleEliminarLaboratorioLarva,
     handleEliminarProcedenciaLarva,
     fieldHelpers: { hasError, requiredLabel },
+    scrollRef,
   };
 }

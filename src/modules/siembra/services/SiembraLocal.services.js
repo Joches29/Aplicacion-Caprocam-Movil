@@ -398,7 +398,7 @@ async function finalizar(id) {
 
         const respuesta = await ejecutarMetodoSiembras("actualizar", [
             id,
-            { estado: "Finalizada", produccionKg },
+            { estado: "Finalizada", produccion_kg: produccionKg },
         ]);
 
         return mapearSiembraDesdeLocal(obtenerDataRespuesta(respuesta));

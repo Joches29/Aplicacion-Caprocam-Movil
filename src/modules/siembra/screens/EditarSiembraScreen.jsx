@@ -102,7 +102,7 @@ import { STYLE } from "../../../theme/style";
 import useDetalleSiembra from "../hooks/useDetalleSiembra";
 
 export default function EditarSiembraScreen() {
-  const { id, finalizar } = useLocalSearchParams();
+  const { id, finalizar, tipoRegistro } = useLocalSearchParams();
   const router = useRouter();
   const [saliendo, setSaliendo] = React.useState(false);
   const esFinalizar = finalizar === "1";
@@ -141,7 +141,11 @@ export default function EditarSiembraScreen() {
     handleEliminarProcedenciaLarva,
     todosEstanques,
     fieldHelpers,
-  } = useDetalleSiembra(id);
+    fincaLabel,
+    estanqueLabel,
+    scrollRef,
+    handlePresionarGuardar,
+  } = useDetalleSiembra(id, tipoRegistro, esFinalizar);
 
   // El hook nace en modo lectura (isEditing = false): esta pantalla
   // existe solo para editar, así que en cuanto haya datos cargados
@@ -192,13 +196,6 @@ export default function EditarSiembraScreen() {
     });
   }, [saliendo, mensaje, mensajeVariant, router]);
 
-  const scrollRef = useRef(null);
-  useEffect(() => {
-    if (mensaje !== "" && mensajeVariant === "danger") {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }
-  }, [mensaje, mensajeVariant]);
-
   if (!siembra || !formData) {
     return (
       <NavbarRegistro
@@ -208,32 +205,6 @@ export default function EditarSiembraScreen() {
       />
     );
   }
-
-  const fincaObj = fincas.find(
-    (f) => String(f.value) === String(formData.finca) || String(f.id) === String(formData.finca)
-  );
-  const fincaLabel =
-    fincaObj?.label || (formData.finca ? `Finca #${formData.finca}` : "Sin finca");
-
-  const estanqueObj =
-    estanques.find(
-      (e) => String(e.value) === String(formData.estanque) || String(e.id) === String(formData.estanque)
-    ) ||
-    (todosEstanques || []).find(
-      (e) => String(e.id) === String(formData.estanque) || String(e.value) === String(formData.estanque) || String(e.servidorId) === String(formData.estanque)
-    );
-
-  const estanqueLabel =
-    estanqueObj?.label ||
-    (estanqueObj?.codigo
-      ? estanqueObj.codigo.toLowerCase().startsWith("estanque") || estanqueObj.codigo.toLowerCase().startsWith("tanque")
-        ? estanqueObj.codigo
-        : `Estanque ${estanqueObj.codigo}`
-      : null) ||
-    (estanqueObj?.nombre ? estanqueObj.nombre : null) ||
-    (formData.estanque ? `Estanque #${formData.estanque}` : "Sin estanque");
-
-  const onGuardar = esFinalizar ? handleFinalizarPreCria : guardar;
 
   return (
     <>
@@ -350,7 +321,7 @@ export default function EditarSiembraScreen() {
           <View style={styles.actions}>
             <Button
               style={styles.button}
-              onPress={esFinalizar ? () => setConfirmarFinalizar(true) : onGuardar}
+              onPress={esFinalizar ? () => setConfirmarFinalizar(true) : handlePresionarGuardar}
               disabled={guardando}
               textStyle={styles.textoBoton}
               variant="outline"
@@ -398,7 +369,7 @@ export default function EditarSiembraScreen() {
             style={styles.modalConfirmButton}
             onPress={() => {
               setConfirmarFinalizar(false);
-              onGuardar();
+              handlePresionarGuardar();
             }}
           >
             <Text style={styles.modalConfirmButtonText}>Sí, finalizar</Text>
