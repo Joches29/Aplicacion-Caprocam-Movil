@@ -88,29 +88,29 @@ export default function CardRaleo({ fincaId, estanqueId, onEditar, onAlertChange
                         </View>
 
                         <View style={styles.infoItem}>
-                            <Text style={styles.label}>Metodo de Raleo</Text>
-                            <Text style={styles.value}>{registro.metodos}</Text>
-                        </View>
-
-                        <View style={styles.infoItem}>
-                            <Text style={styles.label}>Peso Estimado</Text>
-                            <Text style={styles.value}>{registro.pesoEstimado} g</Text>
-                        </View>
-
-                        <View style={styles.infoItem}>
                             <Text style={styles.label}>Biomasa Estimada</Text>
-                            <Text style={styles.value}>{registro.biomasaEstimada} Kg</Text>
+                            <Text style={styles.value}>{registro.biomasaEstimada} kg</Text>
                         </View>
 
                         <View style={styles.infoItem}>
-                            <Text style={styles.label}>Objetivo de Raleo</Text>
-                            <Text style={styles.value}>{registro.objetivo} g</Text>
+                            <Text style={styles.label}>Kilogramos retirados</Text>
+                            <Text style={styles.value}>{registro.kgRetirados} Kg</Text>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                            <Text style={styles.label}>Biomasa restante</Text>
+                            <Text style={styles.value}>{registro.biomasaRestante} Kg</Text>
                         </View>
 
                         <View style={styles.infoItem}>
                             <Text style={styles.label}>Observaciones</Text>
                             <Text style={styles.value}>{registro.observaciones}</Text>
                         </View>
+                    </View>
+
+                    <View style={styles.pesoContainer}>
+                        <Text style={styles.label}>Porcentaje de Raleo</Text>
+                        <Text style={styles.cantidadKg}>{registro.porcentaje}%</Text>
                     </View>
 
                     <View style={styles.Buttons}>
