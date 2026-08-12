@@ -50,28 +50,6 @@ export default function DrawerLayout() {
       />
 
       <Drawer.Screen
-        name="proveedores"
-        options={{
-          drawerLabel: "Proveedores",
-          title: "Proveedores",
-          drawerIcon: ({ color, size }) => (
-            <Icon icon={ICONS.truck} size={18} />
-          ),
-        }}
-      />
- 
-      <Drawer.Screen
-        name="compradores"
-        options={{
-          drawerLabel: "Compradores",
-          title: "Compradores",
-          drawerIcon: ({ color, size }) => (
-            <Icon icon={ICONS.people} size={22} />
-          ),
-        }}
-      />
-
-      <Drawer.Screen
         name="trazabilidad"
         options={{
           drawerLabel: "Trazabilidad",
@@ -89,6 +67,17 @@ export default function DrawerLayout() {
           title: "Equipos",
           drawerIcon: ({ color, size }) => (
             <Icon icon={ICONS.tools} size={23} />
+          )
+        }}
+      />
+
+      <Drawer.Screen
+        name="mantenimientoEquipo"
+        options={{
+          drawerLabel: "Mantenimiento de Equipos",
+          title: "Mantenimiento de Equipos",
+          drawerIcon: ({ color, size }) => (
+            <Icon icon={ICONS.clipboard} size={23} />
           )
         }}
       />
@@ -115,20 +104,33 @@ export default function DrawerLayout() {
         }}
       />
 
-
       <Drawer.Screen name="inicio" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="registros" options={{ drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="reportes" options={{ drawerItemStyle: { display: "none" } }} />
+      
       <Drawer.Screen name="inventarios/_layout" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="inventarios/inventarioScreen" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="inventarios/productForm" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="inventarios/nuevoProveedor" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="inventarios/editarProveedor" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="inventarios/proveedorScreen" options={{ drawerItemStyle: { display: "none" } }} />
+      
       <Drawer.Screen name="compradores/nuevoComprador"    options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="compradores/editarComprador"   options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="compradores/detalleComprador"  options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="compradores/compradorScreen"   options={{ drawerItemStyle: { display: "none" } }} />
+      
+      <Drawer.Screen name="mantenimientoEquipo/layout"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/tareaForm"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/mantEquipo"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/detalleTarea"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/EditarMantenimiento"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/AgregarMantenimiento"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/DetalleMantenimiento"   options={{ drawerItemStyle: { display: "none" } }} />
+
+      <Drawer.Screen name="mantenimientoEquipo/tareas/layout"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/tareas"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/tareas/tareaForm"   options={{ drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="mantenimientoEquipo/tareas/detalleTarea"   options={{ drawerItemStyle: { display: "none" } }} />
 
     </Drawer>
   );

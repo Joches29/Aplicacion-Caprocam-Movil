@@ -12,6 +12,7 @@
 // ============================================================
 import { useState, useEffect, useCallback } from "react";
 import { equiposService } from "../services/equiposService";
+import { useError } from "../../../shared/context/ErrorContext";
 
 // ============================================================
 // HOOK
@@ -32,6 +33,7 @@ export function useEquipos(initialFilters = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
+  const { mostrarError } = useError();
 
   // --------------------------------------------------------
   // FUNCIONES PARA OBTENER DATOS
@@ -43,11 +45,11 @@ export function useEquipos(initialFilters = {}) {
       const data = await equiposService.getEquipos(filters);
       setEquipos(data);
     } catch (err) {
-      setError(err.message);
+      mostrarError(err);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, mostrarError]);
 
   const fetchProximosMantenimiento = useCallback(async () => {
     try {
@@ -88,6 +90,7 @@ export function useEquipos(initialFilters = {}) {
       return nuevo;
     } catch (err) {
       setError(err.message);
+      mostrarError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -104,6 +107,7 @@ export function useEquipos(initialFilters = {}) {
       return actualizado;
     } catch (err) {
       setError(err.message);
+      mostrarError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -129,8 +133,6 @@ export function useEquipos(initialFilters = {}) {
   const toggleEquipo = async (id) => {
     setLoading(true);
     try {
-      // El backend exige el body completo en el PUT, así que
-      // se envía el equipo actual junto con el nuevo estado.
       const equipoActual = equipos.find(e => e.id === id);
       if (!equipoActual) {
         throw new Error("Equipo no encontrado");
@@ -143,6 +145,7 @@ export function useEquipos(initialFilters = {}) {
       return actualizado;
     } catch (err) {
       setError(err.message);
+      mostrarError(err);
       throw err;
     } finally {
       setLoading(false);
