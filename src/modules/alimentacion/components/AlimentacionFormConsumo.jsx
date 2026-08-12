@@ -7,12 +7,17 @@
  * Kg (obligatoria, con asterisco + borde rojo + mensaje de error
  * tras submitted), proveedor y producto.
  *
- * Proveedor y Producto ahora usan el catálogo real (useProveedorProductoAlimentacion),
- * en vez de la lista fija hardcodeada que había antes: eso guardaba
- * texto libre y dejaba proveedor_id/producto_id siempre en NULL.
- * Al elegir un proveedor, se guarda su id (idProveedor -> proveedor_id)
- * y también su nombre (proveedor, para mantener compatibilidad con
+ * Proveedor y Producto usan el catálogo real (useProveedorProductoAlimentacion),
+ * en vez de una lista fija hardcodeada: eso guardaba texto libre y
+ * dejaba proveedor_id/producto_id siempre en NULL. Al elegir un
+ * proveedor, se guarda su id (idProveedor -> proveedor_id) y
+ * también su nombre (proveedor, para mantener compatibilidad con
  * la columna de texto libre).
+ *
+ * CORREGIDO: el Select de Producto leía `errores.producto`, pero
+ * useAlimentacionForm.js valida y devuelve el error bajo la llave
+ * `errores.idProducto`. Por ese desfase, el Select de Producto
+ * nunca mostraba el borde rojo/mensaje de error tras `submitted`.
  *
  * Props principales:
  * - form, updateField, submitted, errores (mismos que recibe
@@ -22,7 +27,7 @@
  * <AlimentacionFormConsumo form={form} updateField={updateField} submitted={submitted} errores={errores} />
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import { View } from "react-native";
 import Card from "../../../shared/components/Card";
 import Input from "../../../shared/components/Input";
@@ -39,8 +44,13 @@ export default function AlimentacionFormConsumo({
   updateField = () => { },
   submitted = false,
   errores = {},
+  onCatalogoErrorChange = () => {},
 }) {
-  const { proveedoresOptions, productosOptions } = useProveedorProductoAlimentacion(form.idProveedor);
+  const { proveedoresOptions, productosOptions, errorCatalogos } = useProveedorProductoAlimentacion(form.idProveedor);
+
+  useEffect(() => {
+    onCatalogoErrorChange("consumo", errorCatalogos);
+  }, [errorCatalogos, onCatalogoErrorChange]);
 
   const handleProveedorChange = (idProveedor) => {
     updateField("idProveedor", idProveedor);
@@ -94,9 +104,9 @@ export default function AlimentacionFormConsumo({
         placeholder={form.idProveedor ? "Seleccionar producto" : "Primero elija un proveedor"}
         required
         submitted={submitted}
-        error={submitted ? (errores.producto || "") : ""}
+        error={submitted ? (errores.idProducto || "") : ""}
       />
+
     </Card>
   );
 }
-
