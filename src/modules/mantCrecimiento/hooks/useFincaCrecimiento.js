@@ -1,16 +1,18 @@
 /**
  * ============================================================
- * HOOK DE FINCA DE CRECIMIENTO (SQLite Offline-First)
+ * HOOK DE FINCA DE CRECIMIENTO
  * ============================================================
  */
 
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { localApi } from "../../../database/local/localApi.service.js";
+import FincaLocalService from "../../finca/services/fincaLocal.service.js";
+import EstanqueLocalService from "../../estanques/services/EstanqueLocal.service.js";
 import CrecimientosLocalService from "../services/mantCrecimientoLocal.service.js";
 import { mantCrecmientoDTO } from "../dtos/mantCrecmiento.dto.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
+import { localApi } from "../../../database/local/localApi.service";
 
 function getFechaHoy() {
   const hoy = new Date();
@@ -22,184 +24,184 @@ function getFechaHoy() {
 
 export function formatearFechaParaInput(hoy) {
   if (!hoy) return getFechaHoy();
-  const partes = String(hoy).trim().split("/");
-  if (partes.length === 3) return hoy;
-
-  const d = new Date(hoy);
-  if (Number.isNaN(d.getTime())) return getFechaHoy();
-
-  const dia = String(d.getDate()).padStart(2, "0");
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
-  const anio = d.getFullYear();
+  const [anio, mes, dia] = hoy.split("-");
+  if (!anio || !mes || !dia) return getFechaHoy();
   return `${dia}/${mes}/${anio}`;
 }
 
-function convertirFechaParaBackend(fechaString) {
-  if (!fechaString) return new Date().toISOString();
-  const partes = String(fechaString).trim().split("/");
-  if (partes.length !== 3) return new Date().toISOString();
-  const [dia, mes, anio] = partes;
-  return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+export function convertirFechaParaBackend(fechaDDMMYYYY) {
+  const [dia, mes, anio] = fechaDDMMYYYY.split("/");
+  return `${anio}-${mes}-${dia}`;
 }
 
-function calcularPromedio(cantStr, pesoStr) {
-  const cant = Number(cantStr);
-  const peso = Number(pesoStr);
-  if (Number.isNaN(cant) || Number.isNaN(peso) || cant <= 0 || peso <= 0) {
-    return null;
-  }
-  return peso / cant;
+function calcularPromedio(cantidad, pesoTotal) {
+  const c = Number(cantidad);
+  const p = Number(pesoTotal);
+  if (!c || c <= 0 || Number.isNaN(c) || Number.isNaN(p)) return null;
+  return p / c;
 }
 
 function formatearPeso(valor) {
-  if (valor == null || Number.isNaN(Number(valor))) return "-";
+  if (valor === null || valor === undefined || Number.isNaN(valor)) return "-";
   return Number(valor).toFixed(2);
 }
 
 let calcIdSeq = 1;
 
 export function useFincaCrecimiento() {
-  const params = useLocalSearchParams();
   const { mostrarError } = useError();
+  const { id } = useLocalSearchParams();
+  const parsedId = useMemo(() => {
+    if (!id) return null;
+    const parsed = parseInt(id, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [id]);
+
+  const [fincas, setFincas] = useState([]);
+  const [estanques, setEstanques] = useState([]);
+  const [crecimientos, setCrecimientos] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [fincaSeleccionada, setFincaSeleccionada] = useState("");
   const [estanqueSeleccionado, setEstanqueSeleccionado] = useState("");
   const [fechaRegistro, setFechaRegistro] = useState(getFechaHoy());
 
   const [calculos, setCalculos] = useState([]);
-  const [cantidadIndividuos, setCantidadIndividuos] = useState("");
-  const [pesoTotal, setPesoTotal] = useState("");
+  const [cantidadIndividuos, setCantidadIndividuos] = useState("0");
+  const [pesoTotal, setPesoTotal] = useState("0");
   const [editandoId, setEditandoId] = useState(null);
 
-  const [fincas, setFincas] = useState([]);
-  const [estanques, setEstanques] = useState([]);
-  const [crecimientos, setCrecimientos] = useState([]);
-
   const [submitted, setSubmitted] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  const totalActual = useMemo(() => {
-    return calcularPromedio(cantidadIndividuos, pesoTotal);
-  }, [cantidadIndividuos, pesoTotal]);
-
-  const pesoPromedioCalculado = useMemo(() => {
-    if (calculos.length === 0) {
-      const cant = Number(cantidadIndividuos);
-      const peso = Number(pesoTotal);
-      if (!Number.isNaN(cant) && !Number.isNaN(peso) && cant > 0 && peso > 0) {
-        return peso / cant;
-      }
-      return null;
-    }
-    const sumaPromedios = calculos.reduce((acc, c) => acc + (c.promedio || 0), 0);
-    return sumaPromedios / calculos.length;
-  }, [calculos, cantidadIndividuos, pesoTotal]);
-
-  useEffect(() => {
-    if (params?.fincaId) setFincaSeleccionada(String(params.fincaId));
-    if (params?.estanqueId) setEstanqueSeleccionado(String(params.estanqueId));
-  }, [params?.fincaId, params?.estanqueId]);
-
-  useEffect(() => {
-    let activo = true;
-    async function cargarDatosLocales() {
-      try {
+  async function cargarDatos() {
+    setIsLoading(true);
+    setLoadError("");
+    try {
+      if (typeof localApi.inicializar === "function") {
         await localApi.inicializar();
-        const [resFincas, resEstanques, resCrecimientos] = await Promise.all([
-          localApi.fincas?.obtenerTodos?.().then((r) => r.data).catch(() => []),
-          localApi.estanques?.obtenerTodos?.().then((r) => r.data).catch(() => []),
-          CrecimientosLocalService.getAll().catch(() => []),
-        ]);
-        if (!activo) return;
-        setFincas(Array.isArray(resFincas) ? resFincas : []);
-        setEstanques(Array.isArray(resEstanques) ? resEstanques : []);
-        setCrecimientos(Array.isArray(resCrecimientos) ? resCrecimientos : []);
-      } catch (error) {
-        if (activo) mostrarError(error);
       }
+      const [fincasData, estanquesData, crecimientosData] = await Promise.all([
+        FincaLocalService.getFincas(),
+        EstanqueLocalService.getEstanques(),
+        CrecimientosLocalService.getAll(),
+      ]);
+      setFincas(fincasData);
+      setEstanques(estanquesData);
+      setCrecimientos(Array.isArray(crecimientosData) ? crecimientosData : []);
+    } catch (error) {
+      mostrarError(error);
+      setLoadError("Ocurrio un error al cargar fincas y estanques");
+    } finally {
+      setIsLoading(false);
     }
-    cargarDatosLocales();
-    return () => {
-      activo = false;
-    };
-  }, [mostrarError]);
+  }
 
-  const opcionesFincas = useMemo(() => {
-    return fincas.map((f) => ({
-      label: f.nombre_finca || f.nombreFinca || f.nombre || `Finca ${f.id}`,
-      value: String(f.id),
-    }));
-  }, [fincas]);
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  useEffect(() => {
+    if (!successMessage && !errorMessage) return;
+    const timer = setTimeout(() => {
+      setSuccessMessage("");
+      setErrorMessage("");
+      setSubmitted(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [successMessage, errorMessage]);
+
+  const searchEstanqueById = useCallback(
+    (targetId) => estanques.find((item) => item.id === targetId) ?? null,
+    [estanques],
+  );
+
+  const estanque = useMemo(() => {
+    if (parsedId !== null) return searchEstanqueById(parsedId);
+    return searchEstanqueById(1);
+  }, [parsedId, searchEstanqueById]);
+
+  const estanqueSeleccionadoObj = useMemo(() => {
+    if (!estanqueSeleccionado) return null;
+    const parsed = parseInt(estanqueSeleccionado, 10);
+    return Number.isNaN(parsed) ? null : searchEstanqueById(parsed);
+  }, [estanqueSeleccionado, searchEstanqueById]);
+
+  const opcionesFincas = useMemo(
+    () =>
+      fincas.map((finca) => ({
+        label: finca.nombreFinca,
+        value: finca.id,
+      })),
+    [fincas],
+  );
 
   const estanquesFiltrados = useMemo(() => {
     if (!fincaSeleccionada) return [];
     return estanques
       .filter(
-        (e) =>
-          String(e.finca_id ?? e.idFinca ?? e.fincaId ?? e.finca) === String(fincaSeleccionada)
+        (estanqueItem) => estanqueItem.idFinca === Number(fincaSeleccionada),
       )
-      .map((e) => ({
-        label: e.codigo || e.nombre || `Estanque ${e.id}`,
-        value: String(e.id),
+      .map((estanqueItem) => ({
+        label: estanqueItem.codigo,
+        value: estanqueItem.id,
       }));
-  }, [estanques, fincaSeleccionada]);
+  }, [fincaSeleccionada, estanques]);
 
-  const estanqueSeleccionadoObj = useMemo(() => {
-    if (!estanqueSeleccionado) return null;
-    return estanques.find((e) => String(e.id) === String(estanqueSeleccionado)) || null;
-  }, [estanques, estanqueSeleccionado]);
+  const totalActual = useMemo(
+    () => calcularPromedio(cantidadIndividuos, pesoTotal),
+    [cantidadIndividuos, pesoTotal],
+  );
 
-  const estanque = useMemo(() => {
-    if (!estanqueSeleccionadoObj) return undefined;
-    return {
-      id: estanqueSeleccionadoObj.id,
-      nombre: estanqueSeleccionadoObj.codigo || estanqueSeleccionadoObj.nombre,
-      fincaId: estanqueSeleccionadoObj.finca_id || estanqueSeleccionadoObj.idFinca,
-    };
-  }, [estanqueSeleccionadoObj]);
-
-  const ultimoCrecimientoEstanque = useMemo(() => {
-    if (!estanqueSeleccionado) return null;
-    const listaEstanque = crecimientos.filter(
-      (c) => String(c.estanque || c.estanqueId) === String(estanqueSeleccionado)
-    );
-    if (listaEstanque.length === 0) return null;
-
-    return listaEstanque.reduce((masReciente, item) => {
-      const fechaActual = new Date(item.fechaRegistro || item.fecha);
-      const fechaMasReciente = new Date(masReciente.fechaRegistro || masReciente.fecha);
-      return fechaActual > fechaMasReciente ? item : masReciente;
-    }, listaEstanque[0]);
-  }, [crecimientos, estanqueSeleccionado]);
+  const pesoPromedioCalculado = useMemo(() => {
+    if (!calculos.length) return null;
+    const suma = calculos.reduce((acc, c) => acc + Number(c.promedio), 0);
+    return suma / calculos.length;
+  }, [calculos]);
 
   const pesoAnteriorLabel = useMemo(() => {
     if (!estanqueSeleccionado) return "Peso anterior: -";
-    if (!ultimoCrecimientoEstanque) return "Peso anterior: Sin registros";
-    const peso = ultimoCrecimientoEstanque.pesoActual ?? ultimoCrecimientoEstanque.peso;
-    return `Peso anterior: ${formatearPeso(peso)} g`;
-  }, [estanqueSeleccionado, ultimoCrecimientoEstanque]);
+
+    const delEstanque = (crecimientos || []).filter((c) => {
+      const idEst = Number(c.estanque ?? c.estanqueId ?? c.estanque_id);
+      return idEst === Number(estanqueSeleccionado);
+    });
+
+    if (delEstanque.length === 0) return "Peso anterior: -";
+
+    const ordenados = [...delEstanque].sort((a, b) => {
+      const fa = String(a.fechaRegistro ?? a.fecha_registro ?? a.fecha ?? "");
+      const fb = String(b.fechaRegistro ?? b.fecha_registro ?? b.fecha ?? "");
+      const porFecha = fb.localeCompare(fa);
+      if (porFecha !== 0) return porFecha;
+      return Number(b.id ?? 0) - Number(a.id ?? 0);
+    });
+
+    const ultimo = ordenados[0];
+    const peso = ultimo?.pesoActual ?? ultimo?.peso_actual;
+
+    return peso !== undefined && peso !== null && peso !== ""
+      ? `Peso anterior: ${peso} g`
+      : "Peso anterior: -";
+  }, [estanqueSeleccionado, crecimientos]);
 
   const limpiarFormCalculo = useCallback(() => {
-    setCantidadIndividuos("");
-    setPesoTotal("");
+    setCantidadIndividuos("0");
+    setPesoTotal("0");
     setEditandoId(null);
   }, []);
 
-  const handleFincaChange = useCallback(
-    (value) => {
-      setFincaSeleccionada(value);
-      setEstanqueSeleccionado("");
-      setSuccessMessage("");
-      setErrorMessage("");
-      if (submitted) {
-        setErrors((prev) => ({ ...prev, finca: undefined, estanque: undefined }));
-      }
-    },
-    [submitted]
-  );
+  const handleFincaChange = useCallback((value) => {
+    setFincaSeleccionada(value);
+    setEstanqueSeleccionado("");
+    setErrors((prev) => ({ ...prev, finca: undefined, estanque: undefined }));
+    setSuccessMessage("");
+    setErrorMessage("");
+  }, []);
 
   const handleEstanqueChange = useCallback(
     (value) => {
@@ -210,7 +212,7 @@ export function useFincaCrecimiento() {
         setErrors((prev) => ({ ...prev, estanque: undefined }));
       }
     },
-    [submitted]
+    [submitted],
   );
 
   const handleFechaRegistroChange = useCallback(
@@ -222,7 +224,7 @@ export function useFincaCrecimiento() {
         setErrors((prev) => ({ ...prev, fecha: undefined }));
       }
     },
-    [submitted]
+    [submitted],
   );
 
   const handleCantidadChange = useCallback((value) => {
@@ -307,7 +309,7 @@ export function useFincaCrecimiento() {
         limpiarFormCalculo();
       }
     },
-    [editandoId, limpiarFormCalculo]
+    [editandoId, limpiarFormCalculo],
   );
 
   const validarCampos = useCallback(() => {
@@ -328,7 +330,8 @@ export function useFincaCrecimiento() {
         peso > 0;
 
       if (formLleno) {
-        nextErrors.calculos = "Debe agregar el cálculo para poder guardarlo.";
+        nextErrors.calculos =
+          "Debe agregar el cálculo para poder guardarlo.";
       } else {
         nextErrors.calculos = "Agregue al menos un cálculo de muestreo.";
         if (cantidadIndividuos === "" || Number.isNaN(cant) || cant <= 0) {
@@ -344,16 +347,20 @@ export function useFincaCrecimiento() {
           !c.cantidad ||
           Number(c.cantidad) <= 0 ||
           !c.pesoTotal ||
-          Number(c.pesoTotal) <= 0
+          Number(c.pesoTotal) <= 0,
       );
       if (invalidos) {
-        nextErrors.calculos = "Todos los cálculos deben tener cantidad y peso mayores que cero.";
+        nextErrors.calculos =
+          "Todos los cálculos deben tener cantidad y peso mayores que cero.";
       }
     }
 
     setErrors(nextErrors);
+
     const keys = Object.keys(nextErrors);
-    if (keys.length === 0) return { ok: true, mensaje: "" };
+    if (keys.length === 0) {
+      return { ok: true, mensaje: "" };
+    }
 
     const mensaje =
       nextErrors.calculos ||
@@ -392,16 +399,21 @@ export function useFincaCrecimiento() {
         pesoActual: Number(Number(pesoFinal).toFixed(2)),
         fechaRegistro: convertirFechaParaBackend(fechaRegistro),
         muestreos: calculos.map((c, index) => ({
-          cantidad: c.cantidad,
-          pesoTotal: c.pesoTotal,
+          cantidad: Number(c.cantidad),
+          pesoTotal: Number(c.pesoTotal),
           pesoPromedio: Number(Number(c.promedio).toFixed(2)),
           orden: index + 1,
         })),
       });
 
       await CrecimientosLocalService.create(crecimientoDTO);
-      const actualizados = await CrecimientosLocalService.getAll();
-      setCrecimientos(Array.isArray(actualizados) ? actualizados : []);
+
+      try {
+        const actualizados = await CrecimientosLocalService.getAll();
+        setCrecimientos(Array.isArray(actualizados) ? actualizados : []);
+      } catch {
+        /* ok */
+      }
 
       setFincaSeleccionada("");
       setEstanqueSeleccionado("");

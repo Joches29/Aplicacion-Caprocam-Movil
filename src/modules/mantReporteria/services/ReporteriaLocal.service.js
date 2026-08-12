@@ -224,8 +224,47 @@ export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId 
     const registros = await obtenerTodosDeSeccion(seccion);
     const normalizados = registros.map(normalizarRegistro).filter(Boolean);
     const filtrados = filtrarPorFincaEstanque(normalizados, fincaId, estanqueId);
+    const ordenados = ordenarRecientesPrimero(filtrados);
 
-    return ordenarRecientesPrimero(filtrados);
+    // Adjuntar muestreos (calculos_crecimiento) cuando el tipo es crecimiento
+    if (tipoRegistro === "crecimiento") {
+      let calculos = [];
+      try {
+        const apiCalculos = localApi.calculosCrecimiento;
+        if (apiCalculos && typeof apiCalculos.obtenerTodos === "function") {
+          const resCalculos = await apiCalculos.obtenerTodos();
+          const dataCalculos = obtenerDataRespuesta(resCalculos);
+          calculos = Array.isArray(dataCalculos) ? dataCalculos : [];
+        }
+      } catch (e) {
+        console.warn("No se pudieron cargar calculos_crecimiento:", e);
+      }
+
+      return ordenados.map((reg) => {
+        const delReg = calculos.filter(
+          (c) =>
+            Number(obtenerValor(c, ["crecimiento_id", "crecimientoId"], 0)) ===
+            Number(reg.id)
+        );
+        const muestreos = delReg.map((c) => ({
+          id: obtenerValor(c, ["id"], null),
+          cantidad: Number(
+            obtenerValor(c, ["cantidad_individuos", "cantidadIndividuos", "cantidad"], 0)
+          ),
+          pesoTotal: Number(obtenerValor(c, ["peso_total", "pesoTotal"], 0)),
+          pesoPromedio: Number(
+            obtenerValor(
+              c,
+              ["peso_promedio_individual", "pesoPromedioIndividual", "pesoPromedio"],
+              0
+            )
+          ),
+        }));
+        return { ...reg, muestreos };
+      });
+    }
+
+    return ordenados;
   } catch (error) {
     console.error(
       `Error al obtener detalle local de ${tipoRegistro}:`,
@@ -250,6 +289,26 @@ export async function eliminarRegistroLocal(tipoRegistro, id) {
 
   if (!seccion) {
     throw new Error(`Tipo de registro no soportado: ${tipoRegistro}`);
+  }
+
+  // Si es crecimiento, borrar también sus cálculos/muestreos
+  if (tipoRegistro === "crecimiento") {
+    try {
+      const apiCalculos = localApi.calculosCrecimiento;
+      if (apiCalculos && typeof apiCalculos.obtenerTodos === "function") {
+        const resCalculos = await apiCalculos.obtenerTodos();
+        const dataCalculos = obtenerDataRespuesta(resCalculos);
+        const lista = Array.isArray(dataCalculos) ? dataCalculos : [];
+        for (const c of lista) {
+          const cid = Number(obtenerValor(c, ["crecimiento_id", "crecimientoId"], 0));
+          if (cid === Number(id) && c.id != null && typeof apiCalculos.eliminar === "function") {
+            await apiCalculos.eliminar(c.id);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("No se pudieron eliminar calculos de crecimiento:", e);
+    }
   }
 
   const apiSeccion = localApi[seccion];

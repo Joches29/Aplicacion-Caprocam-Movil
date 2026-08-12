@@ -131,9 +131,9 @@ export default function CardCrecimiento({ fincaId, estanqueId, onEditar, onAlert
                             </Text>
                         </View>
 
-                        {registro.muestreos.map((muestreo, index) => (
+                        {(registro.muestreos ?? registro.Muestreos ?? []).map((muestreo, index) => (
                             <View
-                                key={muestreo.id}
+                                key={muestreo.id ?? index}
                                 style={styles.muestreoRow}
                             >
                                 <Text style={styles.muestreoNumero}>
@@ -145,11 +145,11 @@ export default function CardCrecimiento({ fincaId, estanqueId, onEditar, onAlert
                                 </Text>
 
                                 <Text style={styles.muestreoPesoTotal}>
-                                    {muestreo.pesoTotal} g
+                                    {muestreo.pesoTotal ?? muestreo.peso_total} g
                                 </Text>
 
                                 <Text style={styles.muestreoPromedio}>
-                                    {muestreo.pesoPromedio} g
+                                    {muestreo.pesoPromedio ?? muestreo.peso_promedio} g
                                 </Text>
                             </View>
                         ))}
@@ -175,7 +175,7 @@ export default function CardCrecimiento({ fincaId, estanqueId, onEditar, onAlert
 
                         <Button
                             style={styles.Editar}
-                            onPress={() => {onEditar(registro.id)}}
+                            onPress={() => { onEditar(registro.id) }}
                         >
                             <Icon icon={ICONS.edit} color={COLORS.primary} size={20} />
                             <Text size={12} color={COLORS.primary}>

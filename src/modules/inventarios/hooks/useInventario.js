@@ -38,7 +38,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { getProductosInventario } from "../services/InventarioService.js";
-
+import { parsearFechaDDMMAAAA } from "./inventarioCalculos";
 /**
  * Mensajes del Alert de feedback que se muestra cuando Productos
  * navega de vuelta a esta pantalla tras guardar o eliminar un
@@ -48,22 +48,6 @@ const mensajesAlertaProducto = {
   guardado: "Producto guardado correctamente.",
   eliminado: "Producto eliminado correctamente.",
 };
-
-/**
- * Convierte un string "dd/mm/aaaa" a Date para poder comparar fechas.
- * No usa regex, solo split. Devuelve null si el string viene vacío o
- * mal formado (así el filtro simplemente no aplica en vez de romper).
- */
-function parsearFechaDDMMAAAA(fecha) {
-  if (!fecha) return null;
-  const partes = fecha.split("/");
-  if (partes.length !== 3) return null;
-
-  const [dia, mes, anio] = partes.map(Number);
-  if (!dia || !mes || !anio) return null;
-
-  return new Date(anio, mes - 1, dia);
-}
 
 export function useInventario() {
   const flatListRef = useRef(null);

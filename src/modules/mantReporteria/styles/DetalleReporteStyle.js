@@ -5,7 +5,7 @@ import { TYPOGRAPHY } from "../../../theme/typography";
 export const styles = StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: COLORS.white
+        backgroundColor: COLORS.white,
     },
 
     headerRow: {
@@ -26,13 +26,13 @@ export const styles = StyleSheet.create({
     },
 
     icon: {
-        marginRight: 8
+        marginRight: 8,
     },
 
     filterDescription: {
         marginTop: 16,
         marginBottom: 16,
-        color: COLORS.textTertiary
+        color: COLORS.textTertiary,
     },
 
     filtersSection: {
@@ -66,7 +66,7 @@ export const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.secondary,
         borderRadius: 12,
-        backgroundColor: COLORS.surface
+        backgroundColor: COLORS.surface,
     },
 
     emptyTitle: {
@@ -92,7 +92,10 @@ export const styles = StyleSheet.create({
         borderLeftWidth: 5,
         borderLeftColor: COLORS.primary,
         shadowColor: COLORS.black,
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
         shadowOpacity: 0.08,
         shadowRadius: 6,
         elevation: 3,
@@ -129,9 +132,7 @@ export const styles = StyleSheet.create({
         color: COLORS.textSecondary,
     },
 
-    //queridos compañeres antes que pregunten, se que el nombre de la clase es pesoContainer y peso label
-    // no son extrictamente para el peso sino para un todo,
-    // pero no se me ocurrio otro nombre y ya lo deje asi, no me juzguen por eso
+    // Contenedor utilizado para valores principales destacados.
     pesoContainer: {
         marginTop: 8,
         marginBottom: 8,
@@ -178,13 +179,22 @@ export const styles = StyleSheet.create({
         color: COLORS.Densidad,
     },
 
+    /*
+    ============================================================
+    TABLAS
+    ============================================================
+    */
+
     muestreosContainer: {
+        width: "100%",
+        alignSelf: "stretch",
         marginTop: 8,
         marginBottom: 8,
         paddingVertical: 10,
         paddingHorizontal: 12,
         backgroundColor: COLORS.surface,
         borderRadius: 10,
+        overflow: "hidden",
     },
 
     muestreosTitle: {
@@ -197,48 +207,23 @@ export const styles = StyleSheet.create({
     },
 
     muestreoHeader: {
+        width: "100%",
         flexDirection: "row",
         alignItems: "center",
-        paddingBottom: 6,
+        paddingBottom: 7,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.secondary,
+        overflow: "hidden",
     },
 
     muestreoRow: {
+        width: "100%",
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 8,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.secondary,
-    },
-
-    muestreoNumero: {
-        width: "12%",
-        fontSize: 12,
-        fontFamily: TYPOGRAPHY.fontFamily.bold,
-        color: COLORS.Crecimiento,
-    },
-
-    muestreoCantidad: {
-        width: "30%",
-        fontSize: 12,
-        fontFamily: TYPOGRAPHY.fontFamily.medium,
-        color: COLORS.textSecondary,
-    },
-
-    muestreoPesoTotal: {
-        width: "30%",
-        fontSize: 12,
-        fontFamily: TYPOGRAPHY.fontFamily.medium,
-        color: COLORS.textSecondary,
-    },
-
-    muestreoPromedio: {
-        width: "28%",
-        fontSize: 12,
-        fontFamily: TYPOGRAPHY.fontFamily.bold,
-        color: COLORS.textSecondary,
-        textAlign: "right",
+        overflow: "hidden",
     },
 
     muestreoHeaderText: {
@@ -246,6 +231,82 @@ export const styles = StyleSheet.create({
         fontFamily: TYPOGRAPHY.fontFamily.bold,
         color: COLORS.textTertiary,
         textTransform: "uppercase",
+        textAlign: "center",
+        flexShrink: 1,
+    },
+
+    /*
+    ============================================================
+    TABLA CRECIMIENTO
+    4 columnas = 100 %
+    ============================================================
+    */
+
+    muestreoNumero: {
+        width: "10%",
+        minWidth: 0,
+        flexShrink: 1,
+        fontSize: 12,
+        fontFamily: TYPOGRAPHY.fontFamily.bold,
+        color: COLORS.Crecimiento,
+        textAlign: "center",
+    },
+
+    muestreoCantidad: {
+        width: "25%",
+        minWidth: 0,
+        flexShrink: 1,
+        fontSize: 12,
+        fontFamily: TYPOGRAPHY.fontFamily.medium,
+        color: COLORS.textSecondary,
+        textAlign: "center",
+    },
+
+    muestreoPesoTotal: {
+        width: "32%",
+        minWidth: 0,
+        flexShrink: 1,
+        fontSize: 12,
+        fontFamily: TYPOGRAPHY.fontFamily.medium,
+        color: COLORS.textSecondary,
+        textAlign: "center",
+    },
+
+    muestreoPromedio: {
+        width: "33%",
+        minWidth: 0,
+        flexShrink: 1,
+        fontSize: 12,
+        fontFamily: TYPOGRAPHY.fontFamily.bold,
+        color: COLORS.textSecondary,
+        textAlign: "center",
+    },
+
+    /*
+    ============================================================
+    TABLA DENSIDAD
+    2 columnas = 100 %
+    ============================================================
+    */
+
+    tiroNumero: {
+        width: "25%",
+        minWidth: 0,
+        flexShrink: 1,
+        fontSize: 12,
+        fontFamily: TYPOGRAPHY.fontFamily.bold,
+        color: COLORS.Densidad,
+        textAlign: "center",
+    },
+
+    tiroCantidad: {
+        width: "75%",
+        minWidth: 0,
+        flexShrink: 1,
+        fontSize: 12,
+        fontFamily: TYPOGRAPHY.fontFamily.medium,
+        color: COLORS.textSecondary,
+        textAlign: "center",
     },
 
     muestreosEmpty: {
@@ -257,7 +318,14 @@ export const styles = StyleSheet.create({
         fontSize: 12,
         color: COLORS.textTertiary,
         fontFamily: TYPOGRAPHY.fontFamily.medium,
+        textAlign: "center",
     },
+
+    /*
+    ============================================================
+    BOTONES
+    ============================================================
+    */
 
     Buttons: {
         flexDirection: "row",
@@ -294,6 +362,12 @@ export const styles = StyleSheet.create({
         height: "70%",
     },
 
+    /*
+    ============================================================
+    ALERTAS
+    ============================================================
+    */
+
     alertCorrect: {
         alignItems: "center",
         backgroundColor: COLORS.successLight,
@@ -312,21 +386,5 @@ export const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 10,
         marginBottom: 10,
-    },
-
-    muestreoNumero: {
-        width: "25%",
-        fontSize: 12,
-        fontFamily: TYPOGRAPHY.fontFamily.bold,
-        color: COLORS.Densidad,
-        textAlign: "center",
-    },
-
-    muestreoCantidad: {
-        width: "75%",
-        fontSize: 12,
-        fontFamily: TYPOGRAPHY.fontFamily.medium,
-        color: COLORS.textSecondary,
-        textAlign: "center",
     },
 });
