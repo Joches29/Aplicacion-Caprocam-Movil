@@ -260,6 +260,9 @@ export const configSyncService = {
         return { success: true, message: "No hay módulos operativos pendientes.", subidos: 0 };
       }
 
+      // Imprimir el payload que estamos enviando para diagnosticar
+      console.log("[Sync] Payload a enviar al servidor:", JSON.stringify(payload, null, 2));
+
       const respuestaServidor = await api.post("/sync/sincronizar", payload);
       const dataServidor = respuestaServidor?.data?.data;
 
@@ -281,7 +284,25 @@ export const configSyncService = {
         e.status = 401;
         throw e;
       }
-      const mensaje = err?.response?.data?.message || err?.message || "Error al subir cambios.";
+      
+      // LOGICA NUEVA PARA EXTRAER EL ERROR REAL DE MYSQL
+      const backendError = err?.response?.data?.error;
+      const backendMessage = err?.response?.data?.message;
+      
+      console.error("[Sync Subida] Error completo del servidor:", err?.response?.data);
+
+      let mensaje = "Error al subir cambios.";
+      
+      if (backendError && backendMessage) {
+         mensaje = `${backendMessage} \n\nDETALLE TÉCNICO: ${backendError}`;
+      } else if (backendMessage) {
+         mensaje = backendMessage;
+      } else if (backendError) {
+         mensaje = backendError;
+      } else if (err?.message) {
+         mensaje = err.message;
+      }
+
       throw new Error(mensaje);
     }
   },
