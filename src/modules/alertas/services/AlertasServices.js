@@ -546,6 +546,201 @@ function obtenerAlertasSanitarias(registrosEnfermedades, registrosParasitologia)
 
 /*
 ============================================================
+FISICO QUIMICA
+============================================================
+*/
+
+function obtenerValorLectura(item) {
+  if (item === undefined || item === null) return null;
+
+  if (typeof item === "number" || typeof item === "string") {
+    const numero = Number(String(item).replace(",", "."));
+    return Number.isNaN(numero) ? null : numero;
+  }
+
+  if (typeof item === "object") {
+    const valor = item.valor ?? item.value;
+    const numero = Number(String(valor ?? "").replace(",", "."));
+    return Number.isNaN(numero) ? null : numero;
+  }
+
+  return null;
+}
+
+function obtenerLecturasComoNumeros(valor) {
+  if (Array.isArray(valor)) {
+    return valor
+      .map(obtenerValorLectura)
+      .filter(function (numero) {
+        return numero !== null;
+      });
+  }
+
+  if (typeof valor === "string") {
+    try {
+      const datos = JSON.parse(valor);
+
+      if (Array.isArray(datos)) {
+        return datos
+          .map(obtenerValorLectura)
+          .filter(function (numero) {
+            return numero !== null;
+          });
+      }
+    } catch (error) {
+      const numero = obtenerValorLectura(valor);
+      return numero !== null ? [numero] : [];
+    }
+  }
+
+  const numero = obtenerValorLectura(valor);
+  return numero !== null ? [numero] : [];
+}
+
+function obtenerValorMasBajo(valor) {
+  const lecturas = obtenerLecturasComoNumeros(valor);
+
+  if (lecturas.length === 0) return null;
+
+  return Math.min(...lecturas);
+}
+
+function obtenerValorMasAlto(valor) {
+  const lecturas = obtenerLecturasComoNumeros(valor);
+
+  if (lecturas.length === 0) return null;
+
+  return Math.max(...lecturas);
+}
+
+function obtenerDatosUbicacionFisicoQuimica(registro) {
+  return {
+    finca: obtenerTextoSeguro(registro.fincaNombre, obtenerTextoSeguro(registro.finca, "Sin finca")),
+    estanque: obtenerTextoSeguro(registro.estanqueCodigo, obtenerTextoSeguro(registro.estanque, "Sin estanque")),
+    fecha: obtenerTextoSeguro(registro.fecha, obtenerTextoSeguro(registro.fechaRegistro, registro.fecha_reporte)),
+    registroId: registro.id ?? registro.idLocal ?? registro.servidorId ?? registro.servidor_id ?? null,
+  };
+}
+
+function obtenerIdParametro(parametro) {
+  return parametro
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace("í", "i")
+    .replace("ó", "o");
+}
+
+function agregarAlertaFisicoQuimicaParametro({
+  alertas,
+  registro,
+  parametro,
+  valorBajo,
+  valorAlto,
+  minimo,
+  maximo,
+  unidad,
+  prioridad,
+}) {
+  const datos = obtenerDatosUbicacionFisicoQuimica(registro);
+  const unidadTexto = unidad ? ` ${unidad}` : "";
+  const fechaDetalle = datos.fecha ? `Fecha de lectura: ${formatearFechaCorta(datos.fecha)}.` : "";
+  const parametroId = obtenerIdParametro(parametro);
+
+  if (valorBajo !== null && valorBajo < minimo) {
+    agregarAlerta(alertas, {
+      id: `fisico-quimica-${parametroId}-bajo-${datos.registroId}`,
+      tipo: parametro === "Oxigeno disuelto" ? "critica" : "advertencia",
+      categoria: "Fisico Quimica",
+      titulo: `${parametro} bajo`,
+      mensaje: `${datos.estanque} · ${datos.finca}: ${parametro} en ${valorBajo}${unidadTexto}. Rango ideal: ${minimo} - ${maximo}${unidadTexto}.`,
+      detalle: fechaDetalle,
+      fecha: datos.fecha,
+      icono: ICONS.chemicalContainer,
+      color: parametro === "Oxigeno disuelto" ? COLORS.error : COLORS.warning,
+      prioridad,
+      modulo: "fisicoQuimica",
+      registroId: datos.registroId,
+    });
+
+    return;
+  }
+
+  if (valorAlto !== null && valorAlto > maximo) {
+    agregarAlerta(alertas, {
+      id: `fisico-quimica-${parametroId}-alto-${datos.registroId}`,
+      tipo: "advertencia",
+      categoria: "Fisico Quimica",
+      titulo: `${parametro} alto`,
+      mensaje: `${datos.estanque} · ${datos.finca}: ${parametro} en ${valorAlto}${unidadTexto}. Rango ideal: ${minimo} - ${maximo}${unidadTexto}.`,
+      detalle: fechaDetalle,
+      fecha: datos.fecha,
+      icono: ICONS.chemicalContainer,
+      color: COLORS.warning,
+      prioridad,
+      modulo: "fisicoQuimica",
+      registroId: datos.registroId,
+    });
+  }
+}
+
+function obtenerAlertasFisicoQuimicas(registrosFisicoQuimicos) {
+  const alertas = [];
+
+  normalizarLista(registrosFisicoQuimicos).forEach(function (registro) {
+    agregarAlertaFisicoQuimicaParametro({
+      alertas,
+      registro,
+      parametro: "pH",
+      valorBajo: obtenerValorMasBajo(registro.ph),
+      valorAlto: obtenerValorMasAlto(registro.ph),
+      minimo: 7.5,
+      maximo: 8.5,
+      unidad: "",
+      prioridad: 4,
+    });
+
+    agregarAlertaFisicoQuimicaParametro({
+      alertas,
+      registro,
+      parametro: "Salinidad",
+      valorBajo: obtenerValorMasBajo(registro.salinidad),
+      valorAlto: obtenerValorMasAlto(registro.salinidad),
+      minimo: 10,
+      maximo: 25,
+      unidad: "ppt",
+      prioridad: 5,
+    });
+
+    agregarAlertaFisicoQuimicaParametro({
+      alertas,
+      registro,
+      parametro: "Temperatura",
+      valorBajo: obtenerValorMasBajo(registro.temperatura),
+      valorAlto: obtenerValorMasAlto(registro.temperatura),
+      minimo: 28,
+      maximo: 32,
+      unidad: "°C",
+      prioridad: 5,
+    });
+
+    agregarAlertaFisicoQuimicaParametro({
+      alertas,
+      registro,
+      parametro: "Oxigeno disuelto",
+      valorBajo: obtenerValorMasBajo(registro.oxigenoDisuelto ?? registro.oxigeno_disuelto ?? registro.ox),
+      valorAlto: obtenerValorMasAlto(registro.oxigenoDisuelto ?? registro.oxigeno_disuelto ?? registro.ox),
+      minimo: 5,
+      maximo: 9,
+      unidad: "mg/L",
+      prioridad: 2,
+    });
+  });
+
+  return alertas;
+}
+
+/*
+============================================================
 CONSTRUCCION PRINCIPAL
 ============================================================
 */
@@ -555,6 +750,7 @@ export function construirAlertasOperativas(datos = {}) {
 
   const alertas = [
     ...obtenerAlertasSanitarias(datosFinales.registrosEnfermedades, datosFinales.registrosParasitologia),
+    ...obtenerAlertasFisicoQuimicas(datosFinales.registrosFisicoQuimicos),
     ...obtenerAlertasCosecha(datosFinales.siembras),
     ...obtenerAlertasAireadores(datosFinales.equipos),
     ...obtenerAlertasInventario(datosFinales.productosInventario),
