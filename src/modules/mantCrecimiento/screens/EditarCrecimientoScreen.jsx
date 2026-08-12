@@ -1,25 +1,29 @@
-import { useRouter } from "expo-router";
-import { ScrollView, View } from "react-native";
-import { styles } from "../styles/CrecimientoStyle.js";
-import { STYLE } from "../../../theme/style.js";
+/**
+ * ============================================================
+ * PANTALLA EDITAR CRECIMIENTO
+ * ============================================================
+ */
 
+import { ScrollView, View } from "react-native";
+import { useRouter } from "expo-router";
+import { styles } from "../../../modules/mantCrecimiento/styles/CrecimientoStyle.js";
+import { STYLE } from "../../../theme/style.js";
 import Alert from "../../../shared/components/Alert.jsx";
 import BadgeLabel from "../../../shared/components/Badge.jsx";
 import Button from "../../../shared/components/Button.jsx";
-import Calendario from "../../../shared/components/DateInput.jsx";
 import Card from "../../../shared/components/Card.jsx";
+import Calendario from "../../../shared/components/DateInput.jsx";
 import Icon from "../../../shared/components/Icons.jsx";
 import NavbarRegistro from "../../../shared/components/NavbarRegistro.jsx";
 import NumberInput from "../../../shared/components/NumberInput.jsx";
-import Select from "../../../shared/components/Select.jsx";
+import Select from "../../../shared/components/Select";
 import Text from "../../../shared/components/Text.jsx";
 import { COLORS } from "../../../theme/colors.js";
 import { ICONS } from "../../../theme/icons.js";
-import { useEditarCrecimiento } from "../hooks/useEditarCrecimiento.js";
+import useEditarCrecimiento from "../hooks/useEditarCrecimiento.js";
 
 export default function EditarCrecimientoScreen({ registroId }) {
   const router = useRouter();
-
   const {
     fincaSeleccionada,
     estanqueSeleccionado,
@@ -46,6 +50,12 @@ export default function EditarCrecimientoScreen({ registroId }) {
     successMessage,
     errorMessage,
     pesoAnteriorLabel,
+    mostrarErrorFinca,
+    mostrarErrorEstanque,
+    mostrarErrorFecha,
+    mostrarErrorCalculos,
+    mostrarErrorCantidad,
+    mostrarErrorPesoTotal,
     errors,
     cargando,
   } = useEditarCrecimiento(registroId, () => {

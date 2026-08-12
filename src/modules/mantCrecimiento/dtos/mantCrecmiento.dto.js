@@ -3,13 +3,13 @@ export class mantCrecmientoDTO {
     finca,
     estanque,
     pesoActual,
-    colaborador,
+    colaborador = null,
     fechaRegistro,
-    muestreos,
+    muestreos = [],
   }) {
     this.finca = finca;
     this.estanque = estanque;
-    this.colaborador = colaborador ?? null;
+    this.colaborador = colaborador;
     this.fechaRegistro = fechaRegistro;
     this.pesoActual = pesoActual;
     this.muestreos = Array.isArray(muestreos) ? muestreos : [];
