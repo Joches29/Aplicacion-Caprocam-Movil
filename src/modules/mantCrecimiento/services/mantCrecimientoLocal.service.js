@@ -243,8 +243,25 @@ async function mapearCrecimientoParaLocal(crecimientoDTO) {
   };
 }
 
-async function guardarMuestreos(crecimientoId, muestreos = [], contexto) {
+async function guardarMuestreos(crecimientoId, muestreos = [], contexto, existentes = []) {
   const lista = Array.isArray(muestreos) ? muestreos : [];
+  
+  const idsEntrantes = lista
+    .map(m => m.id)
+    .filter(id => id != null && Number(id) < 1000)
+    .map(Number);
+
+  for (const ext of existentes) {
+    if (ext?.id != null && !idsEntrantes.includes(Number(ext.id))) {
+      try {
+        await ejecutarMetodoCalculos("eliminar", [ext.id]);
+      } catch (e) {
+        console.warn("No se pudo eliminar cálculo local", ext.id, e);
+      }
+    }
+  }
+
+  // Crear o actualizar
   for (let i = 0; i < lista.length; i += 1) {
     const m = lista[i];
     const cantidad = convertirNumero(m.cantidad ?? m.cantidadIndividuos, 0);
@@ -253,16 +270,21 @@ async function guardarMuestreos(crecimientoId, muestreos = [], contexto) {
       m.pesoPromedio ?? m.peso_promedio ?? (cantidad > 0 ? pesoTotal / cantidad : 0),
       0,
     );
-    await ejecutarMetodoCalculos("crear", [
-      {
-        grupo_datos: contexto.grupoDatos,
-        crecimiento_id: Number(crecimientoId),
-        cantidad_individuos: cantidad,
-        peso_total: pesoTotal,
-        peso_promedio_individual: Number(pesoPromedio.toFixed(2)),
-        creado_por_colaborador_id: contexto.colaboradorId,
-      },
-    ]);
+
+    const payloadCalculo = {
+      grupo_datos: contexto.grupoDatos,
+      crecimiento_id: Number(crecimientoId),
+      cantidad_individuos: cantidad,
+      peso_total: pesoTotal,
+      peso_promedio_individual: Number(pesoPromedio.toFixed(2)),
+      creado_por_colaborador_id: contexto.colaboradorId,
+    };
+
+    if (m.id != null && Number(m.id) < 1000) {
+      await ejecutarMetodoCalculos("actualizar", [Number(m.id), payloadCalculo]);
+    } else {
+      await ejecutarMetodoCalculos("crear", [payloadCalculo]);
+    }
   }
 }
 
@@ -362,10 +384,10 @@ async function update(id, crecimientoDTO) {
       obtenerDataRespuesta(respuesta),
     );
     const muestreos = crecimientoDTO?.muestreos ?? [];
-    await eliminarMuestreosDeCrecimiento(id);
-    if (muestreos.length) {
-      await guardarMuestreos(id, muestreos, contexto);
-    }
+    const existentes = await obtenerMuestreosPorCrecimiento(id);
+
+    await guardarMuestreos(id, muestreos, contexto, existentes);
+    
     return enriquecerConMuestreos(actualizado ?? { id });
   } catch (error) {
     console.error(error);

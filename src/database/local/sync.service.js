@@ -4,7 +4,7 @@ CABEZA DE ARCHIVO
 //////////////////////////////////////////////////////////
 Archivo: sync.service.js
 Autor: Gerald Andres Alfaro Solorzano
-Fecha: 10/08/2026
+Fecha: 11/08/2026
 Modulo: Database Local
 Descripcion:
 Servicio base para sincronizar datos entre SQLite local y
@@ -87,7 +87,6 @@ const ENDPOINTS_SYNC = {
 const TABLAS_DESCARGA_INICIAL = [
   "grupos_datos",
   "usuarios",
-  "colaboradores",
   "fincas",
   "estanques",
   "proveedores",

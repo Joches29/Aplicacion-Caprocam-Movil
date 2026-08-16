@@ -5,6 +5,7 @@
 
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
+import * as Application from 'expo-application';
 
 // ─────────────────────────────────────────────────────────────
 // CONVERSIÓN camelCase -> snake_case + normalización de tipos
@@ -224,7 +225,14 @@ export const configSyncService = {
       const porTabla = {};
       for (const item of pendientes) {
         if (!porTabla[item.tabla]) porTabla[item.tabla] = { crear: [], actualizar: [], eliminar: [] };
-        const accion = (item.accion ?? "").toUpperCase();
+        let accion = (item.accion ?? "").toUpperCase();
+        
+        const servId = item.registro.servidor_id ?? item.registro.servidorId;
+        if (accion === "UPDATE" && (!servId || servId === "null" || 
+          servId === "undefined" || servId === "")) {
+            accion = "CREATE";
+        }
+
         if (accion === "CREATE") porTabla[item.tabla].crear.push(item.registro);
         else if (accion === "UPDATE") porTabla[item.tabla].actualizar.push(item.registro);
         else if (accion === "DELETE") porTabla[item.tabla].eliminar.push(item.registro.servidor_id ?? item.registro.id);
@@ -260,15 +268,39 @@ export const configSyncService = {
         return { success: true, message: "No hay módulos operativos pendientes.", subidos: 0 };
       }
 
-      // Imprimir el payload que estamos enviando para diagnosticar
-      console.log("[Sync] Payload a enviar al servidor:", JSON.stringify(payload, null, 2));
+      const androidId = Application.getAndroidId() ?? 'desconocido';
 
-      const respuestaServidor = await api.post("/sync/sincronizar", payload);
+      const respuestaServidor = await api.post("/sync/sincronizar", {
+        ...payload,
+        androidId,
+      }, {
+        headers: {
+          'x-android-id': androidId
+        }
+      });
       const dataServidor = respuestaServidor?.data?.data;
+      const resultadoServidor = dataServidor?.resultado ?? {};
+
+      const mapaIds = {};
+      const MAPEO_INVERSO = {};
+      for (const [tablaLocal, claveBE] of Object.entries(MAPEO_SUBIDA)) {
+        MAPEO_INVERSO[claveBE] = tablaLocal;
+      }
+      for (const [claveModulo, datosModulo] of Object.entries(resultadoServidor)) {
+        const tablaLocal = MAPEO_INVERSO[claveModulo] ?? claveModulo;
+        const creados = datosModulo?.creados ?? [];
+        for (const c of creados) {
+          if (c.idLocal != null && c.idServidor != null) {
+            mapaIds[`${tablaLocal}_${c.idLocal}`] = c.idServidor;
+          }
+        }
+      }
 
       for (const item of pendientes) {
         try {
-          await localApi.sync.marcarSincronizado(item.tabla, item.registro.id, null);
+          const clave = `${item.tabla}_${item.registro.id}`;
+          const servidorId = mapaIds[clave] ?? item.registro.servidor_id ?? null;
+          await localApi.sync.marcarSincronizado(item.tabla, item.registro.id, servidorId);
         } catch (_) {}
       }
 
