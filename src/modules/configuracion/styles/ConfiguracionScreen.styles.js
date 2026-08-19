@@ -14,13 +14,7 @@ import { StyleSheet } from "react-native";
 import { COLORS } from "../../../theme/colors";
 
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-  },
-  scrollContent: {
-    padding: 16,
-  },
+
   syncCard: {
     padding: 16,
     borderRadius: 12,

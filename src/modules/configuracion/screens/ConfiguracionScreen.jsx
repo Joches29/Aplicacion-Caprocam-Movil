@@ -12,11 +12,7 @@
  */
 
 import React from "react";
-import {
-  View,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, ScrollView, ActivityIndicator } from "react-native";
 import { useConfiguracion } from "../hooks/useConfiguracion";
 import Card from "../../../shared/components/Card";
 import Button from "../../../shared/components/Button";
@@ -25,6 +21,7 @@ import Title from "../../../shared/components/Title";
 import Icon from "../../../shared/components/Icons";
 import { COLORS } from "../../../theme/colors";
 import { ICONS } from "../../../theme/icons";
+import { STYLE } from "../../../theme/style";
 import styles from "../styles/ConfiguracionScreen.styles";
 
 const syncIcon    = ICONS.update        || { provider: "MaterialIcons", name: "update" };
@@ -65,8 +62,8 @@ export default function ConfiguracionScreen() {
   } = useConfiguracion();
 
   return (
-    <View style={styles.mainContainer}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={STYLE.container}>
+      <ScrollView contentContainerStyle={STYLE.contentWrapper}>
 
         {/* ── TARJETA SINCRONIZACIÓN COMPLETA ── */}
         <Card style={styles.syncCard}>
