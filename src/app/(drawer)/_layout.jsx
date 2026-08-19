@@ -99,7 +99,7 @@ export default function DrawerLayout() {
           drawerLabel: "Alertas",
           title: "Alertas",
           drawerIcon: ({ color, size }) => (
-            <Icon icon={ICONS.notification} size={22} color={color} />
+            <Icon icon={ICONS.notification} size={22}  />
           ),
         }}
       />
