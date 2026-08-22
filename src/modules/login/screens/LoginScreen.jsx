@@ -29,7 +29,6 @@ import { useLoginFlow } from "../hooks/useLoginFlow";
 import SearchBar from "../../../shared/components/SearchBar";
 import styles from "../styles/loginStyles";
 import { STYLE } from "../../../theme/style";
-import { probarBaseLocal } from "../../../database/local/testLocalDb.service";
 
 /**
  * LoginScreen
@@ -134,7 +133,6 @@ function WorkerSection({
   // Estados para el Modal de Sincronización
   const [isSyncModalVisible, setIsSyncModalVisible] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isUpdatingSqlite, setIsUpdatingSqlite] = useState(false);
   const [cedula, setCedula] = useState("");
   const [syncPin, setSyncPin] = useState("");
 
@@ -151,47 +149,14 @@ function WorkerSection({
   };
 
   /**
-   * handleActualizarSQLite()
-   * Ejecuta la prueba temporal para reiniciar SQLite local
-   * y crear la estructura actualizada de la base local.
-   */
-  const handleActualizarSQLite = async () => {
-    setIsUpdatingSqlite(true);
-    setSyncStatus(null);
-    setSyncMessage("");
-
-    try {
-      const result = await probarBaseLocal();
-
-      if (result && result.success) {
-        if (typeof onRefreshWorkers === "function") {
-          await onRefreshWorkers();
-        }
-
-        setSyncStatus("success");
-        setSyncMessage(result.message || "SQLite local actualizada correctamente.");
-      } else {
-        setSyncStatus("danger");
-        setSyncMessage(result?.message || "No se pudo actualizar SQLite local.");
-      }
-    } catch (err) {
-      setSyncStatus("danger");
-      setSyncMessage(err?.message || "Error al actualizar SQLite local.");
-    } finally {
-      setIsUpdatingSqlite(false);
-
-      setTimeout(() => {
-        setSyncStatus(null);
-        setSyncMessage("");
-      }, 5000);
-    }
-  };
-
-  /**
    * handleConfirmSync()
    * Ejecuta la sincronización real enviando Cédula y PIN al servicio.
    */
   const handleConfirmSync = async () => {
+    if (isSyncing) {
+      return;
+    }
+
     setIsSyncing(true);
     setSyncStatus(null);
     setSyncMessage("");
@@ -261,24 +226,6 @@ function WorkerSection({
           />
           <Text style={styles.buttonText}>
             {LOGIN_MESSAGES.SYNC_BUTTON_TEXT}
-          </Text>
-        </View>
-      </Button>
-
-      <Button
-        onPress={handleActualizarSQLite}
-        variant="outline"
-        style={styles.syncButton}
-        disabled={isUpdatingSqlite}
-      >
-        <View style={styles.buttonContent}>
-          <Icon
-            icon={ICONS.refresh || ICONS.update}
-            size={18}
-            color={COLORS.primary}
-          />
-          <Text style={styles.buttonText}>
-            {isUpdatingSqlite ? "Actualizando SQLite..." : "Actualizar SQLite local"}
           </Text>
         </View>
       </Button>
@@ -499,7 +446,7 @@ function PinModal({
 /**
  * SyncModal
  *
- * Solicita Cédula (enmascarada, máx 9 dígitos) y PIN antes de sincronizar.
+ * Solicita Cédula (visible, máx 9 dígitos) y PIN antes de sincronizar.
  */
 function SyncModal({
   visible,
@@ -531,7 +478,7 @@ function SyncModal({
         align="center"
         style={styles.modalTitle}
       >
-        Sincronizar Usuarios
+        Sincronizar Colaborador
       </Title>
 
       <Input
@@ -540,7 +487,6 @@ function SyncModal({
         placeholder="Cédula"
         keyboardType="number-pad"
         maxLength={9}
-        secureTextEntry
         editable={!isSyncing}
         containerStyle={styles.pinInputContainer}
         style={[styles.pinInput, { fontFamily: "Roboto" }]}

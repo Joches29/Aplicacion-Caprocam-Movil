@@ -71,7 +71,7 @@ export const LOGIN_MESSAGES = {
   ERROR_PREFIX: 'Error: ',
   NO_WORKERS_FOUND: 'No se encontraron colaboradores.',
   SEARCH_PLACEHOLDER: 'Buscar por nombre',
-  SYNC_BUTTON_TEXT: 'Sincronizar Usuarios',
+  SYNC_BUTTON_TEXT: 'Sincronizar Colaborador',
 
   // Botón
   BUTTON_TEXT: 'Continuar',

@@ -295,7 +295,14 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
       return errorLocal("Se requieren cedula y PIN para sincronizar el login.", null);
     }
 
-    await localApi.inicializar();
+    const resultadoInicializacion = await localApi.inicializar();
+
+    if (!resultadoInicializacion?.success) {
+      return errorLocal(
+        resultadoInicializacion?.message || "No se pudo inicializar SQLite local.",
+        resultadoInicializacion?.error || null
+      );
+    }
 
     const respuestaHttp = await apiClient.post("/sync/colab", {
       cedula: String(cedula).trim(),
@@ -334,6 +341,13 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
     ];
 
     const resultadoGuardado = await localApi.colaboradores.guardarDesdeServidor(colaboradoresParaGuardar);
+
+    if (!resultadoGuardado?.success) {
+      return errorLocal(
+        resultadoGuardado?.message || "No se pudo guardar el colaborador en SQLite local.",
+        resultadoGuardado?.error || null
+      );
+    }
 
     return exitoLocal("Colaborador sincronizado correctamente.", resultadoGuardado);
   } catch (err) {
