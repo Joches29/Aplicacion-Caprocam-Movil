@@ -32,14 +32,59 @@ const DROPDOWN_MAX_HEIGHT = 140;
 const DROPDOWN_GAP = 6;
 const SCREEN_MARGIN = 12;
 
-function getSafeOptions(options) {
-  let safeOptions = [];
-
-  if (Array.isArray(options) === true) {
-    safeOptions = options;
+function valueIsEmpty(value) {
+  if (value === undefined) {
+    return true;
   }
 
-  return safeOptions;
+  if (value === null) {
+    return true;
+  }
+
+  return String(value).trim() === "";
+}
+
+function getSafeOptions(options) {
+  if (Array.isArray(options) !== true) {
+    return [];
+  }
+
+  return options
+    .filter(function (option) {
+      return option !== undefined && option !== null;
+    })
+    .map(function (option, index) {
+      if (typeof option === "string" || typeof option === "number") {
+        return {
+          label: String(option),
+          value: option,
+          optionKey: `${String(option)}-${index}`,
+        };
+      }
+
+      const value =
+        option.value ??
+        option.id ??
+        option.servidorId ??
+        option.servidor_id ??
+        option.codigo ??
+        option.label ??
+        `option-${index}`;
+
+      const label =
+        option.label ??
+        option.nombre ??
+        option.codigo ??
+        option.descripcion ??
+        value;
+
+      return {
+        ...option,
+        label: String(label),
+        value: value,
+        optionKey: `${String(value ?? "option")}-${index}`,
+      };
+    });
 }
 
 function getSelectedLabel(options, value, placeholder) {
@@ -52,23 +97,11 @@ function getSelectedLabel(options, value, placeholder) {
 
   for (let index = 0; index < options.length; index++) {
     if (String(options[index].value) === String(value)) {
-      selectedLabel = options[index].label;
+      selectedLabel = String(options[index].label);
     }
   }
 
   return selectedLabel;
-}
-
-function valueIsEmpty(value) {
-  if (value === undefined) {
-    return true;
-  }
-
-  if (value === null) {
-    return true;
-  }
-
-  return String(value).trim() === "";
 }
 
 export default function Select({
@@ -116,7 +149,6 @@ export default function Select({
       return;
     }
 
-    // Si ya esta abierto, tocar el select de nuevo lo cierra (toggle).
     if (open === true) {
       closeOptions();
       return;
@@ -127,29 +159,28 @@ export default function Select({
       return;
     }
 
-    // measureInWindow da coordenadas relativas a la ventana, mas confiables
-    // que measure() dentro de un Modal (que tiene su propio root),
-    // evitando el salto/espacio raro que se veia en Android.
     selectRef.current.measureInWindow(function (x, y, width, height) {
       const spaceBelow = windowHeight - (y + height);
-      const dropdownHeight = Math.min(
-        DROPDOWN_MAX_HEIGHT,
-        Math.max(spaceBelow, y) - SCREEN_MARGIN
-      );
 
-      const openUpward = spaceBelow < DROPDOWN_MAX_HEIGHT + SCREEN_MARGIN && y > spaceBelow;
+      const openUpward =
+        spaceBelow < DROPDOWN_MAX_HEIGHT + SCREEN_MARGIN &&
+        y > spaceBelow;
 
       let top = y + height + DROPDOWN_GAP;
 
       if (openUpward === true) {
-        top = y - DROPDOWN_GAP - Math.min(DROPDOWN_MAX_HEIGHT, y - SCREEN_MARGIN);
+        top =
+          y -
+          DROPDOWN_GAP -
+          Math.min(DROPDOWN_MAX_HEIGHT, y - SCREEN_MARGIN);
       }
 
-      // Nunca dejar que el dropdown se salga de los bordes laterales.
       let left = x;
+
       if (left + width > windowWidth - SCREEN_MARGIN) {
         left = windowWidth - SCREEN_MARGIN - width;
       }
+
       if (left < SCREEN_MARGIN) {
         left = SCREEN_MARGIN;
       }
@@ -244,8 +275,6 @@ export default function Select({
                 width: position.width,
               },
             ]}
-            // Evita que el toque dentro del dropdown se propague
-            // al fondo y lo cierre por accidente.
             onStartShouldSetResponder={function () {
               return true;
             }}
@@ -268,8 +297,11 @@ export default function Select({
                 </View>
               )}
 
-              {finalOptions.map(function (option) {
+              {finalOptions.map(function (option, index) {
                 const optionStyles = [styles.option];
+                const optionKey =
+                  option.optionKey ??
+                  `${String(option.value ?? "option")}-${index}`;
 
                 if (String(option.value) === String(value)) {
                   optionStyles.push(styles.selectedOption);
@@ -281,14 +313,14 @@ export default function Select({
 
                 return (
                   <Pressable
-                    key={String(option.value)}
+                    key={optionKey}
                     style={optionStyles}
                     onPress={function () {
                       handleSelect(option.value);
                     }}
                   >
                     <Text style={[styles.optionText, optionTextStyle]}>
-                      {option.label}
+                      {String(option.label ?? "")}
                     </Text>
                   </Pressable>
                 );
