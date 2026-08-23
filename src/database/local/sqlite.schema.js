@@ -576,10 +576,22 @@ FUNCIONES SECUNDARIAS
 //////////////////////////////////////////////////////////
 */
 
+/**
+ * Obtiene el nombre de una columna desde una definicion SQL.
+ * @param {string} definicion - Definicion SQL de columna.
+ * @returns {string} Nombre de columna.
+ */
 const obtenerNombreColumna = (definicion) => {
     return definicion.trim().split(/\s+/)[0];
 };
 
+
+/**
+ * Crea la sentencia SQL para una tabla local.
+ * @param {string} tabla - Nombre de tabla.
+ * @param {Array<string>} columnas - Columnas SQL.
+ * @returns {string} Sentencia CREATE TABLE.
+ */
 const crearSentenciaTabla = (tabla, columnas) => {
     return `
         CREATE TABLE IF NOT EXISTS ${tabla} (
@@ -588,10 +600,21 @@ const crearSentenciaTabla = (tabla, columnas) => {
     `;
 };
 
+/**
+ * Valida si una tabla contiene una columna.
+ * @param {string} tabla - Nombre de tabla.
+ * @param {string} columna - Nombre de columna.
+ * @returns {boolean} Resultado de validacion.
+ */
 const tablaTieneColumna = (tabla, columna) => {
     return DEFINICIONES_TABLAS[tabla].includes(columna);
 };
 
+/**
+ * Crea indices generales para una tabla.
+ * @param {string} tabla - Nombre de tabla.
+ * @returns {Array<string>} Sentencias de indices.
+ */
 const crearIndicesGeneralesTabla = (tabla) => {
     const indices = [
         `CREATE INDEX IF NOT EXISTS idx_${tabla}_servidor_id ON ${tabla}(servidor_id);`,
