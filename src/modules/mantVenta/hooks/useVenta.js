@@ -24,7 +24,9 @@ export const CLIENTE_GENERICO = {
 
 export const formatearMontoColones = (monto) => {
   const numero = Number(monto);
+
   if (Number.isNaN(numero)) return "₡0";
+
   return `₡${numero.toLocaleString("es-CR")}`;
 };
 
@@ -33,24 +35,238 @@ const obtenerFechaActual = () => {
   const anio = hoy.getFullYear();
   const mes = String(hoy.getMonth() + 1).padStart(2, "0");
   const dia = String(hoy.getDate()).padStart(2, "0");
+
   return `${dia}/${mes}/${anio}`;
 };
 
 const normalizarDecimal = (valor) => {
   const texto = String(valor ?? "").replace(",", ".");
+
   if (texto === "") return "";
+
   const numero = Number(texto);
+
   if (Number.isNaN(numero) || numero < 0) return "0";
+
   return texto;
 };
 
 const convertirFechaParaBackend = (fechaFormato) => {
   if (!fechaFormato) return new Date().toISOString();
+
   const partes = fechaFormato.split("/");
+
   if (partes.length !== 3) return new Date().toISOString();
+
   const [dia, mes, anio] = partes;
+
   return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
 };
+
+/*
+============================================================
+HELPERS GENERALES
+============================================================
+*/
+
+function obtenerDataRespuesta(respuesta) {
+  if (
+    respuesta &&
+    Object.prototype.hasOwnProperty.call(respuesta, "data")
+  ) {
+    return respuesta.data;
+  }
+
+  return respuesta;
+}
+
+function obtenerValor(objeto, llaves, valorDefecto = null) {
+  if (!objeto) return valorDefecto;
+
+  for (let i = 0; i < llaves.length; i += 1) {
+    const llave = llaves[i];
+
+    if (
+      Object.prototype.hasOwnProperty.call(objeto, llave) &&
+      objeto[llave] !== undefined &&
+      objeto[llave] !== null &&
+      String(objeto[llave]).trim() !== ""
+    ) {
+      return objeto[llave];
+    }
+  }
+
+  return valorDefecto;
+}
+
+function obtenerNumero(valor, valorDefecto = 0) {
+  const numero = Number(String(valor ?? "").replace(",", "."));
+
+  return Number.isNaN(numero) ? valorDefecto : numero;
+}
+
+function obtenerTexto(valor, valorDefecto = "") {
+  if (
+    valor === undefined ||
+    valor === null ||
+    String(valor).trim() === ""
+  ) {
+    return valorDefecto;
+  }
+
+  return String(valor).trim();
+}
+
+/*
+============================================================
+HELPERS DE FINCAS
+============================================================
+*/
+
+function obtenerIdLocalFinca(finca) {
+  return obtenerNumero(
+    obtenerValor(
+      finca,
+      ["id", "idLocal", "id_local"],
+      0
+    )
+  );
+}
+
+function obtenerServidorIdFinca(finca) {
+  return obtenerNumero(
+    obtenerValor(
+      finca,
+      ["servidor_id", "servidorId", "idServidor"],
+      0
+    )
+  );
+}
+
+function obtenerIdFinca(finca) {
+  const idLocal = obtenerIdLocalFinca(finca);
+  const servidorId = obtenerServidorIdFinca(finca);
+
+  if (idLocal > 0) {
+    return idLocal;
+  }
+
+  return servidorId;
+}
+
+function obtenerIdsValidosFinca(finca, fincaSeleccionada = null) {
+  const ids = [
+    obtenerNumero(fincaSeleccionada),
+    obtenerIdLocalFinca(finca),
+    obtenerServidorIdFinca(finca),
+  ];
+
+  return ids.filter(function (id, index, arreglo) {
+    return id > 0 && arreglo.indexOf(id) === index;
+  });
+}
+
+function fincaCoincideConSeleccion(finca, fincaSeleccionada) {
+  const idsValidos = obtenerIdsValidosFinca(finca, fincaSeleccionada);
+
+  return idsValidos.includes(obtenerNumero(fincaSeleccionada));
+}
+
+function obtenerIdsValidosDeFincaSeleccionada(fincas, fincaSeleccionada) {
+  const fincaActual = fincas.find(function (finca) {
+    return fincaCoincideConSeleccion(finca, fincaSeleccionada);
+  });
+
+  return obtenerIdsValidosFinca(fincaActual, fincaSeleccionada);
+}
+
+function obtenerNombreFinca(finca, id) {
+  return obtenerTexto(
+    obtenerValor(
+      finca,
+      [
+        "nombre_finca",
+        "nombreFinca",
+        "nombre",
+        "codigoCBO",
+        "codigoCbo",
+        "codigo_cbo",
+      ],
+      ""
+    ),
+    `Finca ${id}`
+  );
+}
+
+/*
+============================================================
+HELPERS DE ESTANQUES
+============================================================
+*/
+
+function obtenerIdLocalEstanque(estanque) {
+  return obtenerNumero(
+    obtenerValor(
+      estanque,
+      ["id", "idLocal", "id_local"],
+      0
+    )
+  );
+}
+
+function obtenerServidorIdEstanque(estanque) {
+  return obtenerNumero(
+    obtenerValor(
+      estanque,
+      ["servidor_id", "servidorId", "idServidor"],
+      0
+    )
+  );
+}
+
+function obtenerIdEstanque(estanque) {
+  const idLocal = obtenerIdLocalEstanque(estanque);
+  const servidorId = obtenerServidorIdEstanque(estanque);
+
+  if (idLocal > 0) {
+    return idLocal;
+  }
+
+  return servidorId;
+}
+
+function obtenerFincaIdEstanque(estanque) {
+  return obtenerNumero(
+    obtenerValor(
+      estanque,
+      ["finca_id", "idFinca", "fincaId", "finca", "id_finca"],
+      0
+    )
+  );
+}
+
+function estanquePerteneceAFinca(estanque, idsValidosFinca) {
+  const fincaIdEstanque = obtenerFincaIdEstanque(estanque);
+
+  return idsValidosFinca.includes(fincaIdEstanque);
+}
+
+function obtenerNombreEstanque(estanque, id) {
+  return obtenerTexto(
+    obtenerValor(
+      estanque,
+      ["codigo", "nombre", "estanqueCodigo"],
+      ""
+    ),
+    `Estanque ${id}`
+  );
+}
+
+/*
+============================================================
+HELPERS DE VALIDACION
+============================================================
+*/
 
 const validarVentaFormulario = ({
   fincaSeleccionada,
@@ -58,19 +274,21 @@ const validarVentaFormulario = ({
   pesoPromedio,
   kilosVendidos,
   precioKiloNumero,
-  colaboradorSeleccionado,
   compradorSeleccionado,
 }) => {
   const errores = {};
+
   if (!fincaSeleccionada) errores.finca = true;
   if (!estanqueSeleccionado) errores.estanque = true;
 
   const peso = Number(pesoPromedio);
+
   if (!pesoPromedio || Number.isNaN(peso) || peso <= 0) {
     errores.pesoPromedio = true;
   }
 
   const kilos = Number(kilosVendidos);
+
   if (kilosVendidos === "" || Number.isNaN(kilos) || kilos <= 0) {
     errores.kilosVendidos = true;
   }
@@ -85,6 +303,12 @@ const validarVentaFormulario = ({
 
   return errores;
 };
+
+/*
+============================================================
+HOOK PRINCIPAL
+============================================================
+*/
 
 export function useVenta() {
   const { width } = useWindowDimensions();
@@ -111,68 +335,181 @@ export function useVenta() {
   const [guardando, setGuardando] = useState(false);
   const [ventas, setVentas] = useState([]);
 
+  /*
+  ============================================================
+  CARGA DE CATALOGOS SQLITE
+  ============================================================
+  */
+
   const cargarCatalogos = useCallback(async () => {
     try {
       await localApi.inicializar();
-      const [resColaboradores, resFincas, resEstanques, resCompradores] =
-        await Promise.all([
-          localApi.colaboradores?.obtenerTodos?.().catch(() => ({ data: [] })),
-          localApi.fincas?.obtenerTodos?.().catch(() => ({ data: [] })),
-          localApi.estanques?.obtenerTodos?.().catch(() => ({ data: [] })),
-          localApi.compradores?.obtenerTodos?.().catch(() => ({ data: [] })),
-        ]);
 
-      setColaboradores(resColaboradores?.data || []);
-      setFincas(resFincas?.data || []);
-      setEstanques(resEstanques?.data || []);
-      setCompradoresData(resCompradores?.data || []);
+      const [
+        resColaboradores,
+        resFincas,
+        resEstanques,
+        resCompradores,
+      ] = await Promise.all([
+        localApi.colaboradores?.obtenerTodos?.().catch(() => ({ data: [] })),
+        localApi.fincas?.obtenerTodos?.().catch(() => ({ data: [] })),
+        localApi.estanques?.obtenerTodos?.().catch(() => ({ data: [] })),
+        localApi.compradores?.obtenerTodos?.().catch(() => ({ data: [] })),
+      ]);
+
+      const colaboradoresData = obtenerDataRespuesta(resColaboradores);
+      const fincasData = obtenerDataRespuesta(resFincas);
+      const estanquesData = obtenerDataRespuesta(resEstanques);
+      const compradores = obtenerDataRespuesta(resCompradores);
+
+      setColaboradores(
+        Array.isArray(colaboradoresData)
+          ? colaboradoresData
+          : []
+      );
+
+      setFincas(
+        Array.isArray(fincasData)
+          ? fincasData
+          : []
+      );
+
+      setEstanques(
+        Array.isArray(estanquesData)
+          ? estanquesData
+          : []
+      );
+
+      setCompradoresData(
+        Array.isArray(compradores)
+          ? compradores
+          : []
+      );
     } catch (error) {
-      console.error("Error cargando catálogos SQLite:", error);
+      setColaboradores([]);
+      setFincas([]);
+      setEstanques([]);
+      setCompradoresData([]);
     }
   }, []);
 
+  /*
+  ============================================================
+  OPCIONES DE SELECT
+  ============================================================
+  */
+
   const opcionesFincas = useMemo(
     () =>
-      fincas.map((finca) => ({
-        label: finca.nombre_finca || finca.nombreFinca || finca.nombre || `Finca ${finca.id}`,
-        value: String(finca.id),
-      })),
+      fincas
+        .map(function (finca) {
+          const id = obtenerIdFinca(finca);
+
+          return {
+            label: obtenerNombreFinca(finca, id),
+            value: String(id),
+          };
+        })
+        .filter(function (item) {
+          return Number(item.value) > 0;
+        }),
     [fincas]
   );
 
   const estanquesFiltrados = useMemo(() => {
-    if (!fincaSeleccionada) return [];
+    if (!fincaSeleccionada) {
+      return [];
+    }
+
+    const idsValidosFinca = obtenerIdsValidosDeFincaSeleccionada(
+      fincas,
+      fincaSeleccionada
+    );
 
     return estanques
-      .filter(
-        (e) =>
-          String(e.finca_id ?? e.idFinca ?? e.fincaId ?? e.finca) === String(fincaSeleccionada)
-      )
-      .map((e) => ({
-        label: e.codigo || e.nombre || `Estanque ${e.id}`,
-        value: String(e.id),
-      }));
-  }, [fincaSeleccionada, estanques]);
+      .filter(function (estanque) {
+        return estanquePerteneceAFinca(estanque, idsValidosFinca);
+      })
+      .map(function (estanque) {
+        const id = obtenerIdEstanque(estanque);
+
+        return {
+          label: obtenerNombreEstanque(estanque, id),
+          value: String(id),
+        };
+      })
+      .filter(function (item) {
+        return Number(item.value) > 0;
+      });
+  }, [fincaSeleccionada, fincas, estanques]);
 
   const opcionesColaboradores = useMemo(
     () =>
-      colaboradores.map((colaborador) => ({
-        label: colaborador.nombre,
-        value: String(colaborador.id),
-      })),
+      colaboradores
+        .map(function (colaborador) {
+          const id = obtenerNumero(
+            obtenerValor(
+              colaborador,
+              ["id", "idLocal", "id_local", "servidor_id", "servidorId"],
+              0
+            )
+          );
+
+          return {
+            label: obtenerTexto(
+              obtenerValor(
+                colaborador,
+                ["nombre", "nombreCompleto", "nombre_completo"],
+                ""
+              ),
+              `Colaborador ${id}`
+            ),
+            value: String(id),
+          };
+        })
+        .filter(function (item) {
+          return Number(item.value) > 0;
+        }),
     [colaboradores]
   );
 
   const opcionesCompradores = useMemo(
     () => [
       { label: "Cliente genérico", value: "cliente-generico" },
-      ...compradoresData.map((comprador) => ({
-        label: comprador.nombre || `Comprador ${comprador.id}`,
-        value: String(comprador.id),
-      })),
+      ...compradoresData
+        .map(function (comprador) {
+          const id = obtenerNumero(
+            obtenerValor(
+              comprador,
+              ["id", "idLocal", "id_local", "servidor_id", "servidorId"],
+              0
+            )
+          );
+
+          return {
+            label: obtenerTexto(
+              obtenerValor(
+                comprador,
+                ["nombre", "nombreComprador", "nombre_comprador"],
+                ""
+              ),
+              `Comprador ${id}`
+            ),
+            value: String(id),
+          };
+        })
+        .filter(function (item) {
+          return Number(item.value) > 0;
+        }),
     ],
     [compradoresData]
   );
+
+  /*
+  ============================================================
+  CALCULOS Y ESTILOS
+  ============================================================
+  */
 
   const precioKiloNumero = Number(precioKilo || 0);
   const totalVenta = Number(kilosVendidos || 0) * precioKiloNumero;
@@ -190,20 +527,32 @@ export function useVenta() {
     []
   );
 
+  /*
+  ============================================================
+  LIMPIEZA DE ESTADO
+  ============================================================
+  */
+
   const limpiarError = useCallback((campo) => {
     setErrores((actual) => {
       if (!actual[campo]) return actual;
-      return { ...actual, [campo]: false };
+
+      return {
+        ...actual,
+        [campo]: false,
+      };
     });
   }, []);
 
   useEffect(() => {
-    if (!successMessage && !errorMessage) return;
+    if (!successMessage && !errorMessage) return undefined;
+
     const timer = setTimeout(() => {
       setSuccessMessage("");
       setErrorMessage("");
       setSubmitted(false);
     }, 3000);
+
     return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
 
@@ -216,11 +565,18 @@ export function useVenta() {
   useFocusEffect(
     useCallback(() => {
       cargarCatalogos();
+
       return () => {
         limpiarMensaje();
       };
     }, [cargarCatalogos, limpiarMensaje])
   );
+
+  /*
+  ============================================================
+  HANDLERS
+  ============================================================
+  */
 
   const handlePesoPromedioChange = useCallback(
     (value) => {
@@ -254,9 +610,10 @@ export function useVenta() {
 
   const handleFincaChange = useCallback(
     (value) => {
-      setFincaSeleccionada(value);
+      setFincaSeleccionada(String(value));
       setEstanqueSeleccionado("");
       limpiarError("finca");
+      limpiarError("estanque");
       setSuccessMessage("");
       setErrorMessage("");
     },
@@ -288,6 +645,7 @@ export function useVenta() {
       setFechaVenta(obtenerFechaActual());
       return;
     }
+
     setFechaVenta(value);
   }, []);
 
@@ -302,6 +660,12 @@ export function useVenta() {
     setCompradorSeleccionado("");
     setErrores({});
   }, []);
+
+  /*
+  ============================================================
+  GUARDADO LOCAL
+  ============================================================
+  */
 
   const guardarVenta = useCallback(async () => {
     setSubmitted(true);
@@ -361,6 +725,12 @@ export function useVenta() {
     limpiarFormulario,
   ]);
 
+  /*
+  ============================================================
+  COMPONENTE INTERNO
+  ============================================================
+  */
+
   function SectionTitle({ icon, title }) {
     return (
       <View style={styles.sectionTitle}>
@@ -370,10 +740,17 @@ export function useVenta() {
           color={COLORS.primary}
           style={styles.sectionIcon}
         />
+
         <Text style={styles.sectionText}>{title}</Text>
       </View>
     );
   }
+
+  /*
+  ============================================================
+  RETORNO
+  ============================================================
+  */
 
   return {
     SectionTitle,
