@@ -23,6 +23,10 @@ CONSTANTES
 
 const TIPOS_MEDICION_VALIDOS = ['ph', 'salinidad', 'temperatura', 'oxigenoDisuelto'];
 
+// Formato 24h HH:MM o HH:MM:SS, mismo criterio que el backend
+// (services/fisicoQuimica.service.js).
+const HORA_REGEX = /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
+
 /*
 //////////////////////////////////////////////////////////
 FUNCIONES SECUNDARIAS
@@ -107,7 +111,21 @@ export function isFechaValida(fecha) {
  * @param {object} medicion - Objeto {valor, etiqueta}.
  * @returns {boolean} true si es valida.
  */
-export function isMedicionValida(medicion) {
+export function isHoraValida(hora) {
+    if (typeof hora !== 'string') {
+        return false;
+    }
+
+    return HORA_REGEX.test(hora.trim());
+}
+
+/**
+ * Valida la estructura de una medicion individual.
+ * @param {object} medicion - Objeto {valor, etiqueta, horaMedicion}.
+ * @param {boolean} requiereHora - Si true, horaMedicion es obligatoria.
+ * @returns {boolean} true si es valida.
+ */
+export function isMedicionValida(medicion, requiereHora = false) {
     if (!medicion || typeof medicion !== 'object' || Array.isArray(medicion)) {
         return false;
     }
@@ -120,6 +138,17 @@ export function isMedicionValida(medicion) {
         return false;
     }
 
+    const hora = medicion.horaMedicion;
+
+    if (requiereHora) {
+        return isHoraValida(hora);
+    }
+
+    // Hora opcional: si viene, debe ser valida.
+    if (!isEmpty(hora) && !isHoraValida(hora)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -129,7 +158,7 @@ export function isMedicionValida(medicion) {
  * @param {Array} arreglo - Arreglo de mediciones.
  * @returns {boolean} true si el arreglo es valido o vacio.
  */
-export function isArrayMedicionesValido(arreglo) {
+export function isArrayMedicionesValido(arreglo, requiereHora = false) {
     if (!Array.isArray(arreglo)) {
         return false;
     }
@@ -138,7 +167,7 @@ export function isArrayMedicionesValido(arreglo) {
         return true;
     }
 
-    return arreglo.every(isMedicionValida);
+    return arreglo.every((medicion) => isMedicionValida(medicion, requiereHora));
 }
 
 /*
@@ -201,11 +230,15 @@ export function validarLecturaFisicoQuimica(lectura = {}) {
         errores.push('La temperatura debe contener mediciones validas.');
     }
 
-    if (!isArrayMedicionesValido(oxigenoDisuelto)) {
-        errores.push('El oxigeno disuelto debe contener mediciones validas.');
+    // Oxigeno es el unico que exige hora, igual que el backend
+    // (isOxigeno -> isArrayValido(oxigenoDisuelto, true)).
+    if (!isArrayMedicionesValido(oxigenoDisuelto, true)) {
+        errores.push(
+            'Cada medicion de oxigeno disuelto requiere una hora valida (HH:MM).'
+        );
     }
 
     return errores;
 }
 
-export { TIPOS_MEDICION_VALIDOS };
+export { TIPOS_MEDICION_VALIDOS, HORA_REGEX };
