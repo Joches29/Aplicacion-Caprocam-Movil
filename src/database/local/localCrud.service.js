@@ -19,6 +19,8 @@ IMPORTS
 //////////////////////////////////////////////////////////
 */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { obtenerBaseLocal } from "./sqlite.database";
 import {
     DEFINICIONES_TABLAS,
@@ -27,6 +29,14 @@ import {
     TABLAS_SINCRONIZABLES
 } from "./sqlite.schema";
 import { exitoLocal, errorLocal } from "./respuestaLocal";
+
+/*
+//////////////////////////////////////////////////////////
+CONSTANTES
+//////////////////////////////////////////////////////////
+*/
+
+const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
 
 /*
 //////////////////////////////////////////////////////////
@@ -194,12 +204,42 @@ const prepararDatosDesdeServidor = (tabla, datos = {}) => {
 };
 
 /**
+ * Obtiene el grupo de datos activo guardado en AsyncStorage.
+ * @returns {Promise<number|null>} Grupo de datos activo.
+ */
+const obtenerGrupoDatosActivo = async () => {
+    try {
+        const grupoDatos = await AsyncStorage.getItem(STORAGE_GRUPO_DATOS);
+
+        if (!grupoDatos) {
+            return null;
+        }
+
+        const numero = Number(grupoDatos);
+
+        return Number.isNaN(numero) ? null : numero;
+    } catch (error) {
+        return null;
+    }
+};
+
+/**
+ * Valida si una tabla contiene columna grupo_datos.
+ * @param {string} tabla - Nombre de tabla.
+ * @returns {boolean} true si usa grupo_datos.
+ */
+const tablaUsaGrupoDatos = (tabla) => {
+    return DEFINICIONES_TABLAS[tabla]?.includes("grupo_datos");
+};
+
+/**
  * Construye un WHERE dinamico con filtros permitidos.
  * @param {string} tabla - Nombre de tabla.
  * @param {object} filtros - Filtros recibidos.
+ * @param {number|null} grupoDatosActivo - Grupo de datos activo.
  * @returns {object} WHERE y valores.
  */
-const construirWhere = (tabla, filtros = {}) => {
+const construirWhere = (tabla, filtros = {}, grupoDatosActivo = null) => {
     const columnasPermitidas = DEFINICIONES_TABLAS[tabla];
     const condiciones = [];
     const valores = [];
@@ -211,7 +251,21 @@ const construirWhere = (tabla, filtros = {}) => {
         condiciones.push("deleted_at IS NULL");
     }
 
+    if (
+        grupoDatosActivo !== null &&
+        tablaUsaGrupoDatos(tabla) &&
+        filtros.grupo_datos === undefined &&
+        filtros.grupoDatos === undefined
+    ) {
+        condiciones.push("grupo_datos = ?");
+        valores.push(grupoDatosActivo);
+    }
+
     Object.keys(filtros).forEach((campo) => {
+        if (campo === "grupoDatos") {
+            return;
+        }
+
         if (campo !== "incluirInactivos" && columnasPermitidas.includes(campo)) {
             condiciones.push(`${campo} = ?`);
             valores.push(filtros[campo]);
@@ -350,7 +404,8 @@ export const obtenerTodosLocal = async (tabla, filtros = {}) => {
         validarTabla(tabla);
 
         const db = await obtenerBaseLocal();
-        const whereData = construirWhere(tabla, filtros);
+        const grupoDatosActivo = await obtenerGrupoDatosActivo();
+        const whereData = construirWhere(tabla, filtros, grupoDatosActivo);
 
         const registros = await db.getAllAsync(
             `SELECT * FROM ${tabla} ${whereData.where} ORDER BY id DESC`,
@@ -594,13 +649,24 @@ export const guardarDesdeServidorLocal = async (tabla, registros = []) => {
 export const obtenerPendientesSyncLocal = async () => {
     try {
         const db = await obtenerBaseLocal();
+        const grupoDatosActivo = await obtenerGrupoDatosActivo();
         const pendientes = [];
 
         for (const tabla of TABLAS_SINCRONIZABLES) {
-            const registros = await db.getAllAsync(
-                `SELECT * FROM ${tabla} WHERE pendiente_sync = 1`,
-                []
-            );
+            const usaGrupoDatos = tablaUsaGrupoDatos(tabla);
+            let registros = [];
+
+            if (grupoDatosActivo !== null && usaGrupoDatos) {
+                registros = await db.getAllAsync(
+                    `SELECT * FROM ${tabla} WHERE pendiente_sync = 1 AND grupo_datos = ?`,
+                    [grupoDatosActivo]
+                );
+            } else {
+                registros = await db.getAllAsync(
+                    `SELECT * FROM ${tabla} WHERE pendiente_sync = 1`,
+                    []
+                );
+            }
 
             registros.forEach((registro) => {
                 pendientes.push({

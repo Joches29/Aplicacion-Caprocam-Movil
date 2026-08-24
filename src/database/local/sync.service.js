@@ -19,6 +19,7 @@ IMPORTS
 //////////////////////////////////////////////////////////
 */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import bcrypt from "bcryptjs";
 import * as Crypto from "expo-crypto";
 import { localApi } from "./localApi.service";
@@ -42,8 +43,9 @@ CONSTANTES
 //////////////////////////////////////////////////////////
 */
 
+const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
+
 const ENDPOINTS_SYNC = {
-  grupos_datos: "/grupos-datos",
   usuarios: "/usuarios",
 
   fincas: "/fincas",
@@ -60,9 +62,9 @@ const ENDPOINTS_SYNC = {
 
   equipos: "/equipos",
   tareas: "/tareas",
-  mantenimiento_equipo: "/mantenimiento-equipo",
-  mantenimiento_equipo_tareas: "/mantenimiento-equipo-tareas",
-  mantenimiento_equipo_productos: "/mantenimiento-equipo-productos",
+  mantenimiento_equipo: "/mantenimientos",
+  mantenimiento_equipo_tareas: "/mantenimientos/tareas",
+  mantenimiento_equipo_productos: "/mantenimientos/productos",
 
   laboratorios: "/laboratorios",
   procedencias: "/procedencias",
@@ -85,16 +87,16 @@ const ENDPOINTS_SYNC = {
 };
 
 const TABLAS_DESCARGA_INICIAL = [
-  "grupos_datos",
-  "usuarios",
   "fincas",
   "estanques",
   "proveedores",
   "productos",
   "inventario",
   "compradores",
+  "ventas",
   "equipos",
   "tareas",
+  "mantenimiento_equipo",
   "laboratorios",
   "procedencias",
   "proveedores_larva",
@@ -153,6 +155,31 @@ const obtenerDataBackend = (respuestaHttp) => {
 };
 
 /**
+ * Normaliza respuestas que pueden venir en diferentes formatos.
+ * @param {Array|object|null} data - Data recibida.
+ * @returns {Array} Registros normalizados.
+ */
+const obtenerRegistrosDescarga = (data) => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && Array.isArray(data.datos)) {
+    return data.datos;
+  }
+
+  if (data && Array.isArray(data.registros)) {
+    return data.registros;
+  }
+
+  if (data && Array.isArray(data.items)) {
+    return data.items;
+  }
+
+  return [];
+};
+
+/**
  * Prepara un registro local antes de enviarlo al backend.
  * @param {object} registro - Registro local.
  * @returns {object} Registro limpio.
@@ -184,6 +211,19 @@ const obtenerIdentificadorServidor = (registro) => {
   }
 
   return null;
+};
+
+/**
+ * Guarda el grupo de datos activo para los filtros locales.
+ * @param {number|string|null} grupoDatos - Grupo de datos.
+ * @returns {Promise<void>}
+ */
+const guardarGrupoDatosActivo = async (grupoDatos) => {
+  if (grupoDatos === undefined || grupoDatos === null || String(grupoDatos).trim() === "") {
+    return;
+  }
+
+  await AsyncStorage.setItem(STORAGE_GRUPO_DATOS, String(grupoDatos));
 };
 
 /**
@@ -256,17 +296,17 @@ export const descargarTablaLocal = async (apiClient, tabla, credenciales = {}) =
     }
 
     const config = credenciales?.cedula
-      ? { headers: { "X-User-Cedula": credenciales.cedula, "X-User-Pin": credenciales.pin } }
+      ? {
+          headers: {
+            "X-User-Cedula": credenciales.cedula,
+            "X-User-Pin": credenciales.pin,
+          },
+        }
       : {};
 
     const respuestaHttp = await apiClient.get(endpoint, config);
     const data = obtenerDataBackend(respuestaHttp);
-
-    let registros = data;
-
-    if (!Array.isArray(registros)) {
-      registros = [];
-    }
+    const registros = obtenerRegistrosDescarga(data);
 
     const respuestaGuardado =
       await localApi.sync.guardarDesdeServidor(tabla, registros);
@@ -314,6 +354,8 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
 
     const colabServidor = respuestaData.colaborador;
 
+    await guardarGrupoDatosActivo(colabServidor.grupoDatos);
+
     const salt = bcrypt.genSaltSync(10);
     const pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
 
@@ -347,7 +389,7 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
 };
 
 /**
- * Descarga los catalogos y datos base necesarios para trabajar offline (Modulo de Sincronizacion General).
+ * Descarga los catalogos y datos base necesarios para trabajar offline.
  * @param {object} apiClient - Instancia axios del proyecto.
  * @param {object} [credenciales] - Cedula y PIN.
  * @returns {Promise<object>} Respuesta local.
