@@ -46,9 +46,6 @@ export default function AlimentacionFormObservaciones({
         multiline
         value={form.observaciones ?? ""}
         onChangeText={(v) => updateField("observaciones", v)}
-        required
-        submitted={submitted}
-        error={submitted ? (errores.observaciones || "") : ""}
       />
     </Card>
   );

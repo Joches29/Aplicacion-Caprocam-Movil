@@ -148,21 +148,17 @@ export const useDatosConteo = () => {
   const agregarTiro = () => {
     /*
     Descripcion:
-    Agrega un tiro vacio al final, pero solo si el ultimo tiro ya
-    tiene una cantidad cargada. Si el ultimo tiro esta en blanco,
-    no agrega nada: primero hay que llenar ese antes de abrir uno
-    nuevo, para no terminar con varias filas vacias a la vez.
+    Agrega un tiro vacio al final. Ya no exige que el ultimo tiro
+    tenga una cantidad cargada antes de abrir uno nuevo: en la
+    práctica generaba fricción al capturar el conteo en campo. La
+    protección contra tiros en blanco sigue existiendo en validar()
+    más abajo, que bloquea el guardado si detecta cualquier tiro
+    vacío al momento de enviar el formulario.
 
-    Tambien respeta el tope MAX_TIROS, igual que antes.
+    Respeta el tope MAX_TIROS.
     */
     setTiros((prev) => {
       if (prev.length >= MAX_TIROS) {
-        return prev;
-      }
-
-      const ultimoTiro = prev[prev.length - 1];
-
-      if (String(ultimoTiro ?? "").trim() === "") {
         return prev;
       }
 
