@@ -100,19 +100,24 @@ export function useEditarMantenimiento({ id, onNavigateToDetail, onNavigateToMai
           const resProd = await MantService.getProductosCatalogo();
           if (!activo) return;
           const raw = Array.isArray(resProd) ? resProd : (Array.isArray(resProd?.data) ? resProd.data : []);
-          prodList = raw.map(p => {
-            const prodId = String(p.id || p.producto_id || p.productoId || '');
-            const price = Number(p.precioUnidad || p.precio_unidad || p.precio) || 0;
-            return {
-              ...p,
-              id:           prodId,
-              productoId:    prodId,
-              nombre:       p.nombre || p.nombreProducto || p.producto?.nombre || `Producto ${prodId}`,
-              precioUnidad: price,
-              costoUnitario: price,
-              stockMaximo:  p.cantidad !== undefined ? Number(p.cantidad) : (p.stock !== undefined ? Number(p.stock) : 999),
-            };
-          });
+          prodList = raw
+            .map(p => {
+              const prodId = String(p.id || p.producto_id || p.productoId || '');
+              const price = Number(p.precioUnidad || p.precio_unidad || p.precio) || 0;
+              return {
+                ...p,
+                id:           prodId,
+                productoId:    prodId,
+                nombre:       p.nombre || p.nombreProducto || p.producto?.nombre || `Producto ${prodId}`,
+                precioUnidad: price,
+                costoUnitario: price,
+                stockMaximo:  p.cantidad !== undefined ? Number(p.cantidad) : (p.stock !== undefined ? Number(p.stock) : 999),
+              };
+            })
+            .filter(p => {
+              const cat = (p.categoria || '').toLowerCase();
+              return cat === 'equipos' || cat === 'mantenimiento';
+            });
         } catch (errProd) {
           console.warn('useEditarMantenimiento: no se pudieron cargar productos:', errProd?.message);
         }

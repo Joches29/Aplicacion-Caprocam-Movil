@@ -55,15 +55,20 @@ export function useAgregarMantenimiento({ onNavigateToMain }) {
       try {
         const data = await productoService.getProductos();
         const raw = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        const list = raw.map(p => ({
-          ...p,
-          id: String(p.id || p.producto_id || p.productoId || ''),
-          productoId: String(p.id || p.producto_id || p.productoId || ''),
-          nombre: p.nombre || p.nombreProducto || p.producto?.nombre || `Producto ${p.id}`,
-          precioUnidad: Number(p.precioUnidad || p.precio_unidad || p.precio) || 0,
-          costoUnitario: Number(p.precioUnidad || p.precio_unidad || p.precio) || 0,
-          stockMaximo: p.cantidad !== undefined ? Number(p.cantidad) : (p.stock !== undefined ? Number(p.stock) : 999),
-        }));
+        const list = raw
+          .map(p => ({
+            ...p,
+            id: String(p.id || p.producto_id || p.productoId || ''),
+            productoId: String(p.id || p.producto_id || p.productoId || ''),
+            nombre: p.nombre || p.nombreProducto || p.producto?.nombre || `Producto ${p.id}`,
+            precioUnidad: Number(p.precioUnidad || p.precio_unidad || p.precio) || 0,
+            costoUnitario: Number(p.precioUnidad || p.precio_unidad || p.precio) || 0,
+            stockMaximo: p.cantidad !== undefined ? Number(p.cantidad) : (p.stock !== undefined ? Number(p.stock) : 999),
+          }))
+          .filter(p => {
+            const cat = (p.categoria || '').toLowerCase();
+            return cat === 'equipos' || cat === 'mantenimiento';
+          });
         setProductosList(list);
       } catch (err) {
         console.error('Error al cargar productos del servicio de productos:', err);
