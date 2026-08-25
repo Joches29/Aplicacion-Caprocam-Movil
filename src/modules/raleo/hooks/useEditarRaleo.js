@@ -53,6 +53,7 @@ import RaleoLocalService from "../services/RaleoLocal.service";
 
 import { localApi } from "../../../database/local/localApi.service";
 import { useError } from "../../../shared/context/ErrorContext.js";
+import { useSiembraActivaEstanque } from "../../../shared/hooks/useSiembraActivaEstanque.js";
 
 /*
 ============================================================
@@ -286,10 +287,34 @@ export default function useEditarRaleo(
     CALCULOS DEL RALEO
     ========================================================
     */
-    const { porcentaje: porcentajeRaleo, biomasaRestante } = useMemo(
+        const { porcentaje: porcentajeRaleo, biomasaRestante } = useMemo(
         () => calcularRaleo(form.biomasaEstimada, form.kgRetirados),
         [form.biomasaEstimada, form.kgRetirados]
     );
+
+    /*
+    ========================================================
+    VALIDAR SIEMBRA ACTIVA DEL ESTANQUE
+    ========================================================
+    Se valida también al editar: si el estanque de un registro
+    viejo ya no tiene siembra activa hoy, se bloquea el guardado
+    igual que al crear uno nuevo (no se "hereda" la validez de
+    cuando se creó el registro originalmente).
+    */
+    const { tieneSiembraActiva, mensajeErrorSiembra } = useSiembraActivaEstanque(
+        form.estanque,
+        "el raleo"
+    );
+
+    useEffect(() => {
+        if (mensajeErrorSiembra) {
+            setAlerta({
+                visible: true,
+                variant: "danger",
+                mensaje: mensajeErrorSiembra,
+            });
+        }
+    }, [mensajeErrorSiembra]);
 
     /*
     ========================================================
@@ -304,13 +329,24 @@ export default function useEditarRaleo(
             const resultado =
                 validarForm();
 
-            setErrores(resultado.errores);
+             setErrores(resultado.errores);
             if (!resultado.valido) {
                 setAlerta({
                     visible: true,
                     variant: "danger",
                     mensaje:
                         "Rellene los datos requeridos correctamente."
+                });
+                return;
+            }
+
+            if (!tieneSiembraActiva) {
+                setAlerta({
+                    visible: true,
+                    variant: "danger",
+                    mensaje:
+                        mensajeErrorSiembra ||
+                        "El estanque seleccionado no tiene una siembra real registrada."
                 });
                 return;
             }
@@ -346,7 +382,7 @@ export default function useEditarRaleo(
                 });
             }
         },
-        [registroId, form, porcentajeRaleo, biomasaRestante, validarForm, onGuardado, mostrarError]);
+        [registroId, form, porcentajeRaleo, biomasaRestante, validarForm, onGuardado, mostrarError, tieneSiembraActiva, mensajeErrorSiembra]);
 
     return {
         form,
