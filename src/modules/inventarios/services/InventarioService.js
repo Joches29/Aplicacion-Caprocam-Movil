@@ -36,9 +36,13 @@ function mapearProductoInventarioLocal(registroInventario, catalogoProductos = [
   if (!registroInventario) return null;
 
   const productoId = registroInventario.producto_id ?? registroInventario.productoId ?? null;
-  const productoCatalogo = catalogoProductos.find((producto) => {
-    return String(producto.id) === String(productoId) || String(producto.servidor_id) === String(productoId);
-  });
+  const productoCatalogo =
+    catalogoProductos.find(
+      (producto) => String(producto.servidor_id) === String(productoId)
+    ) ??
+    catalogoProductos.find(
+      (producto) => String(producto.id) === String(productoId)
+    );
 
   const cantidad = Number(registroInventario.cantidad ?? productoCatalogo?.cantidad ?? 0) || 0;
   const stockMinimo = Number(registroInventario.stock_minimo ?? productoCatalogo?.stock_minimo ?? 0) || 0;
