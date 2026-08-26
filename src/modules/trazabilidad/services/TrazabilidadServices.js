@@ -539,15 +539,43 @@ export async function obtenerColaboradores() {
 
 /*
 //////////////////////////////////////////////////////////
-FUNCIONES PRINCIPALES - SIEMBRA ACTIVA
+FUNCIONES PRINCIPALES - SIEMBRA / PRECRIA ACTIVA
+//////////////////////////////////////////////////////////
+
+Al elegir el estanque de ORIGEN, el formulario autocompleta PL
+y Dias. El dato puede estar en dos tablas distintas segun el
+tipo de estanque:
+
+- Estanque de ENGORDE  -> el dato esta en "siembras".
+- Estanque de PRECRIA  -> NO hay siembra ahi, hay una PRECRIA.
+
+Esto es asi por el flujo real del negocio: primero se hace la
+precria, despues se mueve a engorde (ese movimiento es
+justamente Trazabilidad) y RECIEN AHI se crea la siembra en el
+estanque de engorde. Es decir, cuando se registra el movimiento
+la siembra destino todavia no existe.
+
+La cadena se puede verificar en los datos: la precria de EST-02
+termina con pl_final = 25 y 740000 animales, y la siembra que se
+crea despues en EST-01 (con precria_id apuntando a ella) arranca
+con pl_siembra = 25 y cantidad_sembrada = 740000. Coinciden.
+
+Como el formulario solo deja elegir estanques de PRECRIA como
+origen, sin este fallback el autocompletado nunca encontraba
+nada: buscaba siembras en un estanque donde por definicion no
+las hay.
+
+Se replica el mismo criterio que ya usa el frontend web
+(fallback 3 de obtenerSiembraActivaPorEstanque): PL sale de
+pl_final (o pl_inicial si no hay), y los dias se cuentan desde
+fecha_inicio. Se mantiene igual a web A PROPOSITO para no
+introducir una diferencia de criterio entre plataformas sin
+validarla antes con el profe (hay dudas abiertas sobre si los
+dias deberian ser duracion_dias cuando la precria ya finalizo).
 //////////////////////////////////////////////////////////
 */
 
-export async function obtenerSiembraActivaPorEstanque(estanqueId) {
-    if (!estanqueId) {
-        return null;
-    }
-
+async function buscarEnSiembras(estanqueId) {
     try {
         const [respuestaEstanques, respuestaSiembras] = await Promise.all([
             localApi.estanques.obtenerTodos(),
@@ -606,6 +634,105 @@ export async function obtenerSiembraActivaPorEstanque(estanqueId) {
     } catch (error) {
         return null;
     }
+}
+
+/**
+ * Busca una precria del estanque indicado y arma los datos de
+ * autocompletado a partir de ella.
+ *
+ * Se usa cuando no hay siembra en el estanque, que es el caso
+ * normal de un estanque de PRECRIA (ver nota de la seccion).
+ *
+ * Criterio identico al del frontend web:
+ * - PL   -> pl_final, y si no hay, pl_inicial.
+ * - Dias -> hoy menos fecha_inicio; si la fecha no se puede
+ *           parsear, se cae a duracion_dias.
+ *
+ * @param {number|string} estanqueId - Id del estanque de origen.
+ * @returns {Promise<object|null>} {pl_siembra, dias} o null.
+ */
+async function buscarEnPrecrias(estanqueId) {
+    try {
+        const [respuestaEstanques, respuestaPrecrias] = await Promise.all([
+            localApi.estanques.obtenerTodos(),
+            localApi.precrias.obtenerTodos()
+        ]);
+
+        const estanques = obtenerDatosLocal(respuestaEstanques).map(normalizarEstanque);
+        const idsEstanque = obtenerIdsValidosEstanque(estanques, estanqueId);
+
+        /*
+        No se filtra por estado a proposito: web tampoco lo hace.
+        En el flujo real la precria suele estar Finalizada justo
+        cuando se registra el movimiento (el camaron ya salio de
+        ahi), asi que exigir "Activa" dejaria el campo vacio en el
+        caso mas comun.
+        */
+        const precrias = obtenerDatosLocal(respuestaPrecrias).filter((precria) =>
+            siembraPerteneceAEstanque(precria, idsEstanque)
+        );
+
+        if (precrias.length === 0) {
+            return null;
+        }
+
+        const masReciente = precrias
+            .slice()
+            .sort((a, b) =>
+                String(a.fecha_inicio ?? "").localeCompare(String(b.fecha_inicio ?? ""))
+            )
+            .pop();
+
+        // Mismo recorte de 10 caracteres que en siembras: la fecha
+        // puede venir como "2026-06-01" (local) o como ISO completo
+        // "2026-06-01T06:00:00.000Z" (descargada del backend).
+        const fechaTexto = String(masReciente.fecha_inicio ?? "").slice(0, 10);
+        const fechaInicio = new Date(`${fechaTexto}T00:00:00`);
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const msPorDia = 1000 * 60 * 60 * 24;
+
+        const dias = Number.isNaN(fechaInicio.getTime())
+            ? (masReciente.duracion_dias ?? null)
+            : Math.max(0, Math.floor((hoy - fechaInicio) / msPorDia));
+
+        const pl = masReciente.pl_final ?? masReciente.pl_inicial ?? null;
+
+        return {
+            pl_siembra: pl,
+            dias
+        };
+    } catch (error) {
+        return null;
+    }
+}
+
+/**
+ * Obtiene los datos de autocompletado (PL y dias) para el
+ * estanque de origen elegido.
+ *
+ * Busca primero en siembras y, si no encuentra, en precrias.
+ * Ese orden importa: un estanque de engorde tendra siembra, y
+ * uno de precria tendra precria. Ver la nota de la seccion para
+ * el porque del fallback.
+ *
+ * @param {number|string} estanqueId - Id del estanque de origen.
+ * @returns {Promise<object|null>} {pl_siembra, dias} o null.
+ */
+export async function obtenerSiembraActivaPorEstanque(estanqueId) {
+    if (!estanqueId) {
+        return null;
+    }
+
+    const desdeSiembra = await buscarEnSiembras(estanqueId);
+
+    if (desdeSiembra) {
+        return desdeSiembra;
+    }
+
+    return buscarEnPrecrias(estanqueId);
 }
 
 /*
