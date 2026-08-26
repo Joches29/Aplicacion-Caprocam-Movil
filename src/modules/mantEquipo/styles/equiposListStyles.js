@@ -242,17 +242,24 @@ export const styles = StyleSheet.create({
     marginTop: 0,
     borderWidth: 0,
   },
-  // Acción ENCENDER: outline verde sin relleno
+  // Acción ENCENDER: outline verde, sin relleno
   toggleBtnEncender: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: COLORS.success,
   },
-  // Acción APAGAR: outline rojo sin relleno
+  // Acción APAGAR: outline rojo, sin relleno
   toggleBtnApagar: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: COLORS.error,
+  },
+  // Acción DESHABILITADO (en mantenimiento o inactivo)
+  toggleBtnDeshabilitado: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    opacity: 0.45,
   },
   // Label base
   toggleBtnLabel: {
@@ -265,11 +272,8 @@ export const styles = StyleSheet.create({
   toggleBtnLabelApagar: {
     color: COLORS.error,
   },
-
-  touchableContainer: {
-    width: '100%',
-    maxWidth: 900,
-    alignSelf: 'center',
+  toggleBtnLabelDeshabilitado: {
+    color: COLORS.textTertiary,
   },
 
   // ----- Modal de confirmación -----
@@ -360,12 +364,12 @@ export const styles = StyleSheet.create({
   },
 
   alertWrapper: {
-    marginTop: 12,
-    marginBottom: 12,
-    paddingHorizontal: 0,
-    width: '100%',
-    maxWidth: 900,
-    alignSelf: 'center',
+  marginTop: 12,
+  marginBottom: 12,
+  paddingHorizontal: 0,
+  width: '100%',
+  maxWidth: 900,
+  alignSelf: 'center',
   },
 
   // ----- Modal de detalle -----
@@ -502,4 +506,4 @@ export const styles = StyleSheet.create({
     borderColor: COLORS.error,
     borderWidth: 1.5,
   },
-});
+});

@@ -61,6 +61,19 @@ const ESTADO_OPERATIVO_FRONTEND_A_BACKEND = {
 // FUNCIONES AUXILIARES DE MAPEO
 // ============================================================
 
+function fechaFormularioABackend(fecha) {
+  if (!fecha) {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }
+  const str = String(fecha).trim();
+  if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(str)) {
+    const [dia, mes, anio] = str.split(/[\/-]/);
+    return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+  }
+  return str;
+}
+
 function fechaBackendAFormulario(fecha) {
   if (!fecha) return "";
   const partes = String(fecha).split("-");
@@ -80,16 +93,6 @@ function mapEquipoLocal(equipo) {
 
   const encendido = equipo.estado === "Encendido";
   let horasUso = Number(equipo.horas_actuales || 0);
-
-  // Si está encendido, calcular las horas transcurridas en vivo desde fecha_actualizacion
-  if (encendido && equipo.fecha_actualizacion) {
-    const msInicio = new Date(equipo.fecha_actualizacion).getTime();
-    if (!isNaN(msInicio)) {
-      const msTranscurridos = Math.max(0, Date.now() - msInicio);
-      const horasTranscurridas = msTranscurridos / (1000 * 60 * 60);
-      horasUso = parseFloat((horasUso + horasTranscurridas).toFixed(2));
-    }
-  }
 
   return {
     id: equipo.id,
@@ -116,6 +119,9 @@ function mapEquipoLocal(equipo) {
     // Horas
     horasMantenimiento: equipo.horas_mantenimiento,
     horasUso,
+    horasActuales: horasUso,
+    horasBase: horasUso,
+    fechaUltimoEncendido: equipo.fecha_ultimo_encendido || null,
 
     // Estado operativo: activo / inactivo / mantenimiento
     estado: ESTADO_OPERATIVO_BACKEND_A_FRONTEND[equipo.estado_operativo] || "activo",
@@ -137,15 +143,12 @@ function mapEquiposLocal(lista) {
  * Mapea los datos del formulario frontend al formato snake_case para SQLite local.
  */
 function mapEquipoFrontendALocal(data) {
-  const today = new Date();
-  const defaultDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-
   const payload = {
     identificador: (data.codigo || data.codigoInterno || "").trim(),
     nombre_equipo: (data.nombre || "").trim(),
     descripcion: (data.descripcion || "").trim(),
     tipo_equipo: TIPO_FRONTEND_A_BACKEND[data.tipo] || data.tipoEquipo || "Otro",
-    fecha_instalacion: data.fechaInstalacion || defaultDate,
+    fecha_instalacion: fechaFormularioABackend(data.fechaInstalacion),
     funcion_equipo: (data.funcionEquipo || "").trim(),
     estado_operativo: ESTADO_OPERATIVO_FRONTEND_A_BACKEND[data.estado] || data.estadoOperativo || "Activo",
   };
@@ -354,23 +357,42 @@ export const equiposService = {
 
       const estabaEncendido = equipoDb.estado === "Encendido";
       let horasActuales = Number(equipoDb.horas_actuales || 0);
+      let nuevoEstadoOperativo = equipoDb.estado_operativo;
+      let nuevoEstado = "Encendido";
+      let fechaUltimoEncendido = null;
 
-      // Si estaba encendido, acumular el tiempo transcurrido en horas_actuales
-      if (estabaEncendido && equipoDb.fecha_actualizacion) {
-        const msInicio = new Date(equipoDb.fecha_actualizacion).getTime();
-        if (!isNaN(msInicio)) {
-          const msTranscurridos = Math.max(0, Date.now() - msInicio);
-          const horasTranscurridas = msTranscurridos / (1000 * 60 * 60);
-          horasActuales = parseFloat((horasActuales + horasTranscurridas).toFixed(4));
+      if (estabaEncendido) {
+        const fechaInicio = equipoDb.fecha_ultimo_encendido || equipoDb.fecha_actualizacion;
+        if (fechaInicio) {
+          const msInicio = new Date(fechaInicio).getTime();
+          if (!isNaN(msInicio)) {
+            const msTranscurridos = Math.max(0, Date.now() - msInicio);
+            const horasTranscurridas = msTranscurridos / (1000 * 60 * 60);
+            horasActuales = parseFloat((horasActuales + horasTranscurridas).toFixed(2));
+          }
         }
+        nuevoEstado = "Apagado";
+        fechaUltimoEncendido = null;
+
+        const horasMant = Number(equipoDb.horas_mantenimiento || 0);
+        if (horasMant > 0 && horasActuales >= horasMant) {
+          nuevoEstadoOperativo = "Mantenimiento";
+        }
+      } else {
+        if (equipoDb.estado_operativo === "Mantenimiento" || equipoDb.estado_operativo === "Inactivo") {
+          throw new Error(`No se puede encender un equipo en estado ${equipoDb.estado_operativo.toLowerCase()}`);
+        }
+        nuevoEstado = "Encendido";
+        fechaUltimoEncendido = new Date().toISOString().slice(0, 19).replace('T', ' ');
       }
 
-      const nuevoEstado = estabaEncendido ? "Apagado" : "Encendido";
       const fechaActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
       const respuesta = await localApi.equipos.actualizar(targetId, {
         estado: nuevoEstado,
+        estado_operativo: nuevoEstadoOperativo,
         horas_actuales: horasActuales,
+        fecha_ultimo_encendido: fechaUltimoEncendido,
         fecha_actualizacion: fechaActual,
       });
 
