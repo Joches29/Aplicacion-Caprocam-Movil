@@ -101,18 +101,6 @@ export default function EnfermedadesScreen() {
                                     }
                                 />
                             </View>
-
-                            <View style={pantalla.itemStyle}>
-                                <Input
-                                    label="Responsable"
-                                    value={pantalla.responsable}
-                                    editable={false}
-                                    readOnly={true}
-                                    selectTextOnFocus={false}
-                                    labelStyle={styles.label}
-                                    style={styles.disabledInput}
-                                />
-                            </View>
                         </View>
                     </Card>
 

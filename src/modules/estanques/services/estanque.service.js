@@ -1,5 +1,21 @@
 import api from "../../../api/api";
 
+function obtenerDataRespuesta(response) {
+    if (response?.data?.data !== undefined) {
+        return response.data.data;
+    }
+
+    if (response?.data?.datos !== undefined) {
+        return response.data.datos;
+    }
+
+    if (response?.data !== undefined) {
+        return response.data;
+    }
+
+    return [];
+}
+
 function construirErrorHttp(error, mensajeGenerico) {
     const status = error?.response?.status;
     const mensaje =
@@ -21,29 +37,25 @@ function construirErrorHttp(error, mensajeGenerico) {
 }
 
 export const estanqueService = {
-    /*
-    OBTENER TODOS LOS ESTANQUES
-    */
     getEstanques: async () => {
         try {
             const response = await api.get("/estanques");
 
-            return response.data.data;
+            return obtenerDataRespuesta(response);
         } catch (error) {
             throw construirErrorHttp(error, "No se pudieron obtener los estanques.");
         }
     },
 
-    /*
-    OBTENER ESTANQUE POR ID
-    */
     getEstanqueById: async (id) => {
         try {
             const response = await api.get(`/estanques/${id}`);
 
-            return response.data.data;
+            return obtenerDataRespuesta(response);
         } catch (error) {
             throw construirErrorHttp(error, "No se pudo obtener la informacion del estanque.");
         }
     },
 };
+
+export default estanqueService;

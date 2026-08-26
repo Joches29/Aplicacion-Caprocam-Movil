@@ -17,23 +17,11 @@ import { useWindowDimensions } from "react-native";
 import { localApi } from "../../../database/local/localApi.service";
 import EnfermedadesLocalService from "../services/EnfermedadesLocal.service";
 
-/*
-============================================================
-CONSTANTES
-============================================================
-*/
-
 const STORAGE_COLABORADOR_ACTUAL = "caprocam_colaborador_actual";
 
 const METODOS_LOCAL_API = {
     obtenerTodos: ["obtenerTodos", "getAll", "listar"],
 };
-
-/*
-============================================================
-HELPERS DE FECHA
-============================================================
-*/
 
 function obtenerFechaActual() {
     const fecha = new Date();
@@ -44,9 +32,7 @@ function obtenerFechaActual() {
 }
 
 function convertirFechaParaBackend(fecha) {
-    if (!fecha) {
-        return "";
-    }
+    if (!fecha) return "";
 
     if (String(fecha).includes("-") && !String(fecha).includes("/")) {
         return String(fecha).slice(0, 10);
@@ -54,21 +40,14 @@ function convertirFechaParaBackend(fecha) {
 
     const [dia, mes, anio] = String(fecha).split("/");
 
-    if (dia && mes && anio) {
-        return `${anio}-${mes}-${dia}`;
-    }
-
-    return fecha;
+    return dia && mes && anio ? `${anio}-${mes}-${dia}` : fecha;
 }
 
 function formatearFechaUI(fecha) {
-    if (!fecha) {
-        return "";
-    }
+    if (!fecha) return "";
 
     if (typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}/.test(fecha)) {
         const [anio, mes, dia] = fecha.slice(0, 10).split("-");
-
         return `${dia}/${mes}/${anio}`;
     }
 
@@ -77,9 +56,7 @@ function formatearFechaUI(fecha) {
 
 function obtenerFechaValida(fecha) {
     const texto = String(fecha ?? "").trim();
-    let dia;
-    let mes;
-    let anio;
+    let dia, mes, anio;
 
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
         [dia, mes, anio] = texto.split("/").map(Number);
@@ -96,9 +73,7 @@ function obtenerFechaValida(fecha) {
         fechaValidada.getFullYear() !== anio ||
         fechaValidada.getMonth() !== mes - 1 ||
         fechaValidada.getDate() !== dia
-    ) {
-        return null;
-    }
+    ) return null;
 
     return fechaValidada;
 }
@@ -110,9 +85,7 @@ function validarFechaReporte(fecha) {
 
     const fechaValidada = obtenerFechaValida(fecha);
 
-    if (!fechaValidada) {
-        return "La fecha del reporte no es valida.";
-    }
+    if (!fechaValidada) return "La fecha del reporte no es valida.";
 
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
@@ -124,32 +97,27 @@ function validarFechaReporte(fecha) {
     return "";
 }
 
-/*
-============================================================
-HELPERS GENERALES
-============================================================
-*/
-
 function primeraMayuscula(texto) {
-    if (!texto) {
-        return "";
-    }
-
-    return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
+    return texto
+        ? texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase()
+        : "";
 }
 
-const obtenerDataRespuesta = (respuesta) => {
-    if (respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")) {
-        return respuesta.data;
-    }
+function normalizarTexto(valor) {
+    return String(valor ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
 
-    return respuesta;
-};
+const obtenerDataRespuesta = (respuesta) =>
+    respuesta && Object.prototype.hasOwnProperty.call(respuesta, "data")
+        ? respuesta.data
+        : respuesta;
 
 function obtenerValor(objeto, llaves, valorDefecto = null) {
-    if (!objeto) {
-        return valorDefecto;
-    }
+    if (!objeto) return valorDefecto;
 
     for (let i = 0; i < llaves.length; i += 1) {
         const llave = llaves[i];
@@ -169,22 +137,14 @@ function obtenerValor(objeto, llaves, valorDefecto = null) {
 async function obtenerColaboradorActual() {
     try {
         const valor = await AsyncStorage.getItem(STORAGE_COLABORADOR_ACTUAL);
-
-        if (!valor) {
-            return null;
-        }
-
-        return JSON.parse(valor);
+        return valor ? JSON.parse(valor) : null;
     } catch (error) {
-        console.error("Error al obtener colaborador actual", error);
         return null;
     }
 }
 
 function obtenerNombreResponsable(colaborador) {
-    if (!colaborador) {
-        return "No disponible";
-    }
+    if (!colaborador) return "No disponible";
 
     const nombreCompleto = obtenerValor(
         colaborador,
@@ -192,29 +152,18 @@ function obtenerNombreResponsable(colaborador) {
         null
     );
 
-    if (nombreCompleto) {
-        return String(nombreCompleto).trim();
-    }
+    if (nombreCompleto) return String(nombreCompleto).trim();
 
     const nombre = obtenerValor(colaborador, ["nombre"], "");
     const apellidos = obtenerValor(colaborador, ["apellidos", "apellido"], "");
     const responsable = `${nombre} ${apellidos}`.trim();
 
-    return (
-        responsable ||
-        obtenerValor(
-            colaborador,
-            ["usuario", "username", "nombre_usuario"],
-            "No disponible"
-        )
+    return responsable || obtenerValor(
+        colaborador,
+        ["usuario", "username", "nombre_usuario"],
+        "No disponible"
     );
 }
-
-/*
-============================================================
-HELPERS DE LOCAL API
-============================================================
-*/
 
 async function ejecutarMetodoLocal(seccion, tipoMetodo, argumentos = []) {
     const apiSeccion = localApi[seccion];
@@ -240,80 +189,88 @@ async function obtenerRegistrosLocales(seccion) {
     const respuesta = await ejecutarMetodoLocal(seccion, "obtenerTodos");
     const data = obtenerDataRespuesta(respuesta);
 
-    if (Array.isArray(data)) {
-        return data;
-    }
-
-    return [];
+    return Array.isArray(data) ? data : [];
 }
 
-/*
-============================================================
-HELPERS DE FINCAS Y ESTANQUES
-============================================================
-*/
-
 function obtenerIdFinca(finca) {
-    return Number(
-        obtenerValor(
-            finca,
-            ["servidor_id", "servidorId", "id", "fincaId", "idFinca", "finca_id"],
-            0
-        )
-    );
+    return Number(obtenerValor(
+        finca,
+        ["servidor_id", "servidorId", "id", "fincaId", "idFinca", "finca_id"],
+        0
+    ));
 }
 
 function obtenerIdEstanque(estanque) {
-    return Number(
-        obtenerValor(
-            estanque,
-            [
-                "servidor_id",
-                "servidorId",
-                "id",
-                "estanqueId",
-                "idEstanque",
-                "estanque_id",
-            ],
-            0
-        )
-    );
+    return Number(obtenerValor(
+        estanque,
+        ["servidor_id", "servidorId", "id", "estanqueId", "idEstanque", "estanque_id"],
+        0
+    ));
 }
 
 function obtenerFincaIdEstanque(estanque) {
-    return Number(
-        obtenerValor(
-            estanque,
-            ["finca_id", "fincaId", "idFinca"],
-            0
-        )
+    return Number(obtenerValor(
+        estanque,
+        ["finca_id", "fincaId", "idFinca"],
+        0
+    ));
+}
+
+function obtenerIdEstanqueSiembra(siembra) {
+    return Number(obtenerValor(
+        siembra,
+        ["estanque_id", "estanqueId", "idEstanque"],
+        0
+    ));
+}
+
+function estanqueEstaActivo(estanque) {
+    return normalizarTexto(obtenerValor(estanque, ["estado"], "")) === "activo";
+}
+
+function siembraEstaActiva(siembra) {
+    return normalizarTexto(obtenerValor(siembra, ["estado"], "")) === "activa";
+}
+
+function tieneSiembraActiva(estanqueId, siembras) {
+    return siembras.some((siembra) =>
+        obtenerIdEstanqueSiembra(siembra) === Number(estanqueId) &&
+        siembraEstaActiva(siembra)
     );
 }
 
-function obtenerNombreFinca(item, id) {
-    return (
-        obtenerValor(
-            item,
-            ["nombreFinca", "nombre_finca", "nombre", "codigoCBO", "codigo_cbo"],
-            ""
-        ) || `Finca ${id}`
+function validarEstanqueParaRegistro(estanqueId, estanques, siembras) {
+    const estanque = estanques.find(
+        (item) => obtenerIdEstanque(item) === Number(estanqueId)
     );
+
+    if (!estanque) return "Seleccione un estanque valido.";
+
+    if (!estanqueEstaActivo(estanque)) {
+        return "El estanque seleccionado no esta activo.";
+    }
+
+    if (!tieneSiembraActiva(estanqueId, siembras)) {
+        return "El estanque seleccionado no tiene una siembra activa.";
+    }
+
+    return "";
+}
+
+function obtenerNombreFinca(item, id) {
+    return obtenerValor(
+        item,
+        ["nombreFinca", "nombre_finca", "nombre", "codigoCBO", "codigo_cbo"],
+        ""
+    ) || `Finca ${id}`;
 }
 
 function obtenerNombreEstanque(item, id) {
     return obtenerValor(item, ["codigo", "nombre"], "") || `Estanque ${id}`;
 }
 
-/*
-============================================================
-HELPERS DE CATALOGOS
-============================================================
-*/
-
 function normalizarCatalogo(catalogo) {
-    if (!Array.isArray(catalogo)) {
-        return [];
-    }
+    if (!Array.isArray(catalogo)) return [];
 
     return catalogo
         .map((item) => {
@@ -341,16 +298,8 @@ function normalizarCatalogo(catalogo) {
                 value: String(value),
             };
         })
-        .filter((item) => {
-            return item.value !== "";
-        });
+        .filter((item) => item.value !== "");
 }
-
-/*
-============================================================
-HOOK PRINCIPAL
-============================================================
-*/
 
 export default function useEditarEnfermedad(registroId, onGuardado) {
     const { width } = useWindowDimensions();
@@ -365,6 +314,7 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
 
     const [fincas, setFincas] = useState([]);
     const [estanques, setEstanques] = useState([]);
+    const [siembras, setSiembras] = useState([]);
     const [catalogoEnf, setCatalogoEnf] = useState([]);
     const [catalogoSev, setCatalogoSev] = useState([]);
 
@@ -376,9 +326,7 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
     const [cargandoOpciones, setCargandoOpciones] = useState(true);
 
     useEffect(() => {
-        if (!mensaje) {
-            return undefined;
-        }
+        if (!mensaje) return undefined;
 
         const duracion = tipoMensaje === "success" ? 3000 : 6000;
 
@@ -387,9 +335,7 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
             setTipoMensaje("info");
         }, duracion);
 
-        return () => {
-            clearTimeout(timer);
-        };
+        return () => clearTimeout(timer);
     }, [mensaje, tipoMensaje]);
 
     useEffect(() => {
@@ -405,36 +351,33 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                     colaborador,
                     fincasData,
                     estanquesData,
+                    siembrasData,
                     enfermedadesCatalogo,
                     severidadesCatalogo,
                 ] = await Promise.all([
                     obtenerColaboradorActual(),
                     obtenerRegistrosLocales("fincas"),
                     obtenerRegistrosLocales("estanques"),
+                    obtenerRegistrosLocales("siembras"),
                     EnfermedadesLocalService.getCatalogo(),
                     EnfermedadesLocalService.getCatalogoSeveridades(),
                 ]);
 
-                if (!activo) {
-                    return;
-                }
+                if (!activo) return;
 
                 setResponsable(obtenerNombreResponsable(colaborador));
                 setFincas(fincasData);
                 setEstanques(estanquesData);
+                setSiembras(siembrasData);
                 setCatalogoEnf(enfermedadesCatalogo);
                 setCatalogoSev(severidadesCatalogo);
             } catch (error) {
-                console.error("Error al cargar opciones locales", error);
-
                 if (activo) {
                     setTipoMensaje("danger");
                     setMensaje(error.message || "Error al cargar opciones locales.");
                 }
             } finally {
-                if (activo) {
-                    setCargandoOpciones(false);
-                }
+                if (activo) setCargandoOpciones(false);
             }
         }
 
@@ -459,33 +402,12 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
 
                 await localApi.inicializar();
 
-                const registro = await EnfermedadesLocalService.getById(
-                    registroId
-                );
+                const registro = await EnfermedadesLocalService.getById(registroId);
 
-                if (!activo || !registro) {
-                    return;
-                }
+                if (!activo || !registro) return;
 
-                setFinca(
-                    String(
-                        obtenerValor(
-                            registro,
-                            ["fincaId", "finca_id"],
-                            ""
-                        )
-                    )
-                );
-
-                setEstanque(
-                    String(
-                        obtenerValor(
-                            registro,
-                            ["estanqueId", "estanque_id"],
-                            ""
-                        )
-                    )
-                );
+                setFinca(String(obtenerValor(registro, ["fincaId", "finca_id"], "")));
+                setEstanque(String(obtenerValor(registro, ["estanqueId", "estanque_id"], "")));
 
                 setFechaReporte(
                     formatearFechaUI(
@@ -497,21 +419,8 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                     )
                 );
 
-                setEnfermedad(
-                    obtenerValor(
-                        registro,
-                        ["enfermedad"],
-                        ""
-                    )
-                );
-
-                setSeveridad(
-                    obtenerValor(
-                        registro,
-                        ["severidad"],
-                        ""
-                    )
-                );
+                setEnfermedad(obtenerValor(registro, ["enfermedad"], ""));
+                setSeveridad(obtenerValor(registro, ["severidad"], ""));
 
                 const responsableRegistro = obtenerValor(
                     registro,
@@ -523,24 +432,14 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                     setResponsable(responsableRegistro);
                 }
 
-                setReporte(
-                    obtenerValor(
-                        registro,
-                        ["reporte"],
-                        ""
-                    ) || ""
-                );
+                setReporte(obtenerValor(registro, ["reporte"], "") || "");
             } catch (error) {
-                console.error("Error al cargar enfermedad local", error);
-
                 if (activo) {
                     setTipoMensaje("danger");
                     setMensaje("No se pudo cargar el registro local.");
                 }
             } finally {
-                if (activo) {
-                    setCargandoRegistro(false);
-                }
+                if (activo) setCargandoRegistro(false);
             }
         }
 
@@ -561,19 +460,21 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                     value: String(id),
                 };
             })
-            .filter((item) => {
-                return Number(item.value) > 0;
-            });
+            .filter((item) => Number(item.value) > 0);
     }, [fincas]);
 
     const opcionesEstanques = useMemo(() => {
-        if (!finca) {
-            return [];
-        }
+        if (!finca) return [];
 
         return estanques
             .filter((item) => {
-                return obtenerFincaIdEstanque(item) === Number(finca);
+                const id = obtenerIdEstanque(item);
+
+                return (
+                    obtenerFincaIdEstanque(item) === Number(finca) &&
+                    estanqueEstaActivo(item) &&
+                    tieneSiembraActiva(id, siembras)
+                );
             })
             .map((item) => {
                 const id = obtenerIdEstanque(item);
@@ -583,41 +484,35 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                     value: String(id),
                 };
             })
-            .filter((item) => {
-                return Number(item.value) > 0;
-            });
-    }, [estanques, finca]);
+            .filter((item) => Number(item.value) > 0);
+    }, [estanques, siembras, finca]);
 
-    const opcionesEnfermedades = useMemo(() => {
-        return normalizarCatalogo(catalogoEnf);
-    }, [catalogoEnf]);
+    const opcionesEnfermedades = useMemo(
+        () => normalizarCatalogo(catalogoEnf),
+        [catalogoEnf]
+    );
 
-    const opcionesSeveridades = useMemo(() => {
-        return normalizarCatalogo(catalogoSev);
-    }, [catalogoSev]);
+    const opcionesSeveridades = useMemo(
+        () => normalizarCatalogo(catalogoSev),
+        [catalogoSev]
+    );
 
     const esTablet = width >= 768;
 
-    const gridStyle = useMemo(() => {
-        return {
-            width: "100%",
-            flexDirection: esTablet ? "row" : "column",
-            flexWrap: esTablet ? "wrap" : "nowrap",
-            gap: 12,
-        };
-    }, [esTablet]);
+    const gridStyle = useMemo(() => ({
+        width: "100%",
+        flexDirection: esTablet ? "row" : "column",
+        flexWrap: esTablet ? "wrap" : "nowrap",
+        gap: 12,
+    }), [esTablet]);
 
-    const itemStyle = useMemo(() => {
-        return {
-            width: esTablet ? "48.5%" : "100%",
-        };
-    }, [esTablet]);
+    const itemStyle = useMemo(() => ({
+        width: esTablet ? "48.5%" : "100%",
+    }), [esTablet]);
 
-    const itemFullStyle = useMemo(() => {
-        return {
-            width: "100%",
-        };
-    }, []);
+    const itemFullStyle = useMemo(() => ({
+        width: "100%",
+    }), []);
 
     const placeholderFinca = cargandoOpciones
         ? "Cargando fincas..."
@@ -629,7 +524,7 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
         ? "Seleccione primero una finca"
         : opcionesEstanques.length > 0
             ? "Seleccione un estanque"
-            : "No se encuentran opciones o valores";
+            : "No hay estanques activos con siembra activa";
 
     const placeholderEnfermedad = opcionesEnfermedades.length > 0
         ? "Seleccione una enfermedad"
@@ -683,27 +578,22 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
     }
 
     function validarFormulario() {
-        if (!finca) {
-            return "Seleccione una finca.";
-        }
+        if (!finca) return "Seleccione una finca.";
+        if (!estanque) return "Seleccione un estanque.";
 
-        if (!estanque) {
-            return "Seleccione un estanque.";
-        }
+        const errorEstanque = validarEstanqueParaRegistro(
+            estanque,
+            estanques,
+            siembras
+        );
+
+        if (errorEstanque) return errorEstanque;
 
         const errorFecha = validarFechaReporte(fechaReporte);
 
-        if (errorFecha) {
-            return errorFecha;
-        }
-
-        if (!enfermedad) {
-            return "Seleccione una enfermedad.";
-        }
-
-        if (!severidad) {
-            return "Seleccione la severidad.";
-        }
+        if (errorFecha) return errorFecha;
+        if (!enfermedad) return "Seleccione una enfermedad.";
+        if (!severidad) return "Seleccione la severidad.";
 
         return "";
     }
@@ -727,9 +617,9 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                 fincaId: Number(finca),
                 estanqueId: Number(estanque),
                 fechaReporte: convertirFechaParaBackend(fechaReporte),
-                responsable: responsable,
-                enfermedad: enfermedad,
-                severidad: severidad,
+                responsable,
+                enfermedad,
+                severidad,
                 reporte: reporte.trim() || null,
             });
 
@@ -740,7 +630,6 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
                 onGuardado();
             }
         } catch (error) {
-            console.error("Error al actualizar enfermedad local", error);
             setTipoMensaje("danger");
             setMensaje("No se pudo actualizar el registro local.");
         } finally {
