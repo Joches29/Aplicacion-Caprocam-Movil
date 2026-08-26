@@ -126,6 +126,7 @@ function mapLoteAFormData(lote) {
     laboratorioLarva: lote.laboratorio || lote.laboratorioLarva || "",
     procedenciaLarva: lote.procedencia || lote.procedenciaLarva || "",
     certificadoLarva: lote.certificado_larva || lote.certificadoLarva || "",
+    estadoLote: lote.estado_lote || lote.estadoLote || "",
   };
 }
 
@@ -605,77 +606,75 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
     );
   }, []);
 
-  const handleEliminarProveedorLarva = useCallback(async (value) => {
-    try {
-      const lotes = await LoteLarvaLocalService.getAll();
-      const enUso = lotes.some(lote => String(lote.proveedor_larva_id || lote.proveedorLarvaId) === String(value));
-      if (enUso) {
-        setMensaje("No se puede eliminar este proveedor porque está asignado a uno o más lotes de larva.");
-        setMensajeVariant("danger");
-        return;
-      }
-      await ProveedorLarvaLocalService.deleteById(value);
-      setProveedoresLarva((previo) =>
-        previo.filter((item) => item.value !== value),
+  const verificarCatalogoEnUso = useCallback(async (campoCamel, campoSnake, valorId) => {
+    const [lotes, siembras, precrias] = await Promise.all([
+      LoteLarvaLocalService.getAll(),
+      SiembraLocalService.getAll(),
+      PrecriaLocalService.getAll(),
+    ]);
+
+    return lotes.some((lote) => {
+      const valorLote = lote[campoCamel] || lote[campoSnake];
+      if (String(valorLote) !== String(valorId)) return false;
+
+      const siembraActiva = siembras.some(
+        (s) => String(s.loteLarvaId || s.lote_larva_id) === String(lote.id) && String(s.estado || "Activa").toLowerCase() !== "finalizada"
       );
-      setFormData((previo) =>
-        previo && previo.proveedorLarva === value
-          ? { ...previo, proveedorLarva: "" }
-          : previo,
+      const precriaActiva = precrias.some(
+        (p) => String(p.loteLarvaId || p.lote_larva_id) === String(lote.id) && String(p.estado || "Activa").toLowerCase() !== "finalizada"
       );
-    } catch (err) {
-      setMensaje("Error al eliminar el proveedor de larva.");
-      setMensajeVariant("danger");
-    }
+
+      return siembraActiva || precriaActiva;
+    });
   }, []);
+
+  const handleEliminarProveedorLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("proveedorLarvaId", "proveedor_larva_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este proveedor porque está asignado a una siembra o pre-cría activa.");
+    }
+    await ProveedorLarvaLocalService.deleteById(value);
+    setProveedoresLarva((previo) =>
+      previo.filter((item) => item.value !== value),
+    );
+    setFormData((previo) =>
+      previo && previo.proveedorLarva === value
+        ? { ...previo, proveedorLarva: "" }
+        : previo,
+    );
+  }, [verificarCatalogoEnUso]);
 
   const handleEliminarLaboratorioLarva = useCallback(async (value) => {
-    try {
-      const lotes = await LoteLarvaLocalService.getAll();
-      const enUso = lotes.some(lote => String(lote.laboratorio_id || lote.laboratorioId) === String(value));
-      if (enUso) {
-        setMensaje("No se puede eliminar este laboratorio porque está asignado a uno o más lotes de larva.");
-        setMensajeVariant("danger");
-        return;
-      }
-      await LaboratorioLocalService.deleteById(value);
-      setLaboratoriosLarva((previo) =>
-        previo.filter((item) => item.value !== value),
-      );
-      setFormData((previo) =>
-        previo && previo.laboratorioLarva === value
-          ? { ...previo, laboratorioLarva: "" }
-          : previo,
-      );
-    } catch (err) {
-      setMensaje("Error al eliminar el laboratorio de larva.");
-      setMensajeVariant("danger");
+    const enUso = await verificarCatalogoEnUso("laboratorioId", "laboratorio_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este laboratorio porque está asignado a una siembra o pre-cría activa.");
     }
-  }, []);
+    await LaboratorioLocalService.deleteById(value);
+    setLaboratoriosLarva((previo) =>
+      previo.filter((item) => item.value !== value),
+    );
+    setFormData((previo) =>
+      previo && previo.laboratorioLarva === value
+        ? { ...previo, laboratorioLarva: "" }
+        : previo,
+    );
+  }, [verificarCatalogoEnUso]);
 
   const handleEliminarProcedenciaLarva = useCallback(async (value) => {
-    try {
-      const lotes = await LoteLarvaLocalService.getAll();
-      const enUso = lotes.some(lote => String(lote.procedencia_id || lote.procedenciaId) === String(value));
-      if (enUso) {
-        setMensaje("No se puede eliminar esta procedencia porque está asignada a uno o más lotes de larva.");
-        setMensajeVariant("danger");
-        return;
-      }
-      await ProcedenciaLocalService.deleteById(value);
-      setProcedenciasLarva((previo) =>
-        previo.filter((item) => item.value !== value),
-      );
-      setFormData((previo) =>
-        previo && previo.procedenciaLarva === value
-          ? { ...previo, procedenciaLarva: "" }
-          : previo,
-      );
-    } catch (err) {
-      setMensaje("Error al eliminar la procedencia de larva.");
-      setMensajeVariant("danger");
+    const enUso = await verificarCatalogoEnUso("procedenciaId", "procedencia_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar esta procedencia porque está asignada a una siembra o pre-cría activa.");
     }
-  }, []);
+    await ProcedenciaLocalService.deleteById(value);
+    setProcedenciasLarva((previo) =>
+      previo.filter((item) => item.value !== value),
+    );
+    setFormData((previo) =>
+      previo && previo.procedenciaLarva === value
+        ? { ...previo, procedenciaLarva: "" }
+        : previo,
+    );
+  }, [verificarCatalogoEnUso]);
 
   const obtenerCamposObligatorios = useCallback(
     (opciones) => obtenerCamposObligatoriosPorTipo(formData, opciones),
