@@ -6,7 +6,7 @@
  * Centraliza la logica del formulario, carga de opciones,
  * validaciones y registro local de enfermedades.
  *
- * Trabaja con SQLite para fincas, estanques y enfermedades.
+ * Trabaja con SQLite para fincas, estanques, siembras y enfermedades.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -108,6 +108,14 @@ const obtenerNombreResponsable = (colaborador) => {
   return `${nombre} ${apellidos}`.trim();
 };
 
+function normalizarTexto(valor) {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 /*
 ============================================================
 HELPERS DE LOCAL API
@@ -143,7 +151,7 @@ async function obtenerRegistrosLocales(seccion) {
 
 /*
 ============================================================
-HELPERS DE FINCAS Y ESTANQUES
+HELPERS DE FINCAS, ESTANQUES Y SIEMBRAS
 ============================================================
 */
 
@@ -171,11 +179,7 @@ function obtenerIdFinca(finca) {
   const idLocal = obtenerIdLocalFinca(finca);
   const servidorId = obtenerServidorIdFinca(finca);
 
-  if (idLocal > 0) {
-    return idLocal;
-  }
-
-  return servidorId;
+  return idLocal > 0 ? idLocal : servidorId;
 }
 
 function obtenerIdsValidosFinca(finca, fincaSeleccionada = null) {
@@ -191,9 +195,10 @@ function obtenerIdsValidosFinca(finca, fincaSeleccionada = null) {
 }
 
 function fincaCoincideConSeleccion(finca, fincaSeleccionada) {
-  const idsValidos = obtenerIdsValidosFinca(finca, fincaSeleccionada);
-
-  return idsValidos.includes(Number(fincaSeleccionada));
+  return obtenerIdsValidosFinca(
+    finca,
+    fincaSeleccionada
+  ).includes(Number(fincaSeleccionada));
 }
 
 function obtenerIdsValidosDeFincaSeleccionada(fincas, fincaSeleccionada) {
@@ -206,11 +211,7 @@ function obtenerIdsValidosDeFincaSeleccionada(fincas, fincaSeleccionada) {
 
 function obtenerIdEstanque(estanque) {
   const idLocal = Number(
-    obtenerValor(
-      estanque,
-      ["id", "idLocal", "id_local"],
-      0
-    )
+    obtenerValor(estanque, ["id", "idLocal", "id_local"], 0)
   );
 
   const servidorId = Number(
@@ -221,11 +222,24 @@ function obtenerIdEstanque(estanque) {
     )
   );
 
-  if (idLocal > 0) {
-    return idLocal;
-  }
+  return idLocal > 0 ? idLocal : servidorId;
+}
 
-  return servidorId;
+function obtenerIdsValidosEstanque(estanque) {
+  const ids = [
+    Number(obtenerValor(estanque, ["id", "idLocal", "id_local"], 0)),
+    Number(
+      obtenerValor(
+        estanque,
+        ["servidor_id", "servidorId", "idServidor"],
+        0
+      )
+    ),
+  ];
+
+  return ids.filter(function (id, index, arreglo) {
+    return id > 0 && arreglo.indexOf(id) === index;
+  });
 }
 
 function obtenerFincaIdEstanque(estanque) {
@@ -239,9 +253,52 @@ function obtenerFincaIdEstanque(estanque) {
 }
 
 function estanquePerteneceAFinca(estanque, idsValidosFinca) {
-  const fincaIdEstanque = obtenerFincaIdEstanque(estanque);
+  return idsValidosFinca.includes(obtenerFincaIdEstanque(estanque));
+}
 
-  return idsValidosFinca.includes(fincaIdEstanque);
+function obtenerIdEstanqueSiembra(siembra) {
+  return Number(
+    obtenerValor(
+      siembra,
+      ["estanque_id", "estanqueId", "idEstanque"],
+      0
+    )
+  );
+}
+
+function estanqueEstaActivo(estanque) {
+  return normalizarTexto(obtenerValor(estanque, ["estado"], "")) === "activo";
+}
+
+function siembraEstaActiva(siembra) {
+  return normalizarTexto(obtenerValor(siembra, ["estado"], "")) === "activa";
+}
+
+function estanqueTieneSiembraActiva(estanque, siembras) {
+  const idsEstanque = obtenerIdsValidosEstanque(estanque);
+
+  return siembras.some(function (siembra) {
+    return (
+      idsEstanque.includes(obtenerIdEstanqueSiembra(siembra)) &&
+      siembraEstaActiva(siembra)
+    );
+  });
+}
+
+function validarEstanqueParaRegistro(estanqueId, estanques, siembras) {
+  const estanqueSeleccionado = estanques.find(function (item) {
+    return obtenerIdEstanque(item) === Number(estanqueId);
+  });
+
+  if (!estanqueSeleccionado) return "Seleccione un estanque valido.";
+
+  if (!estanqueEstaActivo(estanqueSeleccionado))
+    return "El estanque seleccionado no esta activo.";
+
+  if (!estanqueTieneSiembraActiva(estanqueSeleccionado, siembras))
+    return "El estanque seleccionado no tiene una siembra activa.";
+
+  return "";
 }
 
 const obtenerNombreFinca = (item, id) =>
@@ -311,6 +368,7 @@ export default function useEnfermedadesScreen() {
 
   const [fincas, setFincas] = useState([]);
   const [estanques, setEstanques] = useState([]);
+  const [siembras, setSiembras] = useState([]);
 
   const [finca, setFinca] = useState("");
   const [estanque, setEstanque] = useState("");
@@ -335,10 +393,16 @@ export default function useEnfermedadesScreen() {
 
         await localApi.inicializar();
 
-        const [colaborador, fincasData, estanquesData] = await Promise.all([
+        const [
+          colaborador,
+          fincasData,
+          estanquesData,
+          siembrasData,
+        ] = await Promise.all([
           obtenerColaboradorActual(),
           obtenerRegistrosLocales("fincas"),
           obtenerRegistrosLocales("estanques"),
+          obtenerRegistrosLocales("siembras"),
         ]);
 
         if (!activo) return;
@@ -346,6 +410,7 @@ export default function useEnfermedadesScreen() {
         setResponsable(obtenerNombreResponsable(colaborador));
         setFincas(fincasData);
         setEstanques(estanquesData);
+        setSiembras(siembrasData);
       } catch (error) {
         mostrarError(error);
       } finally {
@@ -377,9 +442,7 @@ export default function useEnfermedadesScreen() {
 
   const opcionesEstanques = useMemo(
     () => {
-      if (!finca) {
-        return [];
-      }
+      if (!finca) return [];
 
       const idsValidosFinca = obtenerIdsValidosDeFincaSeleccionada(
         fincas,
@@ -388,7 +451,11 @@ export default function useEnfermedadesScreen() {
 
       return estanques
         .filter(function (item) {
-          return estanquePerteneceAFinca(item, idsValidosFinca);
+          return (
+            estanquePerteneceAFinca(item, idsValidosFinca) &&
+            estanqueEstaActivo(item) &&
+            estanqueTieneSiembraActiva(item, siembras)
+          );
         })
         .map(function (item) {
           const id = obtenerIdEstanque(item);
@@ -402,7 +469,7 @@ export default function useEnfermedadesScreen() {
           return Number(item.value) > 0;
         });
     },
-    [finca, fincas, estanques]
+    [finca, fincas, estanques, siembras]
   );
 
   const opcionesEnfermedades = useMemo(
@@ -451,7 +518,7 @@ export default function useEnfermedadesScreen() {
     ? "Seleccione primero una finca"
     : opcionesEstanques.length > 0
       ? "Seleccione un estanque"
-      : "No se encuentran opciones o valores";
+      : "No hay estanques activos con siembra activa";
 
   const placeholderEnfermedad = opcionesEnfermedades.length > 0
     ? "Seleccione una enfermedad"
@@ -466,7 +533,6 @@ export default function useEnfermedadesScreen() {
   const errorFechaReporte = submitted && fechaReporte.trim() === "";
   const errorEnfermedad = submitted && enfermedad === "";
   const errorSeveridad = submitted && severidad === "";
-  const errorReporte = submitted && reporte.trim() === "";
 
   function limpiarMensaje() {
     setMensaje("");
@@ -512,14 +578,21 @@ export default function useEnfermedadesScreen() {
   const validarFormulario = () => {
     const mortalidadNumero = convertirNumero(mortalidad, 0);
 
-    return Boolean(
-      finca &&
-      estanque &&
-      fechaReporte &&
-      enfermedad &&
-      severidad &&
-      reporte.trim() &&
-      mortalidadNumero >= 0
+    if (
+      !finca ||
+      !estanque ||
+      !fechaReporte ||
+      !enfermedad ||
+      !severidad ||
+      mortalidadNumero < 0
+    ) {
+      return "Rellene los datos requeridos correctamente.";
+    }
+
+    return validarEstanqueParaRegistro(
+      estanque,
+      estanques,
+      siembras
     );
   };
 
@@ -538,9 +611,11 @@ export default function useEnfermedadesScreen() {
     setSubmitted(true);
     setMensaje("");
 
-    if (!validarFormulario()) {
+    const errorValidacion = validarFormulario();
+
+    if (errorValidacion) {
       setTipoMensaje("danger");
-      setMensaje("Rellene los datos requeridos correctamente.");
+      setMensaje(errorValidacion);
       return;
     }
 
@@ -548,14 +623,16 @@ export default function useEnfermedadesScreen() {
       fincaId: Number(finca),
       estanqueId: Number(estanque),
       fechaReporte: convertirFechaParaBackend(fechaReporte),
-      enfermedad: enfermedad,
-      severidad: severidad,
+      enfermedad,
+      severidad,
       mortalidadRegistrada: convertirNumero(mortalidad, 0),
-      responsable: responsable,
-      reporte: reporte.trim(),
+      responsable,
+      reporte: reporte.trim() || null,
     };
 
-    const nuevaEnfermedad = await guardarEnfermedadLocal(enfermedadDTO);
+    const nuevaEnfermedad = await guardarEnfermedadLocal(
+      enfermedadDTO
+    );
 
     if (!nuevaEnfermedad) return;
 
@@ -593,7 +670,6 @@ export default function useEnfermedadesScreen() {
     errorFechaReporte,
     errorEnfermedad,
     errorSeveridad,
-    errorReporte,
 
     mensaje,
     tipoMensaje,

@@ -35,7 +35,15 @@ const obtenerDataRespuesta = (respuesta) => {
     return respuesta;
 };
 
+const tieneValor = (valor) => {
+    return valor !== undefined && valor !== null && String(valor).trim() !== "";
+};
+
 const convertirNumero = (valor, valorDefecto = 0) => {
+    if (!tieneValor(valor)) {
+        return valorDefecto;
+    }
+
     const numero = Number(valor);
 
     if (Number.isNaN(numero)) {
@@ -46,7 +54,7 @@ const convertirNumero = (valor, valorDefecto = 0) => {
 };
 
 const convertirTexto = (valor, valorDefecto = "") => {
-    if (valor === undefined || valor === null) {
+    if (!tieneValor(valor)) {
         return valorDefecto;
     }
 
@@ -62,7 +70,27 @@ const convertirBooleano = (valor) => {
         return 0;
     }
 
-    return String(valor).toLowerCase() === "true" ? 1 : 0;
+    const texto = String(valor ?? "").trim().toLowerCase();
+
+    if (texto === "true" || texto === "si" || texto === "sí") {
+        return 1;
+    }
+
+    return 0;
+};
+
+const normalizarFecha = (valor) => {
+    if (!tieneValor(valor)) {
+        return null;
+    }
+
+    const texto = String(valor).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
+        return texto.slice(0, 10);
+    }
+
+    return texto;
 };
 
 function obtenerValor(objeto, llaves, valorDefecto = null) {
@@ -101,12 +129,12 @@ const mapearEstanqueDesdeBackend = (estanque) => {
     const uuid = obtenerValor(
         estanque,
         ["uuid"],
-        servidorId ? `estanque-servidor-${servidorId}` : null
+        tieneValor(servidorId) ? `estanque-servidor-${servidorId}` : null
     );
 
     const fincaId = obtenerValor(
         estanque,
-        ["fincaId", "idFinca", "finca_id"],
+        ["fincaId", "idFinca", "finca_id", "id_finca"],
         null
     );
 
@@ -124,13 +152,13 @@ const mapearEstanqueDesdeBackend = (estanque) => {
 
     const fechaMantenimiento = obtenerValor(
         estanque,
-        ["fechaMantenimiento", "fecha_mantenimiento"],
+        ["fechaMantenimiento", "fecha_mantenimiento", "fechaUltimoMantenimiento"],
         null
     );
 
     const precria = obtenerValor(
         estanque,
-        ["precria", "usaPrecria"],
+        ["precria", "usaPrecria", "usa_precria"],
         0
     );
 
@@ -155,19 +183,25 @@ const mapearEstanqueDesdeBackend = (estanque) => {
             0
         ),
 
-        fuente_agua: fuenteAgua ? convertirTexto(fuenteAgua).trim() : null,
-        fecha_mantenimiento: fechaMantenimiento || null,
+        fuente_agua: tieneValor(fuenteAgua) ? convertirTexto(fuenteAgua).trim() : null,
+        fecha_mantenimiento: normalizarFecha(fechaMantenimiento),
         precria: convertirBooleano(precria),
 
-        creado_por_usuario_id: obtenerValor(
-            estanque,
-            ["creadoPorUsuarioId", "creado_por_usuario_id"],
+        creado_por_usuario_id: convertirNumero(
+            obtenerValor(
+                estanque,
+                ["creadoPorUsuarioId", "creado_por_usuario_id"],
+                null
+            ),
             null
         ),
 
-        creado_por_colaborador_id: obtenerValor(
-            estanque,
-            ["creadoPorColaboradorId", "creado_por_colaborador_id"],
+        creado_por_colaborador_id: convertirNumero(
+            obtenerValor(
+                estanque,
+                ["creadoPorColaboradorId", "creado_por_colaborador_id"],
+                null
+            ),
             null
         ),
 
