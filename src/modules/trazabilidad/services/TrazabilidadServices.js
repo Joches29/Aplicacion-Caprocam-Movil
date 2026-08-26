@@ -573,8 +573,26 @@ export async function obtenerSiembraActivaPorEstanque(estanqueId) {
             .sort((a, b) => String(a.fecha_siembra).localeCompare(String(b.fecha_siembra)))
             .pop();
 
-        const fechaSiembra = new Date(`${masReciente.fecha_siembra}T00:00:00`);
+        /*
+        fecha_siembra puede llegar en dos formatos distintos:
+        - "2026-06-22"                 -> creada localmente en el
+                                          telefono (SQLite guarda DATE).
+        - "2026-06-22T06:00:00.000Z"   -> descargada del backend, que
+                                          la serializa como ISO completo.
+
+        Antes se concatenaba "T00:00:00" a ciegas, lo que con el
+        formato ISO producia "2026-06-22T06:00:00.000ZT00:00:00":
+        una fecha invalida -> NaN -> dias quedaba null y el campo
+        salia en blanco (con PL si autocompletado, porque ese es un
+        numero directo). Por eso se corta la cadena a los primeros
+        10 caracteres (YYYY-MM-DD) antes de armar la fecha.
+        */
+        const fechaTexto = String(masReciente.fecha_siembra ?? "").slice(0, 10);
+        const fechaSiembra = new Date(`${fechaTexto}T00:00:00`);
+
         const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
         const msPorDia = 1000 * 60 * 60 * 24;
 
         const dias = Number.isNaN(fechaSiembra.getTime())
