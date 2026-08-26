@@ -331,10 +331,14 @@ function obtenerIdEstanqueSiembra(siembra) {
 }
 
 function estanqueEstaActivo(estanque) {
+  const estado = normalizarTexto(
+    obtenerValor(estanque, ["estado"], "")
+  );
+
   return (
-    normalizarTexto(
-      obtenerValor(estanque, ["estado"], ""),
-    ) === "activo"
+    estado === "activo" ||
+    estado === "engorde" ||
+    estado === "mantenimiento"
   );
 }
 
