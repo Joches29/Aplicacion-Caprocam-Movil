@@ -130,6 +130,7 @@ export const ESQUEMA_TABLAS = {
         "horas_actuales REAL NOT NULL DEFAULT 0",
         "estado_operativo TEXT NOT NULL",
         "estado TEXT NOT NULL",
+        "fecha_ultimo_encendido TEXT NULL DEFAULT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
