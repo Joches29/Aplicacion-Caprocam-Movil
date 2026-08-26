@@ -25,7 +25,7 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
   const { mostrarError } = useError();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  const isWide = width >= 700;
 
   const [fincaFiltro, setFincaFiltro] = useState("");
   const [estanqueFiltro, setEstanqueFiltro] = useState("");
@@ -40,6 +40,22 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
   const [modalVisible, setModalVisible] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+
+  // Manejo de mensaje de éxito (auto-ocultar a los 3s) — lógica nueva del web
+  const [mostrarExito, setMostrarExito] = useState(
+    success === "1" && Boolean(message)
+  );
+
+  useEffect(() => {
+    if (success !== "1" || !message) {
+      setMostrarExito(false);
+      return;
+    }
+
+    setMostrarExito(true);
+    const timer = setTimeout(() => setMostrarExito(false), 3000);
+    return () => clearTimeout(timer);
+  }, [success, message]);
 
   useEffect(() => {
     if (params?.fincaId) setFincaFiltro(String(params.fincaId));
@@ -181,16 +197,35 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
     });
   }, [ventasProcesadas, fincaFiltro, estanqueFiltro, fechaFiltro]);
 
-  const mensajeDetalle = useMemo(() => {
-    if (!fincaFiltro) return "Seleccione una finca para filtrar las ventas.";
-    if (!estanqueFiltro) return "Mostrando ventas de la finca seleccionada.";
-    return "Mostrando ventas filtradas por estanque.";
-  }, [fincaFiltro, estanqueFiltro]);
+  // hayFiltro + mensajeDetalle (lógica nueva del web)
+  const hayFiltro = Boolean(fincaFiltro && estanqueFiltro);
 
+  const mensajeDetalle = useMemo(() => {
+    if (hayFiltro) {
+      return "Mostrando solo las ventas de la finca y estanque seleccionados.";
+    }
+    if (fincaFiltro) {
+      return "Mostrando ventas de la finca seleccionada.";
+    }
+    return "Seleccione una finca y un estanque para ver su historial de ventas.";
+  }, [fincaFiltro, estanqueFiltro, hayFiltro]);
+
+  // descripcionEliminar más descriptiva (finca • estanque)
   const descripcionEliminar = useMemo(() => {
     if (!ventaSeleccionada) return "la venta";
-    return `la venta del ${ventaSeleccionada.fecha ? new Date(ventaSeleccionada.fecha).toLocaleDateString("es-CR") : "registro"}`;
-  }, [ventaSeleccionada]);
+
+    const finca = fincas.find(
+      (item) => String(item.id) === String(ventaSeleccionada.finca || ventaSeleccionada.fincaId)
+    );
+    const estanque = estanques.find(
+      (item) => String(item.id) === String(ventaSeleccionada.estanque || ventaSeleccionada.estanqueId)
+    );
+
+    const nombreFinca = finca?.nombre_finca || finca?.nombreFinca || finca?.nombre || "Finca";
+    const nombreEstanque = estanque?.codigo || estanque?.nombre || "Estanque";
+
+    return `${nombreFinca} • ${nombreEstanque}`;
+  }, [ventaSeleccionada, fincas, estanques]);
 
   function SectionTitle({ icon, title }) {
     return (
@@ -228,6 +263,7 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
     );
   }
 
+  // TarjetaVenta ampliada con los campos nuevos del web
   function TarjetaVenta({ venta }) {
     return (
       <Card style={styles.tarjeta}>
@@ -254,16 +290,28 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
           </View>
         </View>
         <View style={styles.filasDetalle}>
+          <FilaDetalle etiqueta="Cliente" valor={venta.nombreComprador} />
           <FilaDetalle
             etiqueta="Fecha"
             valor={venta.fecha ? new Date(venta.fecha).toLocaleDateString("es-CR") : "-"}
           />
           <FilaDetalle
+            etiqueta="Peso promedio"
+            valor={
+              venta.pesoPromedio != null && venta.pesoPromedio !== ""
+                ? `${Number(venta.pesoPromedio).toLocaleString("es-CR")} g`
+                : "-"
+            }
+          />
+          <FilaDetalle etiqueta="Kilos" valor={`${venta.cantVendida} kg`} />
+          <FilaDetalle
+            etiqueta="Precio/kg"
+            valor={`₡ ${Number(venta.precioKilo || 0).toLocaleString("es-CR")}`}
+          />
+          <FilaDetalle
             etiqueta="Total"
             valor={formatearMontoColones(venta.total)}
           />
-          <FilaDetalle etiqueta="Kilos" valor={`${venta.cantVendida} kg`} />
-          <FilaDetalle etiqueta="Comprador" valor={venta.nombreComprador} />
         </View>
       </Card>
     );
@@ -284,6 +332,7 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
     opcionesEstanques,
     ventasFiltradas,
     mensajeDetalle,
+    hayFiltro,
     isWide,
     modalVisible,
     descripcionEliminar,
@@ -292,7 +341,7 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
     cancelarEliminar,
     handleFincaChange,
     handleEstanqueChange,
-    mostrarExito: success,
+    mostrarExito,
     mensajeExito: message,
   };
 }
