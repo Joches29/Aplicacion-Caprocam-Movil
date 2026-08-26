@@ -303,7 +303,7 @@ export function validarVentaFormulario({
   if (!estanqueSeleccionado) errores.estanque = true;
 
   const peso = Number(pesoPromedio);
-  if (!pesoPromedio || Number.isNaN(peso) || peso <= 0) {
+  if (!pesoPromedio || Number.isNaN(peso) || peso <= 0 || peso > 50) {
     errores.pesoPromedio = true;
   }
 
@@ -714,6 +714,8 @@ export function useVenta() {
     if (Object.keys(nuevosErrores).length > 0) {
       if (nuevosErrores.fecha) {
         setErrorMessage("La fecha no puede ser futura.");
+      } else if (Number(pesoPromedio) > 50) {
+        setErrorMessage("El peso promedio no puede superar los 50 g.");
       } else {
         setErrorMessage("Rellenar campos obligatorios.");
       }

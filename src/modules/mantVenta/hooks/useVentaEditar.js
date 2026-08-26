@@ -230,7 +230,9 @@ export function useVentaEditar({ id, onGuardado }) {
     const nuevosErrores = {};
     if (!fincaSeleccionada) nuevosErrores.finca = true;
     if (!estanqueSeleccionado) nuevosErrores.estanque = true;
-    if (!pesoPromedio || Number(pesoPromedio) <= 0) nuevosErrores.pesoPromedio = true;
+    if (!pesoPromedio || Number(pesoPromedio) <= 0 || Number(pesoPromedio) > 50) {
+      nuevosErrores.pesoPromedio = true;
+    }
     if (!kilosVendidos || Number(kilosVendidos) <= 0) nuevosErrores.kilosVendidos = true;
     if (precioKiloNumero <= 0) nuevosErrores.precioKilo = true;
     if (!compradorSeleccionado) nuevosErrores.comprador = true;
@@ -254,6 +256,8 @@ export function useVentaEditar({ id, onGuardado }) {
     if (Object.keys(nuevosErrores).length > 0) {
       if (nuevosErrores.fecha) {
         setMensaje("La fecha no puede ser futura.");
+      } else if (Number(pesoPromedio) > 50) {
+        setMensaje("El peso promedio no puede superar los 50 g.");
       } else {
         setMensaje("Rellenar campos obligatorios.");
       }
