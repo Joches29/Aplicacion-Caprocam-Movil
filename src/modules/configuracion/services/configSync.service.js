@@ -35,9 +35,12 @@ const MAPEO_DESCARGA = {
   siembras: "siembras",
   ventas: "ventas",
   mantenimientos: "mantenimiento_equipo",
+  mantenimientoTareas: "mantenimiento_equipo_tareas",
+  mantenimientoProductos: "mantenimiento_equipo_productos",
 };
 
 const MAPEO_SUBIDA = {
+  equipos: "equipos",
   alimentaciones: "alimentacion",
   crecimientos: "crecimiento",
   calculos_crecimiento: "calculosCrecimiento",
@@ -155,6 +158,28 @@ const normalizarPorTabla = (tabla, registro, grupoDatos) => {
       }
       break;
 
+    case "equipos":
+      if (r.nombre !== undefined && r.nombre_equipo === undefined) {
+        r.nombre_equipo = r.nombre;
+      }
+
+      if (r.tipo !== undefined && r.tipo_equipo === undefined) {
+        r.tipo_equipo = r.tipo;
+      }
+
+      if (r.funcion !== undefined && r.funcion_equipo === undefined) {
+        r.funcion_equipo = r.funcion;
+      }
+
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+      }
+
+      if (r.fecha_ultimo_encendido === undefined && r.fecha_ultimo_encendido_at !== undefined) {
+        r.fecha_ultimo_encendido = r.fecha_ultimo_encendido_at;
+      }
+      break;
+
     case "mantenimiento_equipo":
       if (r.equipo !== undefined && r.equipo_id === undefined) {
         r.equipo_id = r.equipo;
@@ -175,6 +200,38 @@ const normalizarPorTabla = (tabla, registro, grupoDatos) => {
 
       if (r.estado_ticket === undefined && r.estado !== undefined) {
         r.estado_ticket = r.estado;
+      }
+
+      if (r.estado_equipo === undefined && r.estado_equipo_actual !== undefined) {
+        r.estado_equipo = r.estado_equipo_actual;
+      }
+      break;
+
+    case "mantenimiento_equipo_tareas":
+      if (r.mantenimiento_id !== undefined && r.mantenimiento_equipo_id === undefined) {
+        r.mantenimiento_equipo_id = r.mantenimiento_id;
+      }
+
+      if (r.ticket_id !== undefined && r.mantenimiento_equipo_id === undefined) {
+        r.mantenimiento_equipo_id = r.ticket_id;
+      }
+
+      if (r.estado === undefined && r.estado_tarea !== undefined) {
+        r.estado = r.estado_tarea;
+      }
+
+      if (r.estado_tarea === undefined && r.estado !== undefined) {
+        r.estado_tarea = r.estado;
+      }
+      break;
+
+    case "mantenimiento_equipo_productos":
+      if (r.mantenimiento_id !== undefined && r.mantenimiento_equipo_id === undefined) {
+        r.mantenimiento_equipo_id = r.mantenimiento_id;
+      }
+
+      if (r.ticket_id !== undefined && r.mantenimiento_equipo_id === undefined) {
+        r.mantenimiento_equipo_id = r.ticket_id;
       }
       break;
   }
@@ -439,6 +496,8 @@ export const configSyncService = {
         siembrasCount: data.siembras?.length ?? 0,
         ventasCount: data.ventas?.length ?? 0,
         mantenimientosCount: data.mantenimientos?.length ?? 0,
+        mantenimientoTareasCount: data.mantenimientoTareas?.length ?? 0,
+        mantenimientoProductosCount: data.mantenimientoProductos?.length ?? 0,
       };
     } catch (err) {
       if (err?.response?.status === 401 || err?.status === 401) {
