@@ -38,7 +38,7 @@ import {
   useFieldValidation,
   validarCamposObligatorios,
 } from "./useFieldValidation";
-import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
+import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo, determinarCampoDelError } from "./siembraValidationRules";
 import { calcularDensidadDesdeCantidad } from "./siembraCalculos";
 import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
 import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
@@ -433,39 +433,75 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEliminarProveedorLarva(value) {
-    await ProveedorLarvaLocalService.deleteById(value);
-    setProveedoresLarva((previo) =>
-      previo.filter((item) => item.value !== value),
-    );
-    setFormData((previo) =>
-      previo.proveedorLarva === value
-        ? { ...previo, proveedorLarva: "" }
-        : previo,
-    );
+    try {
+      const lotes = await LoteLarvaLocalService.getAll();
+      const enUso = lotes.some(lote => String(lote.proveedor_larva_id || lote.proveedorLarvaId) === String(value));
+      if (enUso) {
+        setMensaje("No se puede eliminar este proveedor porque está asignado a uno o más lotes de larva.");
+        setMensajeVariant("danger");
+        return;
+      }
+      await ProveedorLarvaLocalService.deleteById(value);
+      setProveedoresLarva((previo) =>
+        previo.filter((item) => item.value !== value),
+      );
+      setFormData((previo) =>
+        previo.proveedorLarva === value
+          ? { ...previo, proveedorLarva: "" }
+          : previo,
+      );
+    } catch (err) {
+      setMensaje("Error al eliminar el proveedor de larva.");
+      setMensajeVariant("danger");
+    }
   }
 
   async function handleEliminarLaboratorioLarva(value) {
-    await LaboratorioLocalService.deleteById(value);
-    setLaboratoriosLarva((previo) =>
-      previo.filter((item) => item.value !== value),
-    );
-    setFormData((previo) =>
-      previo.laboratorioLarva === value
-        ? { ...previo, laboratorioLarva: "" }
-        : previo,
-    );
+    try {
+      const lotes = await LoteLarvaLocalService.getAll();
+      const enUso = lotes.some(lote => String(lote.laboratorio_id || lote.laboratorioId) === String(value));
+      if (enUso) {
+        setMensaje("No se puede eliminar este laboratorio porque está asignado a uno o más lotes de larva.");
+        setMensajeVariant("danger");
+        return;
+      }
+      await LaboratorioLocalService.deleteById(value);
+      setLaboratoriosLarva((previo) =>
+        previo.filter((item) => item.value !== value),
+      );
+      setFormData((previo) =>
+        previo.laboratorioLarva === value
+          ? { ...previo, laboratorioLarva: "" }
+          : previo,
+      );
+    } catch (err) {
+      setMensaje("Error al eliminar el laboratorio de larva.");
+      setMensajeVariant("danger");
+    }
   }
 
   async function handleEliminarProcedenciaLarva(value) {
-    await ProcedenciaLocalService.deleteById(value);
-    setProcedenciasLarva((previo) =>
-      previo.filter((item) => item.value !== value),
-    );
-    setFormData((previo) =>
-      previo.procedenciaLarva === value
-        ? { ...previo, procedenciaLarva: "" }
-        : previo,
-    );
+    try {
+      const lotes = await LoteLarvaLocalService.getAll();
+      const enUso = lotes.some(lote => String(lote.procedencia_id || lote.procedenciaId) === String(value));
+      if (enUso) {
+        setMensaje("No se puede eliminar esta procedencia porque está asignada a uno o más lotes de larva.");
+        setMensajeVariant("danger");
+        return;
+      }
+      await ProcedenciaLocalService.deleteById(value);
+      setProcedenciasLarva((previo) =>
+        previo.filter((item) => item.value !== value),
+      );
+      setFormData((previo) =>
+        previo.procedenciaLarva === value
+          ? { ...previo, procedenciaLarva: "" }
+          : previo,
+      );
+    } catch (err) {
+      setMensaje("Error al eliminar la procedencia de larva.");
+      setMensajeVariant("danger");
+    }
   }
 
   function obtenerCamposObligatorios() {
@@ -570,8 +606,16 @@ export default function useNuevaSiembra() {
         },
       });
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible registrar el ciclo.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || "No fue posible registrar el ciclo.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors({ [campoConError]: mensajeFinal });
+      }
+      
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
       setGuardando(false);
     }
