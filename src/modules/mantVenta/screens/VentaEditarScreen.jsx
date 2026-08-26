@@ -136,7 +136,7 @@ export default function VentaEditarScreen({ id, onVenta }) {
               onChangeText={handlePesoPromedioChange}
               step={0.1}
               min={0.1}
-              max={15}
+              max={50}
               style={errores.pesoPromedio ? errorInputStyle : null}
             />
           </View>

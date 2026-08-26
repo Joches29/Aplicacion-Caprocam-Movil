@@ -22,50 +22,69 @@ export const CLIENTE_GENERICO = {
   telefono: "",
 };
 
-export const formatearMontoColones = (monto) => {
-  const numero = Number(monto);
+/*
+============================================================
+HELPERS DE FECHA Y NÚMEROS (traídos/mejorados del web)
+============================================================
+*/
 
-  if (Number.isNaN(numero)) return "₡0";
-
-  return `₡${numero.toLocaleString("es-CR")}`;
-};
-
-const obtenerFechaActual = () => {
-  const hoy = new Date();
-  const anio = hoy.getFullYear();
-  const mes = String(hoy.getMonth() + 1).padStart(2, "0");
-  const dia = String(hoy.getDate()).padStart(2, "0");
+export function obtenerFechaActual() {
+  const fecha = new Date();
+  const dia = String(fecha.getDate()).padStart(2, "0");
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const anio = fecha.getFullYear();
 
   return `${dia}/${mes}/${anio}`;
-};
+}
 
-const normalizarDecimal = (valor) => {
-  const texto = String(valor ?? "").replace(",", ".");
+export function formatearFechaParaInput(fecha) {
+  if (!fecha) return obtenerFechaActual();
 
-  if (texto === "") return "";
+  const [anio, mes, dia] = fecha.split("-");
 
-  const numero = Number(texto);
+  if (!anio || !mes || !dia) return obtenerFechaActual();
 
-  if (Number.isNaN(numero) || numero < 0) return "0";
+  return `${dia}/${mes}/${anio}`;
+}
 
-  return texto;
-};
+export function convertirFechaParaBackend(fechaDDMMYYYY) {
+  if (!fechaDDMMYYYY) return new Date().toISOString().slice(0, 10);
 
-const convertirFechaParaBackend = (fechaFormato) => {
-  if (!fechaFormato) return new Date().toISOString();
-
-  const partes = fechaFormato.split("/");
-
-  if (partes.length !== 3) return new Date().toISOString();
-
-  const [dia, mes, anio] = partes;
+  const [dia, mes, anio] = fechaDDMMYYYY.split("/");
+  if (!dia || !mes || !anio) return new Date().toISOString().slice(0, 10);
 
   return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
-};
+}
+
+function limpiarDecimal(value) {
+  const texto = String(value).replace(",", ".");
+  const partes = texto.replace(/[^0-9.]/g, "").split(".");
+
+  if (partes.length === 1) {
+    return partes[0];
+  }
+
+  return `${partes[0]}.${partes.slice(1).join("")}`;
+}
+
+export function normalizarDecimal(value, decimales = 1) {
+  const numero = Number(limpiarDecimal(value));
+
+  if (Number.isNaN(numero) || numero < 0) {
+    return "0";
+  }
+
+  return numero.toFixed(decimales).replace(/\.0$/, "");
+}
+
+export function formatearMontoColones(value) {
+  const numero = Math.round(Number(value) || 0);
+  return `₡ ${String(numero).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+}
 
 /*
 ============================================================
-HELPERS GENERALES
+HELPERS GENERALES (se mantienen del offline)
 ============================================================
 */
 
@@ -268,27 +287,27 @@ HELPERS DE VALIDACION
 ============================================================
 */
 
-const validarVentaFormulario = ({
+export function validarVentaFormulario({
   fincaSeleccionada,
   estanqueSeleccionado,
   pesoPromedio,
   kilosVendidos,
   precioKiloNumero,
+  colaboradorSeleccionado,
   compradorSeleccionado,
-}) => {
+  fechaVenta,
+}) {
   const errores = {};
 
   if (!fincaSeleccionada) errores.finca = true;
   if (!estanqueSeleccionado) errores.estanque = true;
 
   const peso = Number(pesoPromedio);
-
-  if (!pesoPromedio || Number.isNaN(peso) || peso <= 0) {
+  if (!pesoPromedio || Number.isNaN(peso) || peso <= 0 || peso > 50) {
     errores.pesoPromedio = true;
   }
 
   const kilos = Number(kilosVendidos);
-
   if (kilosVendidos === "" || Number.isNaN(kilos) || kilos <= 0) {
     errores.kilosVendidos = true;
   }
@@ -301,8 +320,22 @@ const validarVentaFormulario = ({
     errores.comprador = true;
   }
 
+  // Validar que la fecha no sea futura
+  if (fechaVenta) {
+    const [dia, mes, anio] = fechaVenta.split("/");
+    if (dia && mes && anio) {
+      const fechaSeleccionada = new Date(Number(anio), Number(mes) - 1, Number(dia));
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+
+      if (fechaSeleccionada > hoy) {
+        errores.fecha = true;
+      }
+    }
+  }
+
   return errores;
-};
+}
 
 /*
 ============================================================
@@ -312,11 +345,11 @@ HOOK PRINCIPAL
 
 export function useVenta() {
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  const isWide = width >= 700;
 
   const [fincaSeleccionada, setFincaSeleccionada] = useState("");
   const [estanqueSeleccionado, setEstanqueSeleccionado] = useState("");
-  const [pesoPromedio, setPesoPromedio] = useState("0.1");
+  const [pesoPromedio, setPesoPromedio] = useState("0"); // ← ahora inicia en 0
   const [kilosVendidos, setKilosVendidos] = useState("0");
   const [precioKilo, setPrecioKilo] = useState("0");
   const [fechaVenta, setFechaVenta] = useState(obtenerFechaActual());
@@ -363,27 +396,19 @@ export function useVenta() {
       const compradores = obtenerDataRespuesta(resCompradores);
 
       setColaboradores(
-        Array.isArray(colaboradoresData)
-          ? colaboradoresData
-          : []
+        Array.isArray(colaboradoresData) ? colaboradoresData : []
       );
 
       setFincas(
-        Array.isArray(fincasData)
-          ? fincasData
-          : []
+        Array.isArray(fincasData) ? fincasData : []
       );
 
       setEstanques(
-        Array.isArray(estanquesData)
-          ? estanquesData
-          : []
+        Array.isArray(estanquesData) ? estanquesData : []
       );
 
       setCompradoresData(
-        Array.isArray(compradores)
-          ? compradores
-          : []
+        Array.isArray(compradores) ? compradores : []
       );
     } catch (error) {
       setColaboradores([]);
@@ -590,7 +615,7 @@ export function useVenta() {
 
   const handleKilosVendidosChange = useCallback(
     (value) => {
-      setKilosVendidos(normalizarDecimal(value));
+      setKilosVendidos(normalizarDecimal(value, 0));
       limpiarError("kilosVendidos");
       setSuccessMessage("");
       setErrorMessage("");
@@ -647,12 +672,13 @@ export function useVenta() {
     }
 
     setFechaVenta(value);
-  }, []);
+    limpiarError("fecha");
+  }, [limpiarError]);
 
   const limpiarFormulario = useCallback(() => {
     setFincaSeleccionada("");
     setEstanqueSeleccionado("");
-    setPesoPromedio("0.1");
+    setPesoPromedio("0"); // ← también se limpia a 0
     setKilosVendidos("0");
     setPrecioKilo("0");
     setFechaVenta(obtenerFechaActual());
@@ -680,12 +706,19 @@ export function useVenta() {
       precioKiloNumero,
       colaboradorSeleccionado,
       compradorSeleccionado,
+      fechaVenta,
     });
 
     setErrores(nuevosErrores);
 
     if (Object.keys(nuevosErrores).length > 0) {
-      setErrorMessage("Rellenar campos obligatorios.");
+      if (nuevosErrores.fecha) {
+        setErrorMessage("La fecha no puede ser futura.");
+      } else if (Number(pesoPromedio) > 50) {
+        setErrorMessage("El peso promedio no puede superar los 50 g.");
+      } else {
+        setErrorMessage("Rellenar campos obligatorios.");
+      }
       return;
     }
 
@@ -694,8 +727,13 @@ export function useVenta() {
     const ventaDTO = new MantVentaDTO({
       finca: Number(fincaSeleccionada),
       estanque: Number(estanqueSeleccionado),
-      colaborador: colaboradorSeleccionado ? Number(colaboradorSeleccionado) : null,
-      comprador: compradorSeleccionado === "cliente-generico" ? null : Number(compradorSeleccionado),
+      colaborador: colaboradorSeleccionado
+        ? Number(colaboradorSeleccionado)
+        : null,
+      comprador:
+        compradorSeleccionado === "cliente-generico"
+          ? null
+          : Number(compradorSeleccionado),
       pesoPromedio: Number(pesoPromedio),
       cantVendida: Number(kilosVendidos),
       precioKilo: precioKiloNumero,
