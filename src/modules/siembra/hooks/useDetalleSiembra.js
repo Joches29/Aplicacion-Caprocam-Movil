@@ -35,7 +35,7 @@ import {
   useFieldValidation,
   validarCamposObligatorios,
 } from "./useFieldValidation";
-import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
+import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo, determinarCampoDelError } from "./siembraValidationRules";
 import {
   calcularDensidadDesdeCantidad,
   calcularProgresoCiclo,
@@ -126,6 +126,7 @@ function mapLoteAFormData(lote) {
     laboratorioLarva: lote.laboratorio || lote.laboratorioLarva || "",
     procedenciaLarva: lote.procedencia || lote.procedenciaLarva || "",
     certificadoLarva: lote.certificado_larva || lote.certificadoLarva || "",
+    estadoLote: lote.estado_lote || lote.estadoLote || "",
   };
 }
 
@@ -605,7 +606,33 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
     );
   }, []);
 
+  const verificarCatalogoEnUso = useCallback(async (campoCamel, campoSnake, valorId) => {
+    const [lotes, siembras, precrias] = await Promise.all([
+      LoteLarvaLocalService.getAll(),
+      SiembraLocalService.getAll(),
+      PrecriaLocalService.getAll(),
+    ]);
+
+    return lotes.some((lote) => {
+      const valorLote = lote[campoCamel] || lote[campoSnake];
+      if (String(valorLote) !== String(valorId)) return false;
+
+      const siembraActiva = siembras.some(
+        (s) => String(s.loteLarvaId || s.lote_larva_id) === String(lote.id) && String(s.estado || "Activa").toLowerCase() !== "finalizada"
+      );
+      const precriaActiva = precrias.some(
+        (p) => String(p.loteLarvaId || p.lote_larva_id) === String(lote.id) && String(p.estado || "Activa").toLowerCase() !== "finalizada"
+      );
+
+      return siembraActiva || precriaActiva;
+    });
+  }, []);
+
   const handleEliminarProveedorLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("proveedorLarvaId", "proveedor_larva_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este proveedor porque está asignado a una siembra o pre-cría activa.");
+    }
     await ProveedorLarvaLocalService.deleteById(value);
     setProveedoresLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -615,9 +642,13 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ? { ...previo, proveedorLarva: "" }
         : previo,
     );
-  }, []);
+  }, [verificarCatalogoEnUso]);
 
   const handleEliminarLaboratorioLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("laboratorioId", "laboratorio_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este laboratorio porque está asignado a una siembra o pre-cría activa.");
+    }
     await LaboratorioLocalService.deleteById(value);
     setLaboratoriosLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -627,9 +658,13 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ? { ...previo, laboratorioLarva: "" }
         : previo,
     );
-  }, []);
+  }, [verificarCatalogoEnUso]);
 
   const handleEliminarProcedenciaLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("procedenciaId", "procedencia_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar esta procedencia porque está asignada a una siembra o pre-cría activa.");
+    }
     await ProcedenciaLocalService.deleteById(value);
     setProcedenciasLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -639,7 +674,7 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ? { ...previo, procedenciaLarva: "" }
         : previo,
     );
-  }, []);
+  }, [verificarCatalogoEnUso]);
 
   const obtenerCamposObligatorios = useCallback(
     (opciones) => obtenerCamposObligatoriosPorTipo(formData, opciones),
@@ -837,8 +872,16 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
       setMensaje(msjExito);
       setMensajeVariant("success");
     } catch (err) {
-      const mensajeError = err.response?.data?.message || err.message;
-      setMensaje(mensajeError || "No fue posible guardar los cambios.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || err.message || "No fue posible guardar los cambios.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors((prev) => ({ ...prev, [campoConError]: mensajeFinal }));
+      }
+      
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
     } finally {
       setGuardando(false);
@@ -910,8 +953,16 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
       setMensajeVariant("success");
       return conLote;
     } catch (err) {
-      const mensajeError = err.response?.data?.message || err.message;
-      setMensaje(mensajeError || "No fue posible finalizar la Pre-Cría.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || err.message || "No fue posible finalizar la Pre-Cría.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors((prev) => ({ ...prev, [campoConError]: mensajeFinal }));
+      }
+      
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
       return null;
     } finally {
@@ -976,8 +1027,16 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
       setMensaje("Siembra finalizada correctamente.");
       setMensajeVariant("success");
     } catch (err) {
-      const mensajeError = err.response?.data?.message || err.message;
-      setMensaje(mensajeError || "No fue posible finalizar la siembra.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || err.message || "No fue posible finalizar la siembra.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors((prev) => ({ ...prev, [campoConError]: mensajeFinal }));
+      }
+      
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
     } finally {
       setGuardando(false);
