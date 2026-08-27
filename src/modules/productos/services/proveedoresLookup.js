@@ -62,7 +62,32 @@ export async function getProveedores() {
 export async function getProveedorPorId(id) {
   await asegurarBaseInicializada();
 
-  const resultado = await localApi.proveedores.obtenerPorId(Number(id));
+  /*
+  El producto guarda el proveedor con el ID DEL SERVIDOR
+  (proveedor_id viene del backend tal cual). Pero SQLite reasigna
+  su propio id autoincremental al descargar, y esos dos numeros
+  NO coinciden.
+
+  Ejemplo real: Nicovita tiene servidor_id = 1 pero id local = 2,
+  mientras que id local = 1 es "Proveedor Demo" (del seed de
+  pruebas). Buscar por id local devolvia el proveedor equivocado
+  en silencio, sin error.
+
+  Por eso se busca primero por servidor_id y solo se cae al id
+  local si no hay coincidencia (caso de un proveedor creado en el
+  telefono que todavia no subio, que no tiene servidor_id).
+  */
+  const idBuscado = Number(id);
+
+  const porServidor = await localApi.proveedores.obtenerTodos({
+    servidor_id: idBuscado,
+  });
+
+  if (porServidor?.success && porServidor.data?.length > 0) {
+    return mapProveedor(porServidor.data[0]);
+  }
+
+  const resultado = await localApi.proveedores.obtenerPorId(idBuscado);
 
   if (!resultado?.success) {
     throw new Error("No se pudo obtener el proveedor.");
