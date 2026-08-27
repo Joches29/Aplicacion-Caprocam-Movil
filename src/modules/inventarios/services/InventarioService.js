@@ -51,7 +51,7 @@ function mapearProductoInventarioLocal(registroInventario, catalogoProductos = [
   ) || 0;
 
   return {
-    id: registroInventario.id ?? productoCatalogo?.id ?? productoId,
+    id: productoId ?? productoCatalogo?.id ?? registroInventario.id,
     productoId,
     codigo: productoCatalogo?.codigo ?? registroInventario.codigo ?? "",
     nombre: productoCatalogo?.nombre ?? registroInventario.nombre ?? `Producto ${productoId ?? ""}`,
@@ -176,7 +176,11 @@ export async function addProducto({ producto_id, proveedor_id, stock_minimo, can
 
 export async function updateProducto(id, { proveedor_id, stock_minimo, cantidad = 0 }) {
   try {
-    const respuestaLocal = await localApi.inventario.actualizar(Number(id), {
+    const inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: Number(id) });
+    const inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+    const updateId = inventarioRow ? inventarioRow.id : Number(id);
+
+    const respuestaLocal = await localApi.inventario.actualizar(updateId, {
       proveedor_id,
       stock_minimo,
       cantidad,
@@ -205,7 +209,11 @@ export async function updateProducto(id, { proveedor_id, stock_minimo, cantidad 
 
 export async function deleteProducto(id) {
   try {
-    const respuestaLocal = await localApi.inventario.eliminar(Number(id));
+    const inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: Number(id) });
+    const inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+    const deleteId = inventarioRow ? inventarioRow.id : Number(id);
+
+    const respuestaLocal = await localApi.inventario.eliminar(deleteId);
 
     if (respuestaLocal.success) {
       return respuestaLocal;
