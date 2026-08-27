@@ -239,31 +239,43 @@ const normalizarPorTabla = (tabla, registro, grupoDatos) => {
   return r;
 };
 
-async function guardarCatalogoLocal(tabla, registros, grupoDatos) {
-  if (!Array.isArray(registros) || registros.length === 0) {
-    return {
+async function guardarCatalogoLocal(
+  tabla,
+  registros,
+  grupoDatos
+) {
+  const listaRegistros =
+    Array.isArray(registros)
+      ? registros
+      : [];
+
+  const registrosNorm =
+    listaRegistros.map((registro) => {
+      const snake =
+        convertirRegistroASnake(
+          registro
+        );
+
+      return normalizarPorTabla(
+        tabla,
+        snake,
+        grupoDatos
+      );
+    });
+
+  const resultado =
+    await localApi.sync.guardarDesdeServidor(
       tabla,
-      total: 0,
-      guardados: 0,
-      success: true,
-    };
-  }
-
-  const registrosNorm = registros.map((registro) => {
-    const snake = convertirRegistroASnake(registro);
-
-    return normalizarPorTabla(tabla, snake, grupoDatos);
-  });
-
-  const resultado = await localApi.sync.guardarDesdeServidor(
-    tabla,
-    registrosNorm
-  );
+      registrosNorm,
+      {
+        reconciliar: true,
+      }
+    );
 
   if (!resultado.success) {
     return {
       tabla,
-      total: registros.length,
+      total: listaRegistros.length,
       guardados: 0,
       success: false,
       error: resultado.message,
@@ -272,8 +284,8 @@ async function guardarCatalogoLocal(tabla, registros, grupoDatos) {
 
   return {
     tabla,
-    total: registros.length,
-    guardados: registros.length,
+    total: listaRegistros.length,
+    guardados: listaRegistros.length,
     success: true,
     resultado,
   };
