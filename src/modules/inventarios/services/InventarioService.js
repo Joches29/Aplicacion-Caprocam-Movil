@@ -80,10 +80,11 @@ async function obtenerProductosInventarioLocal() {
   const catalogoProductos = respProductos.success ? (respProductos.data || []) : [];
 
   if (inventario.length > 0) {
-    return inventario.map((registro) => mapearProductoInventarioLocal(registro, catalogoProductos));
+    const mapeados = inventario.map((registro) => mapearProductoInventarioLocal(registro, catalogoProductos));
+    return Array.from(new Map(mapeados.map((p) => [String(p.id), p])).values());
   }
 
-  return catalogoProductos.map((producto) => ({
+  const productosBase = catalogoProductos.map((producto) => ({
     id: producto.id,
     productoId: producto.id,
     codigo: producto.codigo ?? "",
@@ -101,6 +102,8 @@ async function obtenerProductosInventarioLocal() {
     expirationDate: producto.expirationDate ?? producto.fecha_caducidad ?? null,
     fechaCaducidad: producto.fecha_caducidad ?? producto.expirationDate ?? null,
   }));
+
+  return Array.from(new Map(productosBase.map((p) => [String(p.id), p])).values());
 }
 
 export async function getProductosInventario() {
