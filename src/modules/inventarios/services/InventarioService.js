@@ -50,9 +50,12 @@ function mapearProductoInventarioLocal(registroInventario, catalogoProductos = [
     productoCatalogo?.precio_unidad ?? productoCatalogo?.precioUnidad ?? registroInventario.precio_unidad ?? 0,
   ) || 0;
 
+
+  const idLocalProducto = productoCatalogo?.id ?? productoId ?? registroInventario.id;
+
   return {
-    id: productoId ?? productoCatalogo?.id ?? registroInventario.id,
-    productoId,
+    id: idLocalProducto,
+    productoId: idLocalProducto,
     codigo: productoCatalogo?.codigo ?? registroInventario.codigo ?? "",
     nombre: productoCatalogo?.nombre ?? registroInventario.nombre ?? `Producto ${productoId ?? ""}`,
     categoria: productoCatalogo?.categoria ?? registroInventario.categoria ?? "",
@@ -179,8 +182,17 @@ export async function addProducto({ producto_id, proveedor_id, stock_minimo, can
 
 export async function updateProducto(id, { proveedor_id, stock_minimo, cantidad = 0 }) {
   try {
-    const inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: Number(id) });
-    const inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+    const productoRes = await localApi.productos.obtenerPorId(Number(id));
+    const productoServidorId = productoRes?.success ? productoRes.data?.servidor_id : null;
+
+    let inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: Number(id) });
+    let inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+
+    if (!inventarioRow && productoServidorId) {
+      inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: productoServidorId });
+      inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+    }
+    
     const updateId = inventarioRow ? inventarioRow.id : Number(id);
 
     const respuestaLocal = await localApi.inventario.actualizar(updateId, {
@@ -212,8 +224,17 @@ export async function updateProducto(id, { proveedor_id, stock_minimo, cantidad 
 
 export async function deleteProducto(id) {
   try {
-    const inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: Number(id) });
-    const inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+    const productoRes = await localApi.productos.obtenerPorId(Number(id));
+    const productoServidorId = productoRes?.success ? productoRes.data?.servidor_id : null;
+
+    let inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: Number(id) });
+    let inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+
+    if (!inventarioRow && productoServidorId) {
+      inventarioResult = await localApi.inventario.obtenerTodos({ producto_id: productoServidorId });
+      inventarioRow = inventarioResult.success ? inventarioResult.data?.[0] : null;
+    }
+
     const deleteId = inventarioRow ? inventarioRow.id : Number(id);
 
     const respuestaLocal = await localApi.inventario.eliminar(deleteId);

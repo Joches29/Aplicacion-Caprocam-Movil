@@ -42,14 +42,23 @@ async function asegurarBaseInicializada() {
   baseInicializada = true;
 }
 
-async function obtenerInventarioDeProducto(productoIdLocal) {
-  const resultado = await localApi.inventario.obtenerTodos({
+async function obtenerInventarioDeProducto(productoIdLocal, productoServidorId) {
+  // Primero intentamos con el ID local (para registros creados offline)
+  let resultado = await localApi.inventario.obtenerTodos({
     producto_id: productoIdLocal,
   });
 
-  if (!resultado?.success) return null;
+  let inventario = resultado?.success ? resultado.data || [] : [];
 
-  return (resultado.data || [])[0] || null;
+  // Si no se encuentra y el producto fue sincronizado, buscar por su ID del servidor
+  if (inventario.length === 0 && productoServidorId) {
+    resultado = await localApi.inventario.obtenerTodos({
+      producto_id: productoServidorId,
+    });
+    inventario = resultado?.success ? resultado.data || [] : [];
+  }
+
+  return inventario[0] || null;
 }
 
 function combinarProductoInventario(productoRow, inventarioRow) {
@@ -87,7 +96,7 @@ export const productoService = {
 
     const combinados = await Promise.all(
       productos.map(async (productoRow) => {
-        const inventarioRow = await obtenerInventarioDeProducto(productoRow.id);
+        const inventarioRow = await obtenerInventarioDeProducto(productoRow.id, productoRow.servidor_id);
         return combinarProductoInventario(productoRow, inventarioRow);
       })
     );
@@ -109,7 +118,7 @@ export const productoService = {
       throw noEncontrado;
     }
 
-    const inventarioRow = await obtenerInventarioDeProducto(resultado.data.id);
+    const inventarioRow = await obtenerInventarioDeProducto(resultado.data.id, resultado.data.servidor_id);
     return combinarProductoInventario(resultado.data, inventarioRow);
   },
 
@@ -180,7 +189,8 @@ export const productoService = {
       throw noEncontrado;
     }
 
-    let inventarioRow = await obtenerInventarioDeProducto(Number(id));
+    // We must pass the updated product's servidor_id in case we need to search by it
+    let inventarioRow = await obtenerInventarioDeProducto(Number(id), productoActualizado.data.servidor_id);
 
     if (inventarioRow) {
       const inventarioActualizado = await localApi.inventario.actualizar(inventarioRow.id, {
@@ -219,7 +229,10 @@ export const productoService = {
   desactivarProducto: async (id) => {
     await asegurarBaseInicializada();
 
-    const inventarioRow = await obtenerInventarioDeProducto(Number(id));
+    const productoRes = await localApi.productos.obtenerPorId(Number(id));
+    const productoData = productoRes?.success ? productoRes.data : null;
+
+    const inventarioRow = await obtenerInventarioDeProducto(Number(id), productoData?.servidor_id);
 
     const resultado = await localApi.productos.eliminar(Number(id));
 
