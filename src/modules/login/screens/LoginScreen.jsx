@@ -217,21 +217,32 @@ function WorkerSection({
 
       setIsSyncModalVisible(false);
 
+      if (result && result.success) {
+        setSyncStatus("success");
+        setSyncMessage(result.message || "Colaborador sincronizado correctamente.");
+      } else {
         setSyncStatus("danger");
-
         setSyncMessage(
-          err?.message ||
+          result?.message ||
             "Error de conexión o fallo al sincronizar con el servidor."
         );
-      } finally {
-        setIsSyncing(false);
-
-        setTimeout(() => {
-          setSyncStatus(null);
-          setSyncMessage("");
-        }, 5000);
       }
-    };
+    } catch (err) {
+      setIsSyncModalVisible(false);
+      setSyncStatus("danger");
+      setSyncMessage(
+        err?.message ||
+          "Error de conexión o fallo al sincronizar con el servidor."
+      );
+    } finally {
+      setIsSyncing(false);
+
+      setTimeout(() => {
+        setSyncStatus(null);
+        setSyncMessage("");
+      }, 5000);
+    }
+  };
 
   return (
     <Card style={styles.sectionCard}>
