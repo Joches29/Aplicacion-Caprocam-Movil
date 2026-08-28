@@ -107,6 +107,12 @@ export const ESTADO_FRONTEND_A_BACKEND = {
   [ESTADOS_TICKET.EN_ESPERA]:        'En espera',
   [ESTADOS_TICKET.EN_MANTENIMIENTO]: 'En mantenimiento',
   [ESTADOS_TICKET.TERMINADO]:        'Terminado',
+  'terminado':                       'Terminado',
+  'Terminado':                       'Terminado',
+  'en_espera':                       'En espera',
+  'En espera':                       'En espera',
+  'en_mantenimiento':                'En mantenimiento',
+  'En mantenimiento':                'En mantenimiento',
 };
 
 // ─── Mapeo de tipo de personal: frontend → backend ────────────────────────────

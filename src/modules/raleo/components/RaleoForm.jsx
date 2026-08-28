@@ -14,15 +14,8 @@
  * El usuario ahora digita los KILOGRAMOS RETIRADOS, no el
  * porcentaje. El porcentaje de raleo y la biomasa restante pasaron
  * a ser campos de solo lectura que calcula el sistema:
- *     porcentaje      = (kgRetirados / biomasaEstimada) x 100
- *     biomasaRestante = biomasaEstimada - kgRetirados
- *
- * CORREGIDO: este componente leia/escribia `form.biomasaAntes`,
- * un campo que no existe en el estado que expone useRaleo.js (el
- * campo real es `biomasaEstimada`, mismo nombre que usa
- * useRaleoScreen.js y RaleoLocal.service.js). Se unifica todo a
- * `biomasaEstimada`; el label visible ("Biomasa antes del raleo")
- * no cambia, solo el nombre interno del campo.
+ *     porcentaje      = (kgRetirados / biomasaAntes) x 100
+ *     biomasaRestante = biomasaAntes - kgRetirados
  *
  * Campos eliminados y por qué:
  * - "Porcentaje de raleo (%)": era un Input editable; el documento
@@ -32,11 +25,18 @@
  *   El peso que se debe guardar es el retirado en kg, que ahora es
  *   el campo "Cantidad retirada mediante raleo (kg)".
  * - "Objetivo del raleo" y toda la card "Método de Extracción":
- *   no aparecen en los requerimientos ni en el schema nuevo.
+ *   no aparecen en los requerimientos. Además, sus valores nunca
+ *   tuvieron contrato real (el seed de la base guarda texto libre
+ *   que no coincide con las opciones que ofrecía el Select, y el
+ *   backend nunca validó contra el enum MetodoRaleo que declara).
+ *
+ * "Biomasa actual del estanque (kg)" se renombró a "Biomasa antes
+ * del raleo (kg)" para dejar explícito el momento que representa,
+ * ya que ahora convive con la biomasa restante calculada.
  *
  * Funcionalidad:
- * - Finca/estanque usan datos reales locales via
- *   useFincaEstanqueRaleo (SQLite).
+ * - Finca/estanque usan datos reales del backend via
+ *   useFincaEstanqueRaleo (mismo patron que useFincaCrecimiento.js).
  * - Todos los colores usados vienen de COLORS, sin valores
  *   hardcodeados.
  *
@@ -46,8 +46,7 @@
  * - submitted: boolean, true cuando el usuario ya intentó guardar.
  * - errores: objeto { campo: mensaje } devuelto por validarForm().
  * - porcentajeCalculado / biomasaCalculada: valores derivados que
- *   entrega useRaleoScreen / useEditarRaleo; se muestran de solo
- *   lectura.
+ *   entrega useRaleoScreen; se muestran de solo lectura.
  *
  * Ejemplo:
  * <RaleoForm
@@ -121,7 +120,7 @@ export default function RaleoForm({
   const invalidoFinca = submitted && !!errores.finca;
   const invalidoEstanque = submitted && !!errores.estanque;
   const invalidoFecha = submitted && !!errores.fecha;
-  const invalidoBiomasaEstimada = submitted && !!errores.biomasaEstimada;
+  const invalidoBiomasaAntes = submitted && !!errores.biomasaAntes;
   const invalidoKgRetirados = submitted && !!errores.kgRetirados;
 
   const { fincasOptions, estanquesOptions } = useFincaEstanqueRaleo(form.finca);
@@ -142,8 +141,7 @@ export default function RaleoForm({
         </View>
 
         <DateInput
-          label="Fecha del Raleo "
-          required
+          label="Fecha del Raleo *"
           value={form.fecha ?? ""}
           onChangeText={(v) => updateField("fecha", v)}
           labelStyle={{ fontFamily: TYPOGRAPHY.fontFamily.medium }}
@@ -151,8 +149,7 @@ export default function RaleoForm({
         />
 
         <Select
-          label="Finca "
-          required
+          label="Finca *"
           value={form.finca}
           onChange={handleFincaChange}
           options={fincasOptions}
@@ -161,8 +158,7 @@ export default function RaleoForm({
         />
 
         <Select
-          label="Estanque "
-          required
+          label="Estanque *"
           value={form.estanque}
           onChange={(v) => updateField("estanque", v)}
           options={estanquesOptions}
@@ -180,22 +176,20 @@ export default function RaleoForm({
         </View>
 
         <Input
-          label="Biomasa antes del raleo (kg) "
-          required
+          label="Biomasa antes del raleo (kg) *"
           placeholder="Ej: 2000"
-          value={String(form.biomasaEstimada ?? "")}
+          value={String(form.biomasaAntes ?? "")}
           keyboardType="decimal-pad"
           onChangeText={(v) => {
             const limpio = soloDecimal(v);
-            if (limpio !== null) updateField("biomasaEstimada", limpio);
+            if (limpio !== null) updateField("biomasaAntes", limpio);
           }}
-          style={invalidoBiomasaEstimada ? bordeError : null}
-          error={submitted ? (errores.biomasaEstimada || "") : ""}
+          style={invalidoBiomasaAntes ? bordeError : null}
+          error={submitted ? (errores.biomasaAntes || "") : ""}
         />
 
         <Input
-          label="Cantidad retirada mediante raleo (kg) "
-          required
+          label="Cantidad retirada mediante raleo (kg) *"
           placeholder="Ej: 1000"
           value={String(form.kgRetirados ?? "")}
           keyboardType="decimal-pad"
@@ -209,8 +203,8 @@ export default function RaleoForm({
 
         {/*
           Campos calculados por el sistema. No se digitan y no se
-          envian tal cual al backend: se recalculan al guardar, para
-          que exista una sola fuente de verdad (calcularRaleo).
+          envian al backend: el backend los recalcula al guardar,
+          para que sea el una sola fuente de verdad.
         */}
         <Input
           label="Porcentaje de raleo (%)"
@@ -236,8 +230,9 @@ export default function RaleoForm({
         </View>
 
         <Input
-          label="Notas adicionales"
-          placeholder="Ingrese observaciones del raleo"
+          label="Notas"
+          placeholder="Ej: Se aplicó raleo por control de biomasa"
+          multiline
           value={form.observaciones ?? ""}
           onChangeText={(v) => updateField("observaciones", v)}
         />

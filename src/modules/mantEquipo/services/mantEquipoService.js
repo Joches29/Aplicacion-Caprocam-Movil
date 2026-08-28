@@ -11,6 +11,7 @@ import api from "../../../api/api";
  */
 
 import { localApi } from "../../../database/local/localApi.service.js";
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database.js";
 import { equiposService } from "./equiposService.js";
 import { obtenerTareas } from "./tareasService.js";
 import { obtenerCamposAuditoria } from "../../../shared/utils/sessionUtils.js";
@@ -39,61 +40,89 @@ export {
  */
 export async function getProductosCatalogo() {
   try {
-    const [resProductos, resInventario] = await Promise.allSettled([
-      localApi.productos.obtenerTodos(),
-      localApi.inventario.obtenerTodos(),
+    const [
+      resProductos,
+      resInventario,
+    ] = await Promise.allSettled([
+      localApi.productos.obtenerTodos({
+        incluirInactivos: false,
+      }),
+      localApi.inventario.obtenerTodos({
+        incluirInactivos: false,
+      }),
     ]);
 
-    const prodsRaw = resProductos.status === 'fulfilled' && resProductos.value.success
-      ? (resProductos.value.data || [])
-      : [];
-    const invRaw = resInventario.status === 'fulfilled' && resInventario.value.success
-      ? (resInventario.value.data || [])
-      : [];
+    const prodsRaw =
+      resProductos.status === "fulfilled" &&
+        resProductos.value.success
+        ? resProductos.value.data || []
+        : [];
 
-    const mapaProds = new Map();
+    const invRaw =
+      resInventario.status === "fulfilled" &&
+        resInventario.value.success
+        ? resInventario.value.data || []
+        : [];
 
-    // 1. Agregar productos desde tabla 'productos'
-    if (Array.isArray(prodsRaw)) {
-      prodsRaw.forEach(p => {
-        const idStr = String(p.id ?? p.servidor_id ?? p.codigo ?? '');
-        if (idStr) {
-          mapaProds.set(idStr, {
-            ...p,
-            id: idStr,
-            productoId: idStr,
-            nombre: p.nombre ?? `Producto ${idStr}`,
-            categoria: p.categoria ?? '',
-            precioUnidad: Number(p.precio_unidad ?? p.precioUnidad ?? 0),
-            costoUnitario: Number(p.precio_unidad ?? p.precioUnidad ?? 0),
-            stockMaximo: p.cantidad !== undefined ? Number(p.cantidad) : 999,
-          });
-        }
-      });
-    }
+    return prodsRaw.map((producto) => {
+      const productoLocalId =
+        Number(producto.id);
 
-    // 2. Fusionar/agregar productos desde tabla 'inventario'
-    if (Array.isArray(invRaw)) {
-      invRaw.forEach(p => {
-        const idStr = String(p.producto_id ?? p.productoId ?? p.id ?? '');
-        if (idStr) {
-          const existente = mapaProds.get(idStr) || {};
-          mapaProds.set(idStr, {
-            ...existente,
-            ...p,
-            id: idStr,
-            productoId: idStr,
-            nombre: p.nombre ?? existente.nombre ?? `Producto ${idStr}`,
-            categoria: p.categoria ?? existente.categoria ?? '',
-            precioUnidad: Number(p.precio_unidad ?? p.precioUnidad ?? existente.precioUnidad ?? 0),
-            costoUnitario: Number(p.precio_unidad ?? p.precioUnidad ?? existente.costoUnitario ?? 0),
-            stockMaximo: p.cantidad !== undefined ? Number(p.cantidad) : (existente.stockMaximo ?? 999),
-          });
-        }
-      });
-    }
+      const inventario =
+        invRaw.find((item) => {
+          return (
+            Number(item.producto_id) ===
+            productoLocalId
+          );
+        });
 
-    return Array.from(mapaProds.values());
+      const precio =
+        Number(
+          producto.precio_unidad ??
+          producto.precioUnidad ??
+          0
+        ) || 0;
+
+      const stock =
+        Number(
+          inventario?.cantidad ??
+          producto.cantidad ??
+          0
+        ) || 0;
+
+      return {
+        ...producto,
+
+        id:
+          String(productoLocalId),
+
+        productoId:
+          String(productoLocalId),
+
+        servidorId:
+          producto.servidor_id ??
+          null,
+
+        nombre:
+          producto.nombre ||
+          `Producto ${productoLocalId}`,
+
+        categoria:
+          producto.categoria || "",
+
+        precioUnidad:
+          precio,
+
+        costoUnitario:
+          precio,
+
+        stockMaximo:
+          stock,
+
+        cantidad:
+          stock,
+      };
+    });
   } catch (err) {
     return [];
   }
@@ -208,7 +237,7 @@ export async function obtenerTickets() {
       if (respColabs.success && Array.isArray(respColabs.data)) {
         listaColaboradores = respColabs.data;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     for (const item of tickets) {
       const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
@@ -227,7 +256,7 @@ export async function obtenerTickets() {
 
       if (cid) {
         const colab = listaColaboradores.find(c => Number(c.servidor_id) === Number(cid)) ||
-                      listaColaboradores.find(c => Number(c.id) === Number(cid));
+          listaColaboradores.find(c => Number(c.id) === Number(cid));
         if (colab) {
           const nom = [colab.nombre, colab.apellidos].filter(Boolean).join(' ').trim();
           creadorNom = nom || colab.nombre_usuario || colab.nombreUsuario || `Colaborador #${cid}`;
@@ -277,7 +306,7 @@ export async function obtenerTicketPorId(id) {
         const respColabs = await localApi.colaboradores.obtenerTodos();
         if (respColabs.success && Array.isArray(respColabs.data)) {
           const colab = respColabs.data.find(c => Number(c.servidor_id) === Number(cid)) ||
-                        respColabs.data.find(c => Number(c.id) === Number(cid));
+            respColabs.data.find(c => Number(c.id) === Number(cid));
           if (colab) {
             const nom = [colab.nombre, colab.apellidos].filter(Boolean).join(' ').trim();
             nombreCreador = nom || colab.nombre_usuario || colab.nombreUsuario || `Colaborador #${cid}`;
@@ -292,13 +321,13 @@ export async function obtenerTicketPorId(id) {
             const nom = [uData.nombre, uData.apellidos].filter(Boolean).join(' ').trim();
             nombreCreador = nom || uData.nombreUsuario || uData.email;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         if (!nombreCreador) {
           nombreCreador = MAPA_USUARIOS_CONOCIDOS[String(uid)] || `Usuario #${uid}`;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
       mantenimiento_equipo_id: numericId,
@@ -427,25 +456,190 @@ async function vincularProductosLocal(mantenimientoEquipoId, productos, auditori
 
 // ─── Descontar stock de inventario local ──────────────────────────────────────
 async function descontarStockLocal(productos) {
-  if (!Array.isArray(productos) || productos.length === 0) return;
-  try {
-    const resInv = await localApi.inventario.obtenerTodos();
-    if (!resInv.success || !Array.isArray(resInv.data)) return;
-    const invList = resInv.data;
+  if (
+    !Array.isArray(productos) ||
+    productos.length === 0
+  ) {
+    return;
+  }
 
-    for (const prod of productos) {
-      const prodId = String(prod.productoId || prod.id);
-      const invItem = invList.find(i => String(i.producto_id || i.id) === prodId);
-      if (invItem) {
-        const cantUsada = Number(prod.cantidad) || 1;
-        const nuevaCantidad = Math.max(0, (Number(invItem.cantidad) || 0) - cantUsada);
-        await localApi.inventario.actualizar(invItem.id, {
-          cantidad: nuevaCantidad,
-        });
+  try {
+    const respuestaInventario =
+      await localApi.inventario.obtenerTodos({
+        incluirInactivos: false,
+      });
+
+    const inventario =
+      respuestaInventario?.success &&
+        Array.isArray(
+          respuestaInventario.data
+        )
+        ? respuestaInventario.data
+        : [];
+
+    const db =
+      await obtenerBaseLocal();
+
+    for (const producto of productos) {
+      const productoLocalId =
+        Number(
+          producto.productoId ??
+          producto.producto_id ??
+          producto.id
+        );
+
+      if (
+        !Number.isFinite(
+          productoLocalId
+        ) ||
+        productoLocalId <= 0
+      ) {
+        continue;
       }
+
+      const cantidadUsada =
+        Number(producto.cantidad) || 1;
+
+      if (cantidadUsada <= 0) {
+        continue;
+      }
+
+      const inventarioItem =
+        inventario.find((item) => {
+          return (
+            Number(item.producto_id) ===
+            productoLocalId
+          );
+        });
+
+      if (!inventarioItem) {
+        continue;
+      }
+
+      const cantidadActual =
+        Number(
+          inventarioItem.cantidad
+        ) || 0;
+
+      const nuevaCantidad =
+        Math.max(
+          0,
+          cantidadActual -
+          cantidadUsada
+        );
+
+      await db.runAsync(
+        `
+        UPDATE inventario
+        SET
+          cantidad = ?,
+          version = version + 1
+        WHERE id = ?
+        `,
+        [
+          nuevaCantidad,
+          inventarioItem.id,
+        ]
+      );
     }
   } catch (err) {
-    console.warn('descontarStockLocal error:', err?.message || err);
+    console.warn(
+      "descontarStockLocal error:",
+      err?.message || err
+    );
+  }
+}
+
+// ─── Restaurar / Sumar stock de inventario local ──────────────────────────────
+async function restaurarStockLocal(productos) {
+  if (
+    !Array.isArray(productos) ||
+    productos.length === 0
+  ) {
+    return;
+  }
+
+  try {
+    const respuestaInventario =
+      await localApi.inventario.obtenerTodos({
+        incluirInactivos: false,
+      });
+
+    const inventario =
+      respuestaInventario?.success &&
+        Array.isArray(
+          respuestaInventario.data
+        )
+        ? respuestaInventario.data
+        : [];
+
+    const db =
+      await obtenerBaseLocal();
+
+    for (const producto of productos) {
+      const productoLocalId =
+        Number(
+          producto.productoId ??
+          producto.producto_id ??
+          producto.id
+        );
+
+      if (
+        !Number.isFinite(
+          productoLocalId
+        ) ||
+        productoLocalId <= 0
+      ) {
+        continue;
+      }
+
+      const cantidadDevuelta =
+        Number(producto.cantidad) || 1;
+
+      if (cantidadDevuelta <= 0) {
+        continue;
+      }
+
+      const inventarioItem =
+        inventario.find((item) => {
+          return (
+            Number(item.producto_id) ===
+            productoLocalId
+          );
+        });
+
+      if (!inventarioItem) {
+        continue;
+      }
+
+      const cantidadActual =
+        Number(
+          inventarioItem.cantidad
+        ) || 0;
+
+      const nuevaCantidad =
+        cantidadActual +
+        cantidadDevuelta;
+
+      await db.runAsync(
+        `
+        UPDATE inventario
+        SET
+          cantidad = ?,
+          version = version + 1
+        WHERE id = ?
+        `,
+        [
+          nuevaCantidad,
+          inventarioItem.id,
+        ]
+      );
+    }
+  } catch (err) {
+    console.warn(
+      "restaurarStockLocal error:",
+      err?.message || err
+    );
   }
 }
 
@@ -466,15 +660,18 @@ export async function agregarTicket(ticket) {
     await vincularTareasLocal(nuevoId, ticket.tareas || [], auditoria);
     await vincularProductosLocal(nuevoId, ticket.productos || [], auditoria);
 
+    const esEstadoTerminado = (est) => String(est || '').trim().toLowerCase() === 'terminado';
+    const esTerminado = esEstadoTerminado(ticket.estado) || esEstadoTerminado(payload.estado_ticket);
+
     if (ticket.equipoId) {
-      if (ticket.estado === 'en_mantenimiento' || payload.estado_ticket === 'En mantenimiento') {
+      if (String(ticket.estado || '').toLowerCase() === 'en_mantenimiento' || payload.estado_ticket === 'En mantenimiento') {
         await actualizarEstadoEquipo(ticket.equipoId, 'mantenimiento');
-      } else if (ticket.estado === 'terminado' || payload.estado_ticket === 'Terminado') {
+      } else if (esTerminado) {
         await reiniciarHorasEquipo(ticket.equipoId);
       }
     }
 
-    if (ticket.estado === 'terminado' || payload.estado_ticket === 'Terminado') {
+    if (esTerminado) {
       await descontarStockLocal(ticket.productos || []);
     }
 
@@ -581,6 +778,12 @@ export async function actualizarTicket(ticket) {
   if (!targetId) throw new Error(MENSAJES_SERVICIOS?.sinIdActualizar || 'No se pudo actualizar el ticket');
 
   try {
+    // 1. Obtener ticket previo para conocer su estado y productos anteriores
+    let ticketAnterior = null;
+    try {
+      ticketAnterior = await obtenerTicketPorId(targetId);
+    } catch (_) { }
+
     const auditoria = await obtenerCamposAuditoria();
     const payload = buildPayloadLocal(ticket, auditoria);
     const res = await localApi.mantenimientoEquipo.actualizar(targetId, payload);
@@ -592,20 +795,44 @@ export async function actualizarTicket(ticket) {
     await sincronizarTareasLocal(targetId, ticket.tareas, auditoria);
     await sincronizarProductosLocal(targetId, ticket.productos, auditoria);
 
+    const esEstadoTerminado = (est) => String(est || '').trim().toLowerCase() === 'terminado';
+
+    const eraTerminado = ticketAnterior && (
+      esEstadoTerminado(ticketAnterior.estado) ||
+      esEstadoTerminado(ticketAnterior.estado_ticket)
+    );
+    const esTerminado = (
+      esEstadoTerminado(ticket.estado) ||
+      esEstadoTerminado(payload.estado_ticket)
+    );
+
     if (ticket.equipoId) {
-      if (ticket.estado === 'en_mantenimiento' || payload.estado_ticket === 'En mantenimiento') {
+      if (String(ticket.estado || '').toLowerCase() === 'en_mantenimiento' || payload.estado_ticket === 'En mantenimiento') {
         await actualizarEstadoEquipo(ticket.equipoId, 'mantenimiento');
-      } else if (ticket.estado === 'terminado' || payload.estado_ticket === 'Terminado') {
+      } else if (esTerminado) {
         await reiniciarHorasEquipo(ticket.equipoId);
       }
     }
 
-    const ticketActualizado = await obtenerTicketPorId(targetId);
-
-    if (ticket.estado === 'terminado' || payload.estado_ticket === 'Terminado') {
+    // 2. Control de Stock
+    if (!eraTerminado && esTerminado) {
+      // De 'En espera' / 'En mantenimiento' a 'Terminado' -> Disminuir stock
+      await descontarStockLocal(ticket.productos || []);
+    } else if (eraTerminado && !esTerminado) {
+      // De 'Terminado' a 'En espera' / 'En mantenimiento' -> Restaurar stock
+      const prodsARestaurar = (ticketAnterior?.productos && ticketAnterior.productos.length > 0)
+        ? ticketAnterior.productos
+        : (ticket.productos || []);
+      await restaurarStockLocal(prodsARestaurar);
+    } else if (eraTerminado && esTerminado) {
+      // Se mantuvo en Terminado pero los productos o cantidades pudieron variar
+      if (ticketAnterior?.productos && ticketAnterior.productos.length > 0) {
+        await restaurarStockLocal(ticketAnterior.productos);
+      }
       await descontarStockLocal(ticket.productos || []);
     }
 
+    const ticketActualizado = await obtenerTicketPorId(targetId);
     return ticketActualizado;
   } catch (err) {
     throw new Error(err.message || 'No se pudo actualizar el ticket');
@@ -617,9 +844,19 @@ export async function eliminarTicket(id) {
   const targetId = Number(String(id).replace(/\D/g, ''));
   if (!targetId) throw new Error(MENSAJES_SERVICIOS?.idInvalidoEliminar || 'ID de ticket inválido');
   try {
+    let ticketAnterior = null;
+    try {
+      ticketAnterior = await obtenerTicketPorId(targetId);
+    } catch (_) { }
+
     const res = await localApi.mantenimientoEquipo.eliminar(targetId);
     if (!res.success) {
       throw new Error(res.message || 'No se pudo eliminar el ticket');
+    }
+
+    const esEstadoTerminado = (est) => String(est || '').trim().toLowerCase() === 'terminado';
+    if (ticketAnterior && (esEstadoTerminado(ticketAnterior.estado) || esEstadoTerminado(ticketAnterior.estado_ticket))) {
+      await restaurarStockLocal(ticketAnterior.productos || []);
     }
   } catch (err) {
     throw new Error(err.message || 'No se pudo eliminar el ticket');

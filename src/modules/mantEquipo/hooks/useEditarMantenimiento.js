@@ -272,7 +272,7 @@ export function useEditarMantenimiento({ id, onNavigateToDetail, onNavigateToMai
       } else if (!validarCostoManoObra(costoManoObra)) {
         err.costoManoObra = true;
         mensaje = TEXTOS_MODAL_AGREGAR.hintCostoManoObra;
-      } else if (estadoTicket === ESTADOS_TICKET.TERMINADO &&
+      } else if ((estadoTicket === ESTADOS_TICKET.TERMINADO || String(estadoTicket || '').toLowerCase() === 'terminado') &&
                  tareasSeleccionadas.some(t => !t.realizada)) {
         err.tareasPendientes = true;
         mensaje = TEXTOS_MODAL_AGREGAR.errorTareasPendientes;
@@ -316,7 +316,9 @@ export function useEditarMantenimiento({ id, onNavigateToDetail, onNavigateToMai
     try {
       await MantService.actualizarTicket(ticketActualizado);
       if (estadoEquipo) await MantService.actualizarEstadoEquipo(equipoId, estadoEquipo);
-      if (estadoTicket === ESTADOS_TICKET.TERMINADO) await MantService.reiniciarHorasEquipo(equipoId);
+      if (estadoTicket === ESTADOS_TICKET.TERMINADO || String(estadoTicket || '').toLowerCase() === 'terminado') {
+        await MantService.reiniciarHorasEquipo(equipoId);
+      }
 
       onNavigateToDetail(ticketOriginal?.id, {
         alertaTipo:    'success',
