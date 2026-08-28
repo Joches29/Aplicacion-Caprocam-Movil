@@ -139,12 +139,6 @@ export function useDetalleEquipoScreen({ id, router }) {
     setDeleteTarget(null);
   };
 
-  const handleEstanquePress = () => {
-    if (estanque) {
-      router.push(`/estanques/detalle?id=${estanque.value}`);
-    }
-  };
-
   // Contador en vivo
   const [now, setNow] = useState(Date.now());
 
@@ -203,7 +197,6 @@ export function useDetalleEquipoScreen({ id, router }) {
     handleEliminarPress,
     confirmDelete,
     cancelDelete,
-    handleEstanquePress,
     // Valores derivados para facilitar la pantalla
     tipoIcon,
     tipoLabel,

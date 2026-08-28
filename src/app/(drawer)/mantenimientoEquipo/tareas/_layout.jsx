@@ -1,6 +1,11 @@
 import { Stack } from "expo-router";
 import { COLORS } from "../../../../theme/colors.js";
 
+// Ocultar esta sub-ruta del Drawer padre
+export const unstable_settings = {
+  drawerItemStyle: { display: "none" },
+};
+
 export default function MantEquipoTareasLayout() {
   return (
     <Stack

@@ -199,7 +199,29 @@ export const equiposService = {
         throw new Error(respuesta.message || "No se pudieron obtener los equipos");
       }
 
-      let resultados = mapEquiposLocal(respuesta.data);
+      // Obtener mapa de estanques para enriquecer con estanqueNombre
+      const estanquesMap = {};
+      try {
+        const respuestaEstanques = await localApi.estanques.obtenerTodos();
+        if (respuestaEstanques.success && Array.isArray(respuestaEstanques.data)) {
+          respuestaEstanques.data.forEach((est) => {
+            const nombreCompleto = est.tipo_estanque
+              ? `${est.codigo || `Estanque ${est.id}`} (${est.tipo_estanque})`
+              : (est.codigo || `Estanque ${est.id}`);
+            estanquesMap[String(est.id)] = nombreCompleto;
+            if (est.servidor_id) {
+              estanquesMap[String(est.servidor_id)] = nombreCompleto;
+            }
+          });
+        }
+      } catch (_) {}
+
+      let resultados = mapEquiposLocal(respuesta.data).map((eq) => ({
+        ...eq,
+        estanqueNombre: (eq.estanqueId && estanquesMap[String(eq.estanqueId)])
+          ? estanquesMap[String(eq.estanqueId)]
+          : "No asociado",
+      }));
 
       if (filtros.tipo) {
         resultados = resultados.filter((e) => e.tipo === filtros.tipo);
@@ -228,7 +250,7 @@ export const equiposService = {
   },
 
   /**
-   * Obtiene un equipo por su ID local de SQLite.
+   * Obtiene un equipo por su ID local de SQLite con nombre de estanque resuelto.
    */
   async getEquipoById(id) {
     try {
@@ -236,7 +258,41 @@ export const equiposService = {
       if (!respuesta.success || !respuesta.data) {
         throw new Error("No se pudo encontrar el equipo");
       }
-      return mapEquipoLocal(respuesta.data);
+      const equipoMapped = mapEquipoLocal(respuesta.data);
+      if (equipoMapped) {
+        if (equipoMapped.estanqueId) {
+          try {
+            const resEstanque = await localApi.estanques.obtenerPorId(Number(equipoMapped.estanqueId));
+            if (resEstanque.success && resEstanque.data) {
+              const est = resEstanque.data;
+              equipoMapped.estanqueNombre = est.tipo_estanque
+                ? `${est.codigo || `Estanque ${est.id}`} (${est.tipo_estanque})`
+                : (est.codigo || `Estanque ${est.id}`);
+            } else {
+              const resEstanques = await localApi.estanques.obtenerTodos();
+              if (resEstanques.success && Array.isArray(resEstanques.data)) {
+                const est = resEstanques.data.find(
+                  (e) => String(e.id) === String(equipoMapped.estanqueId) || String(e.servidor_id) === String(equipoMapped.estanqueId)
+                );
+                if (est) {
+                  equipoMapped.estanqueNombre = est.tipo_estanque
+                    ? `${est.codigo || `Estanque ${est.id}`} (${est.tipo_estanque})`
+                    : (est.codigo || `Estanque ${est.id}`);
+                } else {
+                  equipoMapped.estanqueNombre = "No asociado";
+                }
+              } else {
+                equipoMapped.estanqueNombre = "No asociado";
+              }
+            }
+          } catch (_) {
+            equipoMapped.estanqueNombre = "No asociado";
+          }
+        } else {
+          equipoMapped.estanqueNombre = "No asociado";
+        }
+      }
+      return equipoMapped;
     } catch (err) {
       throw new Error(err.message || "No se pudo encontrar el equipo");
     }
@@ -249,6 +305,9 @@ export const equiposService = {
     try {
       const auditoria = await obtenerCamposAuditoria();
       const payloadLocal = mapEquipoFrontendALocal(data);
+      if (payloadLocal.identificador && payloadLocal.identificador.length > 50) {
+        throw new Error("El identificador no puede exceder 50 caracteres.");
+      }
 
       // Validar que no exista un equipo activo con el mismo identificador (código)
       const identificador = payloadLocal.identificador;
@@ -452,7 +511,9 @@ export const equiposService = {
       const respuesta = await localApi.estanques.obtenerTodos();
       if (!respuesta.success) return [];
       return (respuesta.data || []).map((estanque) => ({
-        label: `${estanque.codigo} (${estanque.tipo_estanque})`,
+        label: estanque.tipo_estanque
+          ? `${estanque.codigo || `Estanque ${estanque.id}`} (${estanque.tipo_estanque})`
+          : (estanque.codigo || `Estanque ${estanque.id}`),
         value: String(estanque.id),
       }));
     } catch (err) {

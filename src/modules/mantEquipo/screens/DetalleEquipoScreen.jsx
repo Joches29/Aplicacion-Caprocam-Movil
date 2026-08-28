@@ -22,7 +22,7 @@
  * Navegación:
  * - Botón "Editar equipo" abre el formulario de registro/edición.
  * - Botón "Eliminar equipo" abre ModalEliminar y, al confirmar, elimina y regresa a la lista con alerta verde.
- * - Clic en el estanque asociado navega a detalle del estanque.
+ * - Estanque asociado se muestra como texto informativo (no navegable en móvil).
  *
  * Estándares cumplidos:
  * - Botones CRUD con texto "Editar equipo" / "Eliminar equipo" (#4)
@@ -100,7 +100,6 @@ export default function DetalleEquipoScreen() {
     handleEliminarPress,
     confirmDelete,
     cancelDelete,
-    handleEstanquePress,
     tipoIcon,
     tipoLabel,
     estadoLabel,
@@ -196,7 +195,7 @@ export default function DetalleEquipoScreen() {
             icon={ICONS.water}
             label="Estanque asociado"
             value={estanque ? estanque.label : 'No asociado'}
-            onPress={estanque ? handleEstanquePress : undefined}
+            
           />
         </Card>
 

@@ -62,7 +62,7 @@ export const LABELS_EQUIPO_DETALLE = [
   ["codigo",       "Código"],
   ["tipo",         "Tipo"],
   ["descripcion",  "Descripción"],
-  ["ubicacion",    "Ubicación"],
+  ["estanqueNombre","Estanque asociado"],
   ["estado",       "Estado actual"],
   ["funcionEquipo","Función"],
   ["horasUso",     "Horas de uso actual"],
