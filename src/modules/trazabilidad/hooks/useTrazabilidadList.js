@@ -11,13 +11,14 @@
  * @navigation Navega a /trazabilidad/agregar y /trazabilidad/:id.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import {
   getRegistros,
   obtenerFincas,
   obtenerColaboradores,
+  obtenerUsuarios,
   obtenerTodosLosEstanques,
   construirMapas,
   enriquecerRegistros,
@@ -43,6 +44,7 @@ export function useTrazabilidadList() {
   const [fincas, setFincas] = useState([]);
   const [colaboradoresCat, setColaboradoresCat] = useState([]);
   const [estanques, setEstanques] = useState([]);
+  const [usuariosCat, setUsuariosCat] = useState([]);
 // Errores fuera de un formulario (cargar catálogos o el listado):
   // se muestran con el mismo Alert que ya usa la pantalla, no en
   // console.error ni en silencio. 401 = token vencido.
@@ -70,7 +72,21 @@ export function useTrazabilidadList() {
     router.replace("/login");
   }
 
-  useEffect(() => {
+  /*
+  Los catalogos se recargan cada vez que la pantalla toma foco, NO
+  solo al montarse.
+
+  Motivo: los catalogos se descargan desde Configuracion, en otra
+  pantalla. Si se cargaban una sola vez con useEffect([], ...) y el
+  usuario sincronizaba con la app ya abierta, la pantalla se quedaba
+  con las listas vacias de antes de sincronizar. Los registros si se
+  veian, pero sin finca ni estanques porque el cruce no encontraba
+  nada contra un catalogo vacio.
+
+  Con useFocusEffect basta con volver a entrar a Trazabilidad
+  despues de sincronizar para que los nombres aparezcan.
+  */
+  const cargarCatalogos = useCallback(() => {
     obtenerFincas().then(setFincas).catch((error) => {
       setFincas([]);
       mostrarErrorCarga("No se pudieron cargar las fincas.", error);
@@ -85,7 +101,21 @@ export function useTrazabilidadList() {
       setEstanques([]);
       mostrarErrorCarga("No se pudieron cargar los estanques.", error);
     });
+
+    /*
+    Los usuarios se leen de SQLite igual que el resto. Hacen falta
+    para los registros creados desde web, que guardan
+    creado_por_usuario_id en vez de un colaborador.
+
+    Si falla no se muestra error al usuario: es un catalogo
+    secundario y la pantalla funciona igual mostrando el id.
+    */
+    obtenerUsuarios()
+      .then(setUsuariosCat)
+      .catch(() => setUsuariosCat([]));
   }, []);
+
+  useFocusEffect(cargarCatalogos);
 
   useFocusEffect(
     useCallback(() => {
@@ -136,8 +166,13 @@ export function useTrazabilidadList() {
   );
 
   const mapas = useMemo(
-    () => construirMapas({ fincas, colaboradores: colaboradoresCat, estanques }),
-    [fincas, colaboradoresCat, estanques],
+    () => construirMapas({
+      fincas,
+      colaboradores: colaboradoresCat,
+      estanques,
+      usuarios: usuariosCat,
+    }),
+    [fincas, colaboradoresCat, estanques, usuariosCat],
   );
 
   const registrosEnriquecidos = useMemo(
