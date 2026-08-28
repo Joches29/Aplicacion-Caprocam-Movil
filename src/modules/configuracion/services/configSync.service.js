@@ -18,6 +18,7 @@ CONSTANTES
 const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
 
 const MAPEO_DESCARGA = {
+  usuarios: "usuarios",
   fincas: "fincas",
   estanques: "estanques",
   proveedores: "proveedores",
@@ -26,7 +27,6 @@ const MAPEO_DESCARGA = {
   inventario: "inventario",
   equipos: "equipos",
   tareas: "tareas",
-  colaboradores: "colaboradores",
   laboratorios: "laboratorios",
   procedencias: "procedencias",
   proveedoresLarva: "proveedores_larva",
@@ -39,6 +39,7 @@ const MAPEO_DESCARGA = {
   detalleFisicoQuimica: "fisico_quimico_detalle",
   crecimientos: "crecimientos",
   calculosCrecimiento: "calculos_crecimiento",
+  trazabilidad: "trazabilidad",
   ventas: "ventas",
   mantenimientos: "mantenimiento_equipo",
   mantenimientoTareas: "mantenimiento_equipo_tareas",
@@ -245,6 +246,13 @@ const normalizarPorTabla = async (
   }
 
   switch (tabla) {
+    case "usuarios":
+      if (!r.password_hash) {
+        r.password_hash =
+          "__SYNC_PLACEHOLDER__";
+      }
+      break;
+
     case "fincas":
       if (r.codigo_c_b_o !== undefined) {
         r.codigo_cbo =
@@ -606,6 +614,67 @@ const normalizarPorTabla = async (
             r.lectura_id,
             "lectura fisico quimica"
           );
+      }
+      break;
+
+    case "trazabilidad":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca de trazabilidad"
+          );
+      }
+
+      if (r.estanque_origen_id != null) {
+        r.estanque_origen_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_origen_id,
+            "estanque origen de trazabilidad",
+            true
+          );
+      }
+
+      if (r.estanque_destino_id != null) {
+        r.estanque_destino_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_destino_id,
+            "estanque destino de trazabilidad",
+            true
+          );
+      }
+
+      if (r.creado_por_usuario_id != null) {
+        const usuarioLocal =
+          await obtenerIdLocalDesdeServidor(
+            localApi.usuarios,
+            r.creado_por_usuario_id,
+            "usuario creador de trazabilidad",
+            true
+          );
+
+        if (usuarioLocal != null) {
+          r.creado_por_usuario_id =
+            usuarioLocal;
+        }
+      }
+
+      if (r.creado_por_colaborador_id != null) {
+        const colaboradorLocal =
+          await obtenerIdLocalDesdeServidor(
+            localApi.colaboradores,
+            r.creado_por_colaborador_id,
+            "colaborador creador de trazabilidad",
+            true
+          );
+
+        if (colaboradorLocal != null) {
+          r.creado_por_colaborador_id =
+            colaboradorLocal;
+        }
       }
       break;
 
@@ -1129,13 +1198,14 @@ export const configSyncService = {
         inventarioCount: data.inventario?.length ?? 0,
         equiposCount: data.equipos?.length ?? 0,
         tareasCount: data.tareas?.length ?? 0,
-        colaboradoresCount: data.colaboradores?.length ?? 0,
+        usuariosCount: data.usuarios?.length ?? 0,
         laboratoriosCount: data.laboratorios?.length ?? 0,
         procedenciasCount: data.procedencias?.length ?? 0,
         proveedoresLarvaCount: data.proveedoresLarva?.length ?? 0,
         lotesLarvaCount: data.lotesLarva?.length ?? 0,
         precriasCount: data.precrias?.length ?? 0,
         siembrasCount: data.siembras?.length ?? 0,
+        trazabilidadCount: data.trazabilidad?.length ?? 0,
         enfermedadesCount: data.enfermedades?.length ?? 0,
         parasitologiasCount: data.parasitologias?.length ?? 0,
         fisicoQuimicaCount: data.fisicoQuimica?.length ?? 0,
