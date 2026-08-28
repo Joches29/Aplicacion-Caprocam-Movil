@@ -1,4 +1,5 @@
 /**
+ * Autor: Greivin Eliecer A.G
  * configSync.service.js
  * Sincronizacion Nube -> Movil y Movil -> Nube
  */
@@ -8,6 +9,7 @@ import * as Application from "expo-application";
 
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
+import { saveToken, getToken, cargarSesionPersistida } from "../../login/utils/tokenStorage";
 
 /*
 ============================================================
@@ -1142,8 +1144,36 @@ SERVICIO PRINCIPAL
 */
 
 export const configSyncService = {
+  validarTokenAntesDeSincronizar: async () => {
+    try {
+      await cargarSesionPersistida();
+
+      const resp = await api.get('/sync/validate-token');
+      if (resp.data?.data?.token) {
+        const nuevoToken = resp.data.data.token;
+        const currentToken = getToken();
+        if (nuevoToken !== currentToken) {
+          await saveToken(nuevoToken);
+        }
+      }
+      return true;
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return false;
+      }
+      throw err;
+    }
+  },
+
   sincronizarCatalogos: async () => {
     try {
+      const tokenValido = await configSyncService.validarTokenAntesDeSincronizar();
+      if (!tokenValido) {
+        const e = new Error("Sesion no autorizada o expirada. Por favor inicie sesion de nuevo.");
+        e.status = 401;
+        throw e;
+      }
+
       await localApi.inicializar();
 
       const respuesta = await api.get("/sync/sincronizar");
@@ -1237,6 +1267,13 @@ export const configSyncService = {
 
   subirCambiosPendientes: async () => {
     try {
+      const tokenValido = await configSyncService.validarTokenAntesDeSincronizar();
+      if (!tokenValido) {
+        const e = new Error("Sesion no autorizada o expirada. Por favor inicie sesion de nuevo.");
+        e.status = 401;
+        throw e;
+      }
+
       await localApi.inicializar();
 
       const respuestaPendientes = await localApi.sync.obtenerPendientes();
