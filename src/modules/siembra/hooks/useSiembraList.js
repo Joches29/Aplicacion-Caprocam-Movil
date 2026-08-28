@@ -62,6 +62,60 @@ function haFinalizado(registro) {
   return String(registro.estado || "").toLowerCase() === "finalizada";
 }
 
+function obtenerIdLocal(registro) {
+  return (
+    registro?.id ??
+    registro?.idLocal ??
+    registro?.id_local ??
+    null
+  );
+}
+
+function obtenerIdServidor(registro) {
+  return (
+    registro?.servidorId ??
+    registro?.servidor_id ??
+    null
+  );
+}
+
+function buscarRelacionPorId(registros, referenciaId) {
+  if (
+    referenciaId === undefined ||
+    referenciaId === null ||
+    referenciaId === ""
+  ) {
+    return null;
+  }
+
+  const referencia = String(referenciaId);
+
+  const porIdLocal = (registros || []).find(
+    (registro) =>
+      String(obtenerIdLocal(registro)) === referencia
+  );
+
+  if (porIdLocal) {
+    return porIdLocal;
+  }
+
+  const porIdServidor = (registros || []).find(
+    (registro) =>
+      String(obtenerIdServidor(registro)) === referencia
+  );
+
+  if (porIdServidor) {
+    return porIdServidor;
+  }
+
+  return (
+    (registros || []).find(
+      (registro) =>
+        String(registro?.value) === referencia
+    ) ?? null
+  );
+}
+
 export default function useSiembraList() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -111,34 +165,61 @@ export default function useSiembraList() {
   ];
 
   function obtenerNombresFincaEstanque(registro) {
-    const fincaId = registro.finca_id ?? registro.fincaId;
-    const estanqueId = registro.estanque_id ?? registro.estanqueId;
-    const finca = fincas.find(
-      (f) =>
-        String(f.id) === String(fincaId) ||
-        String(f.servidorId) === String(fincaId) ||
-        String(f.value) === String(fincaId)
-    );
-    const estanque = estanques.find(
-      (e) =>
-        String(e.id) === String(estanqueId) ||
-        String(e.servidorId) === String(estanqueId) ||
-        String(e.value) === String(estanqueId)
-    );
-    const estanqueCodigo = estanque?.codigo;
-    const estanqueFormatted = estanqueCodigo
-      ? estanqueCodigo.toLowerCase().startsWith("estanque") || estanqueCodigo.toLowerCase().startsWith("tanque")
+    const fincaId =
+      registro.finca_id ??
+      registro.fincaId;
+
+    const estanqueId =
+      registro.estanque_id ??
+      registro.estanqueId;
+
+    const finca =
+      buscarRelacionPorId(
+        fincas,
+        fincaId
+      );
+
+    const estanque =
+      buscarRelacionPorId(
+        estanques,
+        estanqueId
+      );
+
+    const estanqueCodigo =
+      estanque?.codigo ??
+      null;
+
+    const estanqueFormatted =
+      estanqueCodigo
         ? estanqueCodigo
-        : `Estanque ${estanqueCodigo}`
-      : estanque?.nombre || (estanqueId ? `Estanque #${estanqueId}` : "Sin estanque");
+          .toLowerCase()
+          .startsWith("estanque") ||
+          estanqueCodigo
+            .toLowerCase()
+            .startsWith("tanque")
+          ? estanqueCodigo
+          : `Estanque ${estanqueCodigo}`
+        : estanque?.nombre ||
+        estanque?.label ||
+        (
+          estanqueId
+            ? `Estanque #${estanqueId}`
+            : "Sin estanque"
+        );
 
     return {
       fincaLabel:
         finca?.nombreFinca ||
         finca?.codigoCBO ||
         finca?.label ||
-        (fincaId ? `Finca #${fincaId}` : "Sin finca"),
-      estanqueLabel: estanqueFormatted,
+        (
+          fincaId
+            ? `Finca #${fincaId}`
+            : "Sin finca"
+        ),
+
+      estanqueLabel:
+        estanqueFormatted,
     };
   }
 
@@ -160,7 +241,7 @@ export default function useSiembraList() {
       fechaSiembra: formatearFechaDesdeISO(s.fecha_siembra),
       cantidadSembrada: s.cantidad_sembrada,
       plSiembra: s.pl_siembra != null ? `PL${s.pl_siembra}` : "",
-      diasMaduracion: s.duracion_ciclo || 90, 
+      diasMaduracion: s.duracion_ciclo || 90,
       produccionKg: s.produccion_kg || s.produccionKg || 0,
       ...obtenerDatosLote(s.lote_larva_id, lotesPorId),
     };

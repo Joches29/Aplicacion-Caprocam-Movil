@@ -195,7 +195,7 @@ async function obtenerRegistrosLocales(seccion) {
 function obtenerIdFinca(finca) {
     return Number(obtenerValor(
         finca,
-        ["servidor_id", "servidorId", "id", "fincaId", "idFinca", "finca_id"],
+        ["id", "fincaId", "idFinca", "finca_id", "servidor_id", "servidorId"],
         0
     ));
 }
@@ -203,9 +203,22 @@ function obtenerIdFinca(finca) {
 function obtenerIdEstanque(estanque) {
     return Number(obtenerValor(
         estanque,
-        ["servidor_id", "servidorId", "id", "estanqueId", "idEstanque", "estanque_id"],
+        ["id", "estanqueId", "idEstanque", "estanque_id", "servidor_id", "servidorId"],
         0
     ));
+}
+
+function resolverIdLocal(registros, referencia, obtenerId) {
+    const id = Number(referencia);
+    const local = registros.find((r) => obtenerId(r) === id);
+
+    if (local) return obtenerId(local);
+
+    const servidor = registros.find(
+        (r) => Number(r?.servidorId ?? r?.servidor_id ?? 0) === id,
+    );
+
+    return servidor ? obtenerId(servidor) : id;
 }
 
 function obtenerFincaIdEstanque(estanque) {
@@ -225,15 +238,15 @@ function obtenerIdEstanqueSiembra(siembra) {
 }
 
 function estanqueEstaActivo(estanque) {
-  const estado = normalizarTexto(
-    obtenerValor(estanque, ["estado"], "")
-  );
+    const estado = normalizarTexto(
+        obtenerValor(estanque, ["estado"], "")
+    );
 
-  return (
-    estado === "activo" ||
-    estado === "engorde" ||
-    estado === "mantenimiento"
-  );
+    return (
+        estado === "activo" ||
+        estado === "engorde" ||
+        estado === "mantenimiento"
+    );
 }
 
 function siembraEstaActiva(siembra) {
@@ -397,55 +410,53 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
     }, []);
 
     useEffect(() => {
+        if (!registroId) {
+            setCargandoRegistro(false);
+            return undefined;
+        }
+
+        if (cargandoOpciones) return undefined;
+
         let activo = true;
 
         async function cargarRegistro() {
-            if (!registroId) {
-                setCargandoRegistro(false);
-                return;
-            }
-
             try {
                 setCargandoRegistro(true);
-
-                await localApi.inicializar();
 
                 const registro = await EnfermedadesLocalService.getById(registroId);
 
                 if (!activo || !registro) return;
 
-                setFinca(String(obtenerValor(registro, ["fincaId", "finca_id"], "")));
-                setEstanque(String(obtenerValor(registro, ["estanqueId", "estanque_id"], "")));
+                const fincaId = resolverIdLocal(
+                    fincas,
+                    registro.fincaId ?? registro.finca_id,
+                    obtenerIdFinca,
+                );
 
+                const estanqueId = resolverIdLocal(
+                    estanques,
+                    registro.estanqueId ?? registro.estanque_id,
+                    obtenerIdEstanque,
+                );
+
+                setFinca(fincaId > 0 ? String(fincaId) : "");
+                setEstanque(estanqueId > 0 ? String(estanqueId) : "");
                 setFechaReporte(
                     formatearFechaUI(
-                        obtenerValor(
-                            registro,
-                            ["fechaReporte", "fecha_reporte", "fecha"],
-                            ""
-                        )
+                        registro.fechaReporte ??
+                        registro.fecha_reporte ??
+                        registro.fecha
                     )
                 );
-
-                setEnfermedad(obtenerValor(registro, ["enfermedad"], ""));
-                setSeveridad(obtenerValor(registro, ["severidad"], ""));
-
-                const responsableRegistro = obtenerValor(
-                    registro,
-                    ["responsable"],
-                    ""
-                );
-
-                if (responsableRegistro) {
-                    setResponsable(responsableRegistro);
-                }
-
-                setReporte(obtenerValor(registro, ["reporte"], "") || "");
+                setEnfermedad(registro.enfermedad ?? "");
+                setSeveridad(registro.severidad ?? "");
+                setReporte(registro.reporte ?? "");
+                setResponsable(registro.responsable ?? "No disponible");
             } catch (error) {
-                if (activo) {
-                    setTipoMensaje("danger");
-                    setMensaje("No se pudo cargar el registro local.");
-                }
+                if (!activo) return;
+
+                setTipoMensaje("danger");
+                setMensaje(error.message || "No se pudo cargar el registro.");
             } finally {
                 if (activo) setCargandoRegistro(false);
             }
@@ -456,7 +467,7 @@ export default function useEditarEnfermedad(registroId, onGuardado) {
         return () => {
             activo = false;
         };
-    }, [registroId]);
+    }, [registroId, cargandoOpciones, fincas, estanques]);
 
     const opcionesFincas = useMemo(() => {
         return fincas

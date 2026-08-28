@@ -182,31 +182,16 @@ function obtenerIdFinca(finca) {
   return idLocal > 0 ? idLocal : servidorId;
 }
 
-function obtenerIdsValidosFinca(finca, fincaSeleccionada = null) {
-  const ids = [
-    Number(fincaSeleccionada),
-    obtenerIdLocalFinca(finca),
-    obtenerServidorIdFinca(finca),
-  ];
-
-  return ids.filter(function (id, index, arreglo) {
-    return Number(id) > 0 && arreglo.indexOf(id) === index;
-  });
-}
-
-function fincaCoincideConSeleccion(finca, fincaSeleccionada) {
-  return obtenerIdsValidosFinca(
-    finca,
-    fincaSeleccionada
-  ).includes(Number(fincaSeleccionada));
-}
-
 function obtenerIdsValidosDeFincaSeleccionada(fincas, fincaSeleccionada) {
   const fincaActual = fincas.find(function (item) {
-    return fincaCoincideConSeleccion(item, fincaSeleccionada);
+    return obtenerIdLocalFinca(item) === Number(fincaSeleccionada);
   });
 
-  return obtenerIdsValidosFinca(fincaActual, fincaSeleccionada);
+  if (!fincaActual) {
+    return [];
+  }
+
+  return [obtenerIdLocalFinca(fincaActual)];
 }
 
 function obtenerIdEstanque(estanque) {

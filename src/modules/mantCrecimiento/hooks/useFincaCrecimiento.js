@@ -122,30 +122,24 @@ function obtenerIdFinca(finca) {
   return servidorId;
 }
 
-function obtenerIdsValidosFinca(finca, fincaSeleccionada = null) {
-  const ids = [
-    obtenerNumero(fincaSeleccionada),
-    obtenerIdLocalFinca(finca),
-    obtenerServidorIdFinca(finca),
-  ];
-
-  return ids.filter(function (id, index, arreglo) {
-    return id > 0 && arreglo.indexOf(id) === index;
-  });
-}
-
-function fincaCoincideConSeleccion(finca, fincaSeleccionada) {
-  const idsValidos = obtenerIdsValidosFinca(finca, fincaSeleccionada);
-
-  return idsValidos.includes(obtenerNumero(fincaSeleccionada));
-}
-
-function obtenerIdsValidosDeFincaSeleccionada(fincas, fincaSeleccionada) {
+function obtenerIdsValidosDeFincaSeleccionada(
+  fincas,
+  fincaSeleccionada
+) {
   const fincaActual = fincas.find(function (finca) {
-    return fincaCoincideConSeleccion(finca, fincaSeleccionada);
+    return (
+      obtenerIdLocalFinca(finca) ===
+      obtenerNumero(fincaSeleccionada)
+    );
   });
 
-  return obtenerIdsValidosFinca(fincaActual, fincaSeleccionada);
+  if (!fincaActual) {
+    return [];
+  }
+
+  return [
+    obtenerIdLocalFinca(fincaActual),
+  ];
 }
 
 function obtenerNombreFinca(finca, id) {
@@ -197,22 +191,22 @@ function obtenerIdEstanque(estanque) {
   return servidorId;
 }
 
-function obtenerIdsValidosEstanque(estanque, estanqueSeleccionado = null) {
-  const ids = [
-    obtenerNumero(estanqueSeleccionado),
-    obtenerIdLocalEstanque(estanque),
-    obtenerServidorIdEstanque(estanque),
-  ];
+function obtenerIdsValidosEstanque(estanque) {
+  const idLocal = obtenerIdLocalEstanque(estanque);
 
-  return ids.filter(function (id, index, arreglo) {
-    return id > 0 && arreglo.indexOf(id) === index;
-  });
+  return idLocal > 0
+    ? [idLocal]
+    : [];
 }
 
-function estanqueCoincideConSeleccion(estanque, estanqueSeleccionado) {
-  const idsValidos = obtenerIdsValidosEstanque(estanque, estanqueSeleccionado);
-
-  return idsValidos.includes(obtenerNumero(estanqueSeleccionado));
+function estanqueCoincideConSeleccion(
+  estanque,
+  estanqueSeleccionado
+) {
+  return (
+    obtenerIdLocalEstanque(estanque) ===
+    obtenerNumero(estanqueSeleccionado)
+  );
 }
 
 function obtenerFincaIdEstanque(estanque) {
