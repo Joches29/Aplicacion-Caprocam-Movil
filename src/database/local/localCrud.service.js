@@ -305,6 +305,25 @@ const aplicarGrupoDatosActivo = (
 };
 
 /**
+ * Normaliza nombres de filtros usados por los servicios
+ * hacia los nombres reales de columnas SQLite.
+ *
+ * @param {string} campo - Campo recibido.
+ * @returns {string} Nombre de columna local.
+ */
+const normalizarCampoFiltro = (campo) => {
+    const alias = {
+        fincaId: "finca_id",
+        idFinca: "finca_id",
+        estanqueId: "estanque_id",
+        idEstanque: "estanque_id",
+        servidorId: "servidor_id"
+    };
+
+    return alias[campo] ?? campo;
+};
+
+/**
  * Construye un WHERE dinamico con filtros permitidos.
  * @param {string} tabla - Nombre de tabla.
  * @param {object} filtros - Filtros recibidos.
@@ -338,20 +357,22 @@ const construirWhere = (
         }
     }
 
-    Object.keys(filtros).forEach((campo) => {
+    Object.keys(filtros).forEach((campoOriginal) => {
         if (
-            campo === "grupoDatos" ||
-            campo === "grupo_datos"
+            campoOriginal === "grupoDatos" ||
+            campoOriginal === "grupo_datos"
         ) {
             return;
         }
 
+        const campo = normalizarCampoFiltro(campoOriginal);
+
         if (
-            campo !== "incluirInactivos" &&
+            campoOriginal !== "incluirInactivos" &&
             columnasPermitidas.includes(campo)
         ) {
             condiciones.push(`${campo} = ?`);
-            valores.push(filtros[campo]);
+            valores.push(filtros[campoOriginal]);
         }
     });
 

@@ -10,7 +10,10 @@
  */
 
 import { useState } from "react";
-import { View, ScrollView, Alert as RNAlert } from "react-native";
+import {
+  View,
+  ScrollView,
+} from "react-native";
 
 import Alert from "../../../shared/components/Alert";
 import Avatar from "../../../shared/components/Avatar";
@@ -29,47 +32,92 @@ import { useLoginFlow } from "../hooks/useLoginFlow";
 import SearchBar from "../../../shared/components/SearchBar";
 import styles from "../styles/loginStyles";
 import { STYLE } from "../../../theme/style";
-import { probarBaseLocal } from "../../../database/local/testLocalDb.service";
+
+import {
+  eliminarBaseLocal,
+} from "../../../database/local/sqlite.database";
+
+import {
+  localApi,
+} from "../../../database/local/localApi.service";
 
 /**
  * LoginScreen
  *
  * Composición principal de la pantalla.
  */
-export default function LoginScreen({ onLoginSuccess = () => { } }) {
-  const loginFlow = useLoginFlow({ onLoginSuccess });
+export default function LoginScreen({
+  onLoginSuccess = () => {},
+}) {
+  const loginFlow = useLoginFlow({
+    onLoginSuccess,
+  });
 
   return (
     <View style={STYLE.container}>
       <ScrollView
-        contentContainerStyle={STYLE.contentWrapper}
+        contentContainerStyle={
+          STYLE.contentWrapper
+        }
         showsVerticalScrollIndicator={false}
       >
-        <LoginHeader formattedDate={loginFlow.formattedDate} />
+        <LoginHeader
+          formattedDate={
+            loginFlow.formattedDate
+          }
+        />
 
         <WorkerSection
-          workers={loginFlow.filteredWorkers}
+          workers={
+            loginFlow.filteredWorkers
+          }
           loading={loginFlow.loading}
           error={loginFlow.error}
-          selectedWorker={loginFlow.selectedWorker}
-          onSelectWorker={loginFlow.setSelectedWorker}
-          onSyncData={loginFlow.handleSyncData}
-          onRefreshWorkers={loginFlow.refetch}
-          searchText={loginFlow.workerSearchText}
-          onSearchTextChange={loginFlow.setWorkerSearchText}
-          isFormValid={loginFlow.isFormValid}
-          onContinue={loginFlow.openPinModal}
+          selectedWorker={
+            loginFlow.selectedWorker
+          }
+          onSelectWorker={
+            loginFlow.setSelectedWorker
+          }
+          onSyncData={
+            loginFlow.handleSyncData
+          }
+          onRefreshWorkers={
+            loginFlow.refetch
+          }
+          searchText={
+            loginFlow.workerSearchText
+          }
+          onSearchTextChange={
+            loginFlow.setWorkerSearchText
+          }
+          isFormValid={
+            loginFlow.isFormValid
+          }
+          onContinue={
+            loginFlow.openPinModal
+          }
         />
       </ScrollView>
 
       <PinModal
-        visible={loginFlow.isPinModalVisible}
+        visible={
+          loginFlow.isPinModalVisible
+        }
         pinCode={loginFlow.pinCode}
         pinError={loginFlow.pinError}
-        isAuthenticating={loginFlow.isAuthenticating}
-        onClose={loginFlow.closePinModal}
-        onPinChange={loginFlow.handlePinChange}
-        onSubmit={loginFlow.submitPin}
+        isAuthenticating={
+          loginFlow.isAuthenticating
+        }
+        onClose={
+          loginFlow.closePinModal
+        }
+        onPinChange={
+          loginFlow.handlePinChange
+        }
+        onSubmit={
+          loginFlow.submitPin
+        }
       />
     </View>
   );
@@ -80,11 +128,19 @@ export default function LoginScreen({ onLoginSuccess = () => { } }) {
  *
  * Tarjeta superior con identidad de la app y fecha.
  */
-function LoginHeader({ formattedDate }) {
+function LoginHeader({
+  formattedDate,
+}) {
   return (
     <Card style={styles.heroCard}>
-      <View style={styles.logoContainer}>
-        <Icon icon={ICONS.shrimp} size={32} color={COLORS.primary} />
+      <View
+        style={styles.logoContainer}
+      >
+        <Icon
+          icon={ICONS.shrimp}
+          size={32}
+          color={COLORS.primary}
+        />
       </View>
 
       <Title
@@ -127,16 +183,40 @@ function WorkerSection({
   isFormValid,
   onContinue,
 }) {
-  // Estado de sincronización basado en el resultado real de onSyncData()
-  const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'danger'
-  const [syncMessage, setSyncMessage] = useState("");
+  const [
+    syncStatus,
+    setSyncStatus,
+  ] = useState(null);
 
-  // Estados para el Modal de Sincronización
-  const [isSyncModalVisible, setIsSyncModalVisible] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isUpdatingSqlite, setIsUpdatingSqlite] = useState(false);
-  const [cedula, setCedula] = useState("");
-  const [syncPin, setSyncPin] = useState("");
+  const [
+    syncMessage,
+    setSyncMessage,
+  ] = useState("");
+
+  const [
+    isSyncModalVisible,
+    setIsSyncModalVisible,
+  ] = useState(false);
+
+  const [
+    isSyncing,
+    setIsSyncing,
+  ] = useState(false);
+
+  const [
+    isUpdatingSqlite,
+    setIsUpdatingSqlite,
+  ] = useState(false);
+
+  const [
+    cedula,
+    setCedula,
+  ] = useState("");
+
+  const [
+    syncPin,
+    setSyncPin,
+  ] = useState("");
 
   const handleOpenSyncModal = () => {
     setCedula("");
@@ -151,80 +231,117 @@ function WorkerSection({
   };
 
   /**
-   * handleActualizarSQLite()
-   * Ejecuta la prueba temporal para reiniciar SQLite local
-   * y crear la estructura actualizada de la base local.
+   * Elimina la SQLite local y vuelve
+   * a crear la estructura vacia.
+   *
+   * No inserta datos de prueba.
    */
-  const handleActualizarSQLite = async () => {
-    setIsUpdatingSqlite(true);
-    setSyncStatus(null);
-    setSyncMessage("");
+  const handleActualizarSQLite =
+    async () => {
+      setIsUpdatingSqlite(true);
+      setSyncStatus(null);
+      setSyncMessage("");
 
-    try {
-      const result = await probarBaseLocal();
+      try {
+        await eliminarBaseLocal();
 
-      if (result && result.success) {
-        if (typeof onRefreshWorkers === "function") {
+        await localApi.inicializar();
+
+        if (
+          typeof onRefreshWorkers ===
+          "function"
+        ) {
           await onRefreshWorkers();
         }
 
         setSyncStatus("success");
-        setSyncMessage(result.message || "SQLite local actualizada correctamente.");
-      } else {
-        setSyncStatus("danger");
-        setSyncMessage(result?.message || "No se pudo actualizar SQLite local.");
-      }
-    } catch (err) {
-      setSyncStatus("danger");
-      setSyncMessage(err?.message || "Error al actualizar SQLite local.");
-    } finally {
-      setIsUpdatingSqlite(false);
 
-      setTimeout(() => {
-        setSyncStatus(null);
-        setSyncMessage("");
-      }, 5000);
-    }
-  };
+        setSyncMessage(
+          "SQLite local reiniciada correctamente. Ahora sincronice los usuarios."
+        );
+      } catch (err) {
+        setSyncStatus("danger");
+
+        setSyncMessage(
+          err?.message ||
+            "No se pudo reiniciar SQLite local."
+        );
+      } finally {
+        setIsUpdatingSqlite(false);
+
+        setTimeout(() => {
+          setSyncStatus(null);
+          setSyncMessage("");
+        }, 5000);
+      }
+    };
 
   /**
-   * handleConfirmSync()
-   * Ejecuta la sincronización real enviando Cédula y PIN al servicio.
+   * Ejecuta la sincronización real
+   * enviando Cédula y PIN.
    */
-  const handleConfirmSync = async () => {
-    setIsSyncing(true);
-    setSyncStatus(null);
-    setSyncMessage("");
+  const handleConfirmSync =
+    async () => {
+      setIsSyncing(true);
+      setSyncStatus(null);
+      setSyncMessage("");
 
-    try {
-      // Enviamos la cédula y el PIN al hook / servicio
-      const result = await onSyncData({ cedula, pin: syncPin });
+      try {
+        const result =
+          await onSyncData({
+            cedula,
+            pin: syncPin,
+          });
 
-      setIsSyncModalVisible(false);
+        setIsSyncModalVisible(
+          false
+        );
 
-      if (result && result.success) {
-        setSyncStatus("success");
-        setSyncMessage(result.message || "Sincronización completada con éxito.");
-      } else {
+        if (
+          result &&
+          result.success
+        ) {
+          if (
+            typeof onRefreshWorkers ===
+            "function"
+          ) {
+            await onRefreshWorkers();
+          }
+
+          setSyncStatus("success");
+
+          setSyncMessage(
+            result.message ||
+              "Sincronización completada con éxito."
+          );
+        } else {
+          setSyncStatus("danger");
+
+          setSyncMessage(
+            result?.message ||
+              "No se pudo sincronizar los datos."
+          );
+        }
+      } catch (err) {
+        setIsSyncModalVisible(
+          false
+        );
+
         setSyncStatus("danger");
-        setSyncMessage(result?.message || "No se pudo sincronizar los datos.");
-      }
-    } catch (err) {
-      setIsSyncModalVisible(false);
-      setSyncStatus("danger");
-      setSyncMessage(
-        err?.message || "Error de conexión o fallo al sincronizar con el servidor."
-      );
-    } finally {
-      setIsSyncing(false);
 
-      // Auto-ocultar el mensaje después de unos segundos
-      setTimeout(() => {
-        setSyncStatus(null);
-        setSyncMessage("");
-      }, 5000);
-    }
-  };
+        setSyncMessage(
+          err?.message ||
+            "Error de conexión o fallo al sincronizar con el servidor."
+        );
+      } finally {
+        setIsSyncing(false);
+
+        setTimeout(() => {
+          setSyncStatus(null);
+          setSyncMessage("");
+        }, 5000);
+      }
+    };
 
   return (
     <Card style={styles.sectionCard}>
@@ -244,7 +361,11 @@ function WorkerSection({
         />
       )}
 
-      <Title level={4} color={COLORS.textPrimary} align="center">
+      <Title
+        level={4}
+        color={COLORS.textPrimary}
+        align="center"
+      >
         {LOGIN_MESSAGES.WORKER_TITLE}
       </Title>
 
@@ -253,44 +374,84 @@ function WorkerSection({
         variant="outline"
         style={styles.syncButton}
       >
-        <View style={styles.buttonContent}>
+        <View
+          style={
+            styles.buttonContent
+          }
+        >
           <Icon
-            icon={ICONS.refresh || ICONS.update}
+            icon={
+              ICONS.refresh ||
+              ICONS.update
+            }
             size={18}
             color={COLORS.primary}
           />
-          <Text style={styles.buttonText}>
-            {LOGIN_MESSAGES.SYNC_BUTTON_TEXT}
+
+          <Text
+            style={styles.buttonText}
+          >
+            {
+              LOGIN_MESSAGES.SYNC_BUTTON_TEXT
+            }
           </Text>
         </View>
       </Button>
 
       <Button
-        onPress={handleActualizarSQLite}
+        onPress={
+          handleActualizarSQLite
+        }
         variant="outline"
         style={styles.syncButton}
-        disabled={isUpdatingSqlite}
+        disabled={
+          isUpdatingSqlite
+        }
       >
-        <View style={styles.buttonContent}>
+        <View
+          style={
+            styles.buttonContent
+          }
+        >
           <Icon
-            icon={ICONS.refresh || ICONS.update}
+            icon={
+              ICONS.refresh ||
+              ICONS.update
+            }
             size={18}
             color={COLORS.primary}
           />
-          <Text style={styles.buttonText}>
-            {isUpdatingSqlite ? "Actualizando SQLite..." : "Actualizar SQLite local"}
+
+          <Text
+            style={styles.buttonText}
+          >
+            {isUpdatingSqlite
+              ? "Reiniciando SQLite..."
+              : "Reiniciar SQLite local"}
           </Text>
         </View>
       </Button>
 
       <SearchBar
         value={searchText}
-        onChangeText={onSearchTextChange}
-        placeholder={LOGIN_MESSAGES.SEARCH_PLACEHOLDER}
-        containerStyle={styles.searchContainer}
+        onChangeText={
+          onSearchTextChange
+        }
+        placeholder={
+          LOGIN_MESSAGES.SEARCH_PLACEHOLDER
+        }
+        containerStyle={
+          styles.searchContainer
+        }
       />
 
-      {loading && <SectionStatus message={LOGIN_MESSAGES.LOADING} />}
+      {loading && (
+        <SectionStatus
+          message={
+            LOGIN_MESSAGES.LOADING
+          }
+        />
+      )}
 
       {error && (
         <Alert
@@ -301,75 +462,136 @@ function WorkerSection({
         />
       )}
 
-      {!loading && !error && (
-        <View style={styles.workersList}>
-          {workers.length === 0 ? (
-            <View
-              style={[
-                styles.workersScroll,
-                syncStatus && styles.workersScrollCompressed,
-                styles.centerContent,
-              ]}
-            >
-              <SectionStatus message={LOGIN_MESSAGES.NO_WORKERS_FOUND} />
-            </View>
-          ) : (
-            <ScrollView
-              style={[
-                styles.workersScroll,
-                syncStatus && styles.workersScrollCompressed,
-              ]}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled={true}
-              keyboardShouldPersistTaps="handled"
-            >
-              {workers.map((worker) => (
-                <WorkerItem
-                  key={worker.id}
-                  worker={worker}
-                  isSelected={selectedWorker === worker.id}
-                  onPress={() => onSelectWorker(worker.id)}
+      {!loading &&
+        !error && (
+          <View
+            style={
+              styles.workersList
+            }
+          >
+            {workers.length ===
+            0 ? (
+              <View
+                style={[
+                  styles.workersScroll,
+                  syncStatus &&
+                    styles.workersScrollCompressed,
+                  styles.centerContent,
+                ]}
+              >
+                <SectionStatus
+                  message={
+                    LOGIN_MESSAGES.NO_WORKERS_FOUND
+                  }
                 />
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
+              </View>
+            ) : (
+              <ScrollView
+                style={[
+                  styles.workersScroll,
+                  syncStatus &&
+                    styles.workersScrollCompressed,
+                ]}
+                showsVerticalScrollIndicator={
+                  false
+                }
+                nestedScrollEnabled={
+                  true
+                }
+                keyboardShouldPersistTaps="handled"
+              >
+                {workers.map(
+                  (worker) => (
+                    <WorkerItem
+                      key={
+                        worker.id
+                      }
+                      worker={
+                        worker
+                      }
+                      isSelected={
+                        selectedWorker ===
+                        worker.id
+                      }
+                      onPress={() =>
+                        onSelectWorker(
+                          worker.id
+                        )
+                      }
+                    />
+                  )
+                )}
+              </ScrollView>
+            )}
+          </View>
+        )}
 
-      <View style={styles.actionSection}>
+      <View
+        style={
+          styles.actionSection
+        }
+      >
         <Button
           onPress={onContinue}
           variant="outline"
-          disabled={!isFormValid}
-          style={styles.continueButton}
+          disabled={
+            !isFormValid
+          }
+          style={
+            styles.continueButton
+          }
         >
-          <View style={styles.buttonContent}>
+          <View
+            style={
+              styles.buttonContent
+            }
+          >
             <Icon
               icon={ICONS.enter}
               size={18}
-              color={isFormValid ? COLORS.primary : COLORS.textTertiary}
+              color={
+                isFormValid
+                  ? COLORS.primary
+                  : COLORS.textTertiary
+              }
             />
+
             <Text
               style={[
                 styles.buttonText,
-                !isFormValid && { color: COLORS.textTertiary },
+                !isFormValid && {
+                  color:
+                    COLORS.textTertiary,
+                },
               ]}
             >
-              {LOGIN_MESSAGES.BUTTON_TEXT}
+              {
+                LOGIN_MESSAGES.BUTTON_TEXT
+              }
             </Text>
           </View>
         </Button>
       </View>
 
       <SyncModal
-        visible={isSyncModalVisible}
+        visible={
+          isSyncModalVisible
+        }
         cedula={cedula}
         syncPin={syncPin}
         isSyncing={isSyncing}
-        onClose={handleCloseSyncModal}
-        onCedulaChange={setCedula}
-        onPinChange={setSyncPin}
-        onSubmit={handleConfirmSync}
+        onClose={
+          handleCloseSyncModal
+        }
+        onCedulaChange={
+          setCedula
+        }
+        onPinChange={
+          setSyncPin
+        }
+        onSubmit={
+          handleConfirmSync
+        }
       />
     </Card>
   );
@@ -380,32 +602,79 @@ function WorkerSection({
  *
  * Botón tocable para seleccionar un colaborador.
  */
-function WorkerItem({ worker, isSelected, onPress }) {
+function WorkerItem({
+  worker,
+  isSelected,
+  onPress,
+}) {
   return (
-    <Button onPress={onPress} variant="outline" style={styles.workerButton}>
+    <Button
+      onPress={onPress}
+      variant="outline"
+      style={
+        styles.workerButton
+      }
+    >
       <Card
-        style={[styles.workerCard, isSelected && styles.workerCardSelected]}
+        style={[
+          styles.workerCard,
+          isSelected &&
+            styles.workerCardSelected,
+        ]}
       >
         <Avatar
           name={worker.name}
           size={48}
-          backgroundColor={isSelected ? COLORS.primary : COLORS.secondary}
-          textColor={isSelected ? COLORS.white : COLORS.textPrimary}
+          backgroundColor={
+            isSelected
+              ? COLORS.primary
+              : COLORS.secondary
+          }
+          textColor={
+            isSelected
+              ? COLORS.white
+              : COLORS.textPrimary
+          }
         />
 
-        <View style={styles.workerInfo}>
-          <Text size={15} weight="700" color={COLORS.textPrimary}>
+        <View
+          style={
+            styles.workerInfo
+          }
+        >
+          <Text
+            size={15}
+            weight="700"
+            color={
+              COLORS.textPrimary
+            }
+          >
             {worker.name}
           </Text>
 
-          <Text size={13} color={COLORS.textTertiary}>
+          <Text
+            size={13}
+            color={
+              COLORS.textTertiary
+            }
+          >
             {worker.role}
           </Text>
         </View>
 
         {isSelected && (
-          <View style={styles.selectionBadge}>
-            <Text size={14} weight="700" color={COLORS.white}>
+          <View
+            style={
+              styles.selectionBadge
+            }
+          >
+            <Text
+              size={14}
+              weight="700"
+              color={
+                COLORS.white
+              }
+            >
               ✓
             </Text>
           </View>
@@ -420,11 +689,18 @@ function WorkerItem({ worker, isSelected, onPress }) {
  *
  * Mensaje centrado para carga o error.
  */
-function SectionStatus({ message, error = false }) {
+function SectionStatus({
+  message,
+  error = false,
+}) {
   return (
     <Text
       size={14}
-      color={error ? COLORS.error : COLORS.textTertiary}
+      color={
+        error
+          ? COLORS.error
+          : COLORS.textTertiary
+      }
       align="center"
       style={styles.statusText}
     >
@@ -453,10 +729,18 @@ function PinModal({
       onClose={onClose}
       showCloseButton
       closeText="Cancelar"
-      containerStyle={styles.modalContainer}
-      overlayStyle={styles.modalOverlay}
-      buttonStyle={styles.cancelButtonOutline}
-      buttonTextStyle={styles.cancelButtonTextOutline}
+      containerStyle={
+        styles.modalContainer
+      }
+      overlayStyle={
+        styles.modalOverlay
+      }
+      buttonStyle={
+        styles.cancelButtonOutline
+      }
+      buttonTextStyle={
+        styles.cancelButtonTextOutline
+      }
     >
       <Title
         level={5}
@@ -466,29 +750,49 @@ function PinModal({
       >
         Digite su PIN
       </Title>
+
       <Input
         value={pinCode}
-        onChangeText={onPinChange}
+        onChangeText={
+          onPinChange
+        }
         placeholder="0000"
         keyboardType="number-pad"
         maxLength={4}
         secureTextEntry
         autoFocus={visible}
-        editable={!isAuthenticating}
-        containerStyle={styles.pinInputContainer}
-        style={[styles.pinInput, { fontFamily: "Roboto" }]}
+        editable={
+          !isAuthenticating
+        }
+        containerStyle={
+          styles.pinInputContainer
+        }
+        style={[
+          styles.pinInput,
+          {
+            fontFamily:
+              "Roboto",
+          },
+        ]}
       />
+
       {pinError !== "" && (
         <Alert
           variant="danger"
           message={pinError}
-          style={styles.pinErrorAlert}
+          style={
+            styles.pinErrorAlert
+          }
         />
       )}
+
       <Button
         onPress={onSubmit}
         variant="outline"
-        disabled={pinCode.length !== 4 || isAuthenticating}
+        disabled={
+          pinCode.length !== 4 ||
+          isAuthenticating
+        }
       >
         Ingresar
       </Button>
@@ -499,7 +803,7 @@ function PinModal({
 /**
  * SyncModal
  *
- * Solicita Cédula (enmascarada, máx 9 dígitos) y PIN antes de sincronizar.
+ * Solicita Cédula y PIN antes de sincronizar.
  */
 function SyncModal({
   visible,
@@ -511,19 +815,30 @@ function SyncModal({
   onPinChange,
   onSubmit,
 }) {
-  // Validación de 9 dígitos para la cédula y 4 para el PIN
-  const isFormValid = cedula.trim().length === 9 && syncPin.length === 4;
+  const isFormValid =
+    cedula.trim().length === 9 &&
+    syncPin.length === 4;
 
   return (
     <Modal
       visible={visible}
       onClose={onClose}
-      showCloseButton={!isSyncing}
+      showCloseButton={
+        !isSyncing
+      }
       closeText="Cancelar"
-      containerStyle={styles.modalContainer}
-      overlayStyle={styles.modalOverlay}
-      buttonStyle={styles.cancelButtonOutline}
-      buttonTextStyle={styles.cancelButtonTextOutline}
+      containerStyle={
+        styles.modalContainer
+      }
+      overlayStyle={
+        styles.modalOverlay
+      }
+      buttonStyle={
+        styles.cancelButtonOutline
+      }
+      buttonTextStyle={
+        styles.cancelButtonTextOutline
+      }
     >
       <Title
         level={5}
@@ -536,34 +851,59 @@ function SyncModal({
 
       <Input
         value={cedula}
-        onChangeText={onCedulaChange}
+        onChangeText={
+          onCedulaChange
+        }
         placeholder="Cédula"
         keyboardType="number-pad"
         maxLength={9}
         secureTextEntry
         editable={!isSyncing}
-        containerStyle={styles.pinInputContainer}
-        style={[styles.pinInput, { fontFamily: "Roboto" }]}
+        containerStyle={
+          styles.pinInputContainer
+        }
+        style={[
+          styles.pinInput,
+          {
+            fontFamily:
+              "Roboto",
+          },
+        ]}
       />
 
       <Input
         value={syncPin}
-        onChangeText={onPinChange}
+        onChangeText={
+          onPinChange
+        }
         placeholder="PIN"
         keyboardType="number-pad"
         maxLength={4}
         secureTextEntry
         editable={!isSyncing}
-        containerStyle={styles.pinInputContainer}
-        style={[styles.pinInput, { fontFamily: "Roboto" }]}
+        containerStyle={
+          styles.pinInputContainer
+        }
+        style={[
+          styles.pinInput,
+          {
+            fontFamily:
+              "Roboto",
+          },
+        ]}
       />
 
       <Button
         onPress={onSubmit}
         variant="outline"
-        disabled={!isFormValid || isSyncing}
+        disabled={
+          !isFormValid ||
+          isSyncing
+        }
       >
-        {isSyncing ? "Sincronizando..." : "Sincronizar"}
+        {isSyncing
+          ? "Sincronizando..."
+          : "Sincronizar"}
       </Button>
     </Modal>
   );

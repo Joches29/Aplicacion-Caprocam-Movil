@@ -135,7 +135,7 @@ function mapearEstanqueDesdeLocal(registro) {
 
     return {
         id: id,
-        value: servidorId || id,
+        value: id,
         servidorId: servidorId,
         servidor_id: servidorId,
         uuid: obtenerValor(registro, ["uuid"], ""),
@@ -230,14 +230,9 @@ async function getEstanques(filtros = {}) {
 async function getEstanqueById(id) {
     const estanques = await getEstanques();
 
-    return estanques.find((item) => {
-        return (
-            valoresIguales(item.id, id) ||
-            valoresIguales(item.value, id) ||
-            valoresIguales(item.servidorId, id) ||
-            valoresIguales(item.servidor_id, id)
-        );
-    }) || null;
+    return estanques.find((item) =>
+        valoresIguales(item.id, id)
+    ) || null;
 }
 
 async function getEstanquesPorFinca(fincaId) {

@@ -222,12 +222,12 @@ function obtenerIdFinca(finca) {
         obtenerValor(
             finca,
             [
-                "servidor_id",
-                "servidorId",
                 "id",
                 "fincaId",
                 "idFinca",
                 "finca_id",
+                "servidor_id",
+                "servidorId",
             ],
             0
         )
@@ -239,16 +239,29 @@ function obtenerIdEstanque(estanque) {
         obtenerValor(
             estanque,
             [
-                "servidor_id",
-                "servidorId",
                 "id",
                 "estanqueId",
                 "idEstanque",
                 "estanque_id",
+                "servidor_id",
+                "servidorId",
             ],
             0
         )
     );
+}
+
+function resolverIdLocal(registros, referencia, obtenerId) {
+    const id = Number(referencia);
+    const local = registros.find((r) => obtenerId(r) === id);
+
+    if (local) return obtenerId(local);
+
+    const servidor = registros.find(
+        (r) => Number(r?.servidorId ?? r?.servidor_id ?? 0) === id
+    );
+
+    return servidor ? obtenerId(servidor) : id;
 }
 
 function obtenerFincaIdEstanque(estanque) {
@@ -272,15 +285,15 @@ function obtenerIdEstanqueSiembra(siembra) {
 }
 
 function estanqueEstaActivo(estanque) {
-  const estado = normalizarTexto(
-    obtenerValor(estanque, ["estado"], "")
-  );
+    const estado = normalizarTexto(
+        obtenerValor(estanque, ["estado"], "")
+    );
 
-  return (
-    estado === "activo" ||
-    estado === "engorde" ||
-    estado === "mantenimiento"
-  );
+    return (
+        estado === "activo" ||
+        estado === "engorde" ||
+        estado === "mantenimiento"
+    );
 }
 
 function siembraEstaActiva(siembra) {
@@ -488,6 +501,8 @@ export default function useEditarParasitologia(registroId, onGuardado) {
             return undefined;
         }
 
+        if (cargandoOpciones) return undefined;
+
         let activo = true;
 
         async function cargarRegistro() {
@@ -501,25 +516,20 @@ export default function useEditarParasitologia(registroId, onGuardado) {
 
                 if (!activo || !registro) return;
 
-                setFinca(
-                    String(
-                        obtenerValor(
-                            registro,
-                            ["fincaId", "finca_id"],
-                            ""
-                        )
-                    )
+                const fincaId = resolverIdLocal(
+                    fincas,
+                    registro.fincaId ?? registro.finca_id,
+                    obtenerIdFinca
                 );
 
-                setEstanque(
-                    String(
-                        obtenerValor(
-                            registro,
-                            ["estanqueId", "estanque_id"],
-                            ""
-                        )
-                    )
+                const estanqueId = resolverIdLocal(
+                    estanques,
+                    registro.estanqueId ?? registro.estanque_id,
+                    obtenerIdEstanque
                 );
+
+                setFinca(fincaId > 0 ? String(fincaId) : "");
+                setEstanque(estanqueId > 0 ? String(estanqueId) : "");
 
                 setFechaReporte(
                     formatearFechaUI(
@@ -579,7 +589,7 @@ export default function useEditarParasitologia(registroId, onGuardado) {
         return () => {
             activo = false;
         };
-    }, [registroId]);
+    }, [registroId, cargandoOpciones, fincas, estanques]);
 
     const opcionesFincas = useMemo(() => {
         return fincas
