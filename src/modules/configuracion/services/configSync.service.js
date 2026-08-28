@@ -46,10 +46,16 @@ const MAPEO_DESCARGA = {
   mantenimientos: "mantenimiento_equipo",
   mantenimientoTareas: "mantenimiento_equipo_tareas",
   mantenimientoProductos: "mantenimiento_equipo_productos",
+  // Agregados porque descargarCatalogos() nunca los incluia: sin
+  // esto, un raleo/alimentacion/densidad creado en la web jamas
+  // llegaba al SQLite local, y Reporteria comparaba IDs contra
+  // registros que sencillamente no existian en el dispositivo.
+  raleos: "raleos",
+  alimentacion: "alimentaciones",
+  densidadPoblacional: "densidad_poblacional",
 };
 
 const MAPEO_SUBIDA = {
-  siembras: "siembras",
   equipos: "equipos",
   alimentaciones: "alimentacion",
   crecimientos: "crecimiento",
@@ -167,35 +173,25 @@ const obtenerIdLocalDesdeServidor = async (
     return null;
   }
 
-  // 1. Intentar buscar por servidor_id
-  try {
-    const respuesta = await servicio.obtenerPorServidorId(servidorId);
-    const registro = obtenerDataLocal(respuesta);
-    if (registro?.id != null) {
-      return Number(registro.id);
-    }
-  } catch (_) {}
+  const respuesta =
+    await servicio.obtenerPorServidorId(
+      servidorId
+    );
 
-  // 2. Intentar buscar por id local
-  try {
-    const respuestaId = await servicio.obtenerPorId(servidorId);
-    const registroId = obtenerDataLocal(respuestaId);
-    if (registroId?.id != null) {
-      return Number(registroId.id);
-    }
-  } catch (_) {}
+  const registro =
+    obtenerDataLocal(respuesta);
 
-  // 3. Fallback seguro: usar servidorId directamente sin romper el flujo
-  const num = Number(servidorId);
-  if (Number.isFinite(num) && num > 0) {
-    return num;
+  if (registro?.id != null) {
+    return Number(registro.id);
   }
 
   if (opcional) {
     return null;
   }
 
-  return servidorId;
+  throw new Error(
+    `No se encontro localmente la relacion ${nombreRelacion} con servidor_id ${servidorId}.`
+  );
 };
 
 const obtenerIdServidorDesdeLocal = async (
@@ -214,40 +210,49 @@ const obtenerIdServidorDesdeLocal = async (
   const id = Number(idValor);
 
   if (!Number.isFinite(id) || id <= 0) {
-    return idValor;
+    throw new Error(
+      `ID invalido para ${nombreRelacion}: ${idValor}.`
+    );
   }
 
-  try {
-    const respuestaLocal = await servicio.obtenerPorId(id);
-    const registroLocal = obtenerDataLocal(respuestaLocal);
+  const respuestaLocal =
+    await servicio.obtenerPorId(id);
 
-    if (registroLocal) {
-      const servidorId = Number(
-        registroLocal.servidor_id ??
-        registroLocal.servidorId ??
-        0
-      );
+  const registroLocal =
+    obtenerDataLocal(respuestaLocal);
 
-      if (
-        Number.isFinite(servidorId) &&
-        servidorId > 0
-      ) {
-        return servidorId;
-      }
-      return id;
+  if (registroLocal) {
+    const servidorId = Number(
+      registroLocal.servidor_id ??
+      registroLocal.servidorId ??
+      0
+    );
+
+    if (
+      Number.isFinite(servidorId) &&
+      servidorId > 0
+    ) {
+      return servidorId;
     }
-  } catch (_) {}
 
-  try {
-    const respuestaServidor = await servicio.obtenerPorServidorId(id);
-    const registroServidor = obtenerDataLocal(respuestaServidor);
+    throw new Error(
+      `El ${nombreRelacion} local ${id} todavia no tiene servidor_id.`
+    );
+  }
 
-    if (registroServidor) {
-      return id;
-    }
-  } catch (_) {}
+  const respuestaServidor =
+    await servicio.obtenerPorServidorId(id);
 
-  return id;
+  const registroServidor =
+    obtenerDataLocal(respuestaServidor);
+
+  if (registroServidor) {
+    return id;
+  }
+
+  throw new Error(
+    `No se pudo resolver el ID de servidor para ${nombreRelacion} ${id}.`
+  );
 };
 
 const normalizarPorTabla = async (
@@ -813,10 +818,172 @@ const normalizarPorTabla = async (
           );
       }
       break;
+
+    case "raleos":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca del raleo"
+          );
+      }
+
+      if (r.estanque_id != null) {
+        r.estanque_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_id,
+            "estanque del raleo"
+          );
+      }
+
+      // siembra_id es opcional (ver useEditarRaleo.js): hoy casi
+      // siempre viene null, pero si en el futuro se llena, no debe
+      // tronar la sincronizacion por no encontrar coincidencia.
+      if (r.siembra_id != null) {
+        r.siembra_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.siembras,
+            r.siembra_id,
+            "siembra del raleo",
+            true
+          );
+      }
+      break;
+
+    case "alimentaciones":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca de la alimentacion"
+          );
+      }
+
+      if (r.estanque_id != null) {
+        r.estanque_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_id,
+            "estanque de la alimentacion"
+          );
+      }
+
+      if (r.proveedor_id != null) {
+        r.proveedor_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.proveedores,
+            r.proveedor_id,
+            "proveedor de la alimentacion",
+            true
+          );
+      }
+
+      if (r.producto_id != null) {
+        r.producto_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.productos,
+            r.producto_id,
+            "producto de la alimentacion",
+            true
+          );
+      }
+      break;
+
+    case "densidad_poblacional":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca de la densidad poblacional"
+          );
+      }
+
+      if (r.estanque_id != null) {
+        r.estanque_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_id,
+            "estanque de la densidad poblacional"
+          );
+      }
+
+      // El backend (DensidadPoblacionalModel.findAll) trae los tiros
+      // embebidos en cada registro (r.tiros), pero la tabla local
+      // densidad_poblacional no tiene esa columna: guardarDesdeServidorLocal
+      // insertaria un valor para una columna que no existe. Se
+      // guarda aparte (guardarTirosDensidadDesdeServidor, mas abajo,
+      // corre despues de esta pasada) y se retira de aqui.
+      delete r.tiros;
+      break;
   }
 
   return r;
 };
+
+/**
+ * Guarda en la tabla relacionada densidad_detalle_tiros los tiros
+ * que el backend trae embebidos dentro de cada registro de
+ * densidad poblacional (ver DensidadPoblacionalModel.findAll).
+ *
+ * Corre DESPUES de que guardarCatalogoLocal ya guardo los registros
+ * padre de densidad_poblacional (necesita que ya exista la fila
+ * local para poder resolver su id local por servidor_id).
+ *
+ * Reemplaza los tiros existentes de cada registro (borra y vuelve a
+ * insertar) para que una re-sincronizacion no vaya duplicando filas
+ * si el conteo se edito en la web.
+ */
+async function guardarTirosDensidadDesdeServidor(registrosDensidad, grupoDatos) {
+  const lista = Array.isArray(registrosDensidad) ? registrosDensidad : [];
+
+  for (const registro of lista) {
+    const tiros = Array.isArray(registro.tiros) ? registro.tiros : [];
+    const servidorId = registro.id ?? registro.servidorId;
+
+    if (servidorId == null) continue;
+
+    try {
+      const densidadLocalId = await obtenerIdLocalDesdeServidor(
+        localApi.densidadPoblacional,
+        servidorId,
+        "densidad poblacional del tiro"
+      );
+
+      if (!densidadLocalId) continue;
+
+      const respuestaExistentes = await localApi.densidadDetalleTiros.obtenerTodos();
+      const existentes = obtenerDataLocal(respuestaExistentes) ?? [];
+
+      const tirosDelRegistro = existentes.filter(
+        (t) => Number(t.densidad_id ?? t.densidadId) === Number(densidadLocalId)
+      );
+
+      for (const tiro of tirosDelRegistro) {
+        await localApi.densidadDetalleTiros.eliminar(tiro.id);
+      }
+
+      for (let i = 0; i < tiros.length; i += 1) {
+        const tiro = tiros[i];
+
+        await localApi.densidadDetalleTiros.crear({
+          grupo_datos: grupoDatos,
+          densidad_id: densidadLocalId,
+          numero_tiro: tiro.numeroTiro ?? tiro.numero_tiro ?? i + 1,
+          cantidad_camarones: tiro.cantidadCamarones ?? tiro.cantidad_camarones ?? 0,
+        });
+      }
+    } catch (error) {
+      console.warn(
+        `No se pudieron guardar los tiros del registro de densidad ${servidorId}:`,
+        error?.message || error
+      );
+    }
+  }
+}
 
 async function guardarCatalogoLocal(
   tabla,
@@ -977,62 +1144,6 @@ async function normalizarRegistroParaSubida(
 
   try {
     switch (tabla) {
-      case "siembras":
-        if (r.finca_id != null) {
-          r.finca_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.fincas,
-              r.finca_id,
-              "finca"
-            );
-        }
-
-        if (r.estanque_id != null) {
-          r.estanque_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.estanques,
-              r.estanque_id,
-              "estanque"
-            );
-        }
-
-        if (r.lote_larva_id != null) {
-          r.lote_larva_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.lotesLarva,
-              r.lote_larva_id,
-              "lote de larva"
-            );
-        }
-
-        if (r.precria_id != null) {
-          r.precria_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.precrias,
-              r.precria_id,
-              "pre-cria"
-            );
-        }
-        break;
-
-      case "equipos":
-        if (r.estanque_id != null) {
-          r.estanque_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.estanques,
-              r.estanque_id,
-              "estanque del equipo"
-            );
-        }
-        if (r.fecha_ultimo_encendido) {
-          r.fecha_ultimo_encendido = normalizarFechaMySQL(r.fecha_ultimo_encendido);
-        }
-        if (r.fecha_instalacion) {
-          r.fecha_instalacion = normalizarFechaMySQL(r.fecha_instalacion);
-        }
-        break;
-
-
       case "densidad_poblacional":
         if (r.finca_id != null) {
           r.finca_id =
@@ -1503,6 +1614,15 @@ export const configSyncService = {
         }
       }
 
+      // Los tiros de densidad poblacional vienen embebidos dentro de
+      // cada registro de data.densidadPoblacional (no como tabla
+      // aparte en MAPEO_DESCARGA), asi que se guardan en un paso
+      // extra, una vez que los registros padre ya existen localmente.
+      await guardarTirosDensidadDesdeServidor(
+        data.densidadPoblacional ?? [],
+        grupoDatos
+      );
+
       return {
         success: true,
         totalGuardados,
@@ -1535,6 +1655,9 @@ export const configSyncService = {
         mantenimientosCount: data.mantenimientos?.length ?? 0,
         mantenimientoTareasCount: data.mantenimientoTareas?.length ?? 0,
         mantenimientoProductosCount: data.mantenimientoProductos?.length ?? 0,
+        raleosCount: data.raleos?.length ?? 0,
+        alimentacionCount: data.alimentacion?.length ?? 0,
+        densidadPoblacionalCount: data.densidadPoblacional?.length ?? 0,
       };
     } catch (err) {
       if (err?.response?.status === 401 || err?.status === 401) {
