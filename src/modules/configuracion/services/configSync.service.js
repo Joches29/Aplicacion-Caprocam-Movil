@@ -9,7 +9,7 @@ import * as Application from "expo-application";
 
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
-import { saveToken, getToken } from "../../login/utils/tokenStorage";
+import { saveToken, getToken, cargarSesionPersistida } from "../../login/utils/tokenStorage";
 
 /*
 ============================================================
@@ -1146,6 +1146,8 @@ SERVICIO PRINCIPAL
 export const configSyncService = {
   validarTokenAntesDeSincronizar: async () => {
     try {
+      await cargarSesionPersistida();
+
       const resp = await api.get('/sync/validate-token');
       if (resp.data?.data?.token) {
         const nuevoToken = resp.data.data.token;
