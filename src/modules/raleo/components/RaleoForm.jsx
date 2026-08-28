@@ -120,7 +120,7 @@ export default function RaleoForm({
   const invalidoFinca = submitted && !!errores.finca;
   const invalidoEstanque = submitted && !!errores.estanque;
   const invalidoFecha = submitted && !!errores.fecha;
-  const invalidoBiomasaAntes = submitted && !!errores.biomasaAntes;
+  const invalidoBiomasa = submitted && (!!errores.biomasaEstimada || !!errores.biomasaAntes);
   const invalidoKgRetirados = submitted && !!errores.kgRetirados;
 
   const { fincasOptions, estanquesOptions } = useFincaEstanqueRaleo(form.finca);
@@ -129,6 +129,8 @@ export default function RaleoForm({
     updateField("finca", idFinca);
     updateField("estanque", "");
   };
+
+  const valorBiomasa = String(form.biomasaEstimada ?? form.biomasaAntes ?? "");
 
   return (
     <View>
@@ -178,14 +180,17 @@ export default function RaleoForm({
         <Input
           label="Biomasa antes del raleo (kg) *"
           placeholder="Ej: 2000"
-          value={String(form.biomasaAntes ?? "")}
+          value={valorBiomasa}
           keyboardType="decimal-pad"
           onChangeText={(v) => {
             const limpio = soloDecimal(v);
-            if (limpio !== null) updateField("biomasaAntes", limpio);
+            if (limpio !== null) {
+              updateField("biomasaEstimada", limpio);
+              updateField("biomasaAntes", limpio);
+            }
           }}
-          style={invalidoBiomasaAntes ? bordeError : null}
-          error={submitted ? (errores.biomasaAntes || "") : ""}
+          style={invalidoBiomasa ? bordeError : null}
+          error={submitted ? (errores.biomasaEstimada || errores.biomasaAntes || "") : ""}
         />
 
         <Input

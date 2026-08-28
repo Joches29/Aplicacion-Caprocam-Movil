@@ -165,19 +165,24 @@ export default function useRaleo() {
      * ----------------------------------------------------
      */
 
-    const biomasaEstimada = Number(form.biomasaEstimada);
+    const valorBiomasaRaw = form.biomasaEstimada || form.biomasaAntes;
+    const biomasaEstimada = Number(valorBiomasaRaw);
 
     if (
-      !form.biomasaEstimada ||
+      !valorBiomasaRaw ||
       Number.isNaN(biomasaEstimada)
     ) {
 
       errores.biomasaEstimada =
         "La biomasa estimada es obligatoria y debe ser numérica";
+      errores.biomasaAntes =
+        "La biomasa estimada es obligatoria y debe ser numérica";
 
     } else if (biomasaEstimada <= 0) {
 
       errores.biomasaEstimada =
+        "La biomasa estimada debe ser mayor a 0";
+      errores.biomasaAntes =
         "La biomasa estimada debe ser mayor a 0";
     }
 

@@ -139,11 +139,12 @@ export default function useRaleoScreen() {
    * CALCULOS DEL RALEO
    * ========================================================
    */
- const {
+  const valorBiomasa = form.biomasaEstimada || form.biomasaAntes || "";
+  const {
     porcentaje: porcentajeRaleo,
     biomasaRestante,
   } = calcularRaleo(
-    form.biomasaEstimada,
+    valorBiomasa,
     form.kgRetirados
   );
   /*
@@ -260,7 +261,7 @@ export default function useRaleoScreen() {
         idEstanque: form.estanque,
         fecha: convertirFecha(form.fecha),
         biomasaEstimada:
-          Number(form.biomasaEstimada),
+          Number(form.biomasaEstimada || form.biomasaAntes),
         kgRetirados:
           Number(form.kgRetirados),
         porcentaje:
