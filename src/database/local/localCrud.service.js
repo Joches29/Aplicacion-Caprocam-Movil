@@ -163,14 +163,30 @@ const prepararDatosCreacion = (tabla, datos = {}) => {
  * @param {object} datos - Datos del backend.
  * @returns {object} Datos preparados.
  */
+const normalizarClavesCamelCase = (datos = {}) => {
+    const res = {};
+    for (const [k, v] of Object.entries(datos)) {
+        res[k] = v;
+        const snakeKey = k.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+        if (res[snakeKey] === undefined) {
+            res[snakeKey] = v;
+        }
+    }
+    return res;
+};
+
+/**
+ * Prepara los datos provenientes del servidor para su almacenamiento local.
+ * @param {string} tabla - Nombre de tabla.
+ * @param {object} datos - Datos del servidor.
+ * @returns {object} Datos listos para SQLite.
+ */
 const prepararDatosDesdeServidor = (tabla, datos = {}) => {
     const fechaActual = obtenerFechaActual();
 
-    const datosPreparados = {
-        ...datos
-    };
+    const datosPreparados = normalizarClavesCamelCase(datos);
 
-    if (datos.id && !datos.servidor_id) {
+    if (datos.id && !datosPreparados.servidor_id) {
         datosPreparados.servidor_id = datos.id;
     }
 
@@ -1194,11 +1210,18 @@ export const guardarDesdeServidorLocal = async (
                     );
             }
 
+            if (!registroLocal && tabla === "inventario" && datosServidor.producto_id) {
+                registroLocal = await db.getFirstAsync(
+                    `SELECT * FROM inventario WHERE producto_id = ? AND grupo_datos = ?`,
+                    [datosServidor.producto_id, grupoDatosActivo]
+                );
+            }
+
             if (registroLocal) {
                 if (
-                    Number(
-                        registroLocal.pendiente_sync
-                    ) === 1
+                    Number(registroLocal.pendiente_sync) === 1 &&
+                    tabla !== "inventario" &&
+                    tabla !== "productos"
                 ) {
                     continue;
                 }

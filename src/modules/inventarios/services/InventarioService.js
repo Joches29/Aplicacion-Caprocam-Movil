@@ -32,75 +32,70 @@
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
 
-function mapearProductoInventarioLocal(registroInventario, catalogoProductos = []) {
-  if (!registroInventario) return null;
-
-  const productoId = registroInventario.producto_id ?? registroInventario.productoId ?? null;
-  const productoCatalogo =
-    catalogoProductos.find(
-      (producto) => String(producto.servidor_id) === String(productoId)
-    ) ??
-    catalogoProductos.find(
-      (producto) => String(producto.id) === String(productoId)
-    );
-
-  const cantidad = Number(registroInventario.cantidad ?? productoCatalogo?.cantidad ?? 0) || 0;
-  const stockMinimo = Number(registroInventario.stock_minimo ?? productoCatalogo?.stock_minimo ?? 0) || 0;
-  const precioUnidad = Number(
-    productoCatalogo?.precio_unidad ?? productoCatalogo?.precioUnidad ?? registroInventario.precio_unidad ?? 0,
-  ) || 0;
-
-  return {
-    id: productoId ?? productoCatalogo?.id ?? registroInventario.id,
-    productoId,
-    codigo: productoCatalogo?.codigo ?? registroInventario.codigo ?? "",
-    nombre: productoCatalogo?.nombre ?? registroInventario.nombre ?? `Producto ${productoId ?? ""}`,
-    categoria: productoCatalogo?.categoria ?? registroInventario.categoria ?? "",
-    proveedor: productoCatalogo?.proveedor ?? registroInventario.proveedor ?? "",
-    proveedorId: registroInventario.proveedor_id ?? productoCatalogo?.proveedor_id ?? productoCatalogo?.proveedorId ?? null,
-    cantidad,
-    unidad: productoCatalogo?.unidad ?? registroInventario.unidad ?? "",
-    stockMinimo,
-    stock_maximo: stockMinimo,
-    precioUnidad,
-    precio_unidad: precioUnidad,
-    entryDate: productoCatalogo?.entryDate ?? productoCatalogo?.fecha_ingreso ?? registroInventario.entryDate ?? null,
-    expirationDate: productoCatalogo?.expirationDate ?? productoCatalogo?.fecha_caducidad ?? registroInventario.expirationDate ?? null,
-    fechaCaducidad: productoCatalogo?.fecha_caducidad ?? productoCatalogo?.expirationDate ?? registroInventario.fechaCaducidad ?? null,
-  };
-}
-
 async function obtenerProductosInventarioLocal() {
-  const [respInventario, respProductos] = await Promise.all([
+  const [respInventario, respProductos, respProveedores] = await Promise.all([
     localApi.inventario.obtenerTodos({ incluirInactivos: false }),
     localApi.productos.obtenerTodos({ incluirInactivos: false }),
+    localApi.proveedores.obtenerTodos({ incluirInactivos: false }),
   ]);
 
   const inventario = respInventario.success ? (respInventario.data || []) : [];
   const catalogoProductos = respProductos.success ? (respProductos.data || []) : [];
+  const catalogoProveedores = respProveedores.success ? (respProveedores.data || []) : [];
 
-  if (inventario.length > 0) {
-    return inventario.map((registro) => mapearProductoInventarioLocal(registro, catalogoProductos));
-  }
+  const buscarNombreProveedor = (provId, prodFallback) => {
+    if (provId) {
+      const provIdStr = String(provId);
+      const prov = catalogoProveedores.find(
+        (p) => String(p.servidor_id) === provIdStr || String(p.id) === provIdStr
+      );
+      if (prov?.nombre_empresa || prov?.nombre) return prov.nombre_empresa || prov.nombre;
+    }
+    if (prodFallback && isNaN(Number(prodFallback))) return prodFallback;
+    return "Sin proveedor asignado";
+  };
 
-  return catalogoProductos.map((producto) => ({
-    id: producto.id,
-    productoId: producto.id,
-    codigo: producto.codigo ?? "",
-    nombre: producto.nombre ?? "",
-    categoria: producto.categoria ?? "",
-    proveedor: producto.proveedor ?? "",
-    proveedorId: producto.proveedor_id ?? producto.proveedorId ?? null,
-    cantidad: Number(producto.cantidad ?? 0) || 0,
-    unidad: producto.unidad ?? "",
-    stockMinimo: Number(producto.stock_minimo ?? producto.stockMinimo ?? 0) || 0,
-    stock_maximo: Number(producto.stock_minimo ?? producto.stockMinimo ?? 0) || 0,
-    precioUnidad: Number(producto.precio_unidad ?? producto.precioUnidad ?? 0) || 0,
-    precio_unidad: Number(producto.precio_unidad ?? producto.precioUnidad ?? 0) || 0,
-    entryDate: producto.entryDate ?? producto.fecha_ingreso ?? null,
-    expirationDate: producto.expirationDate ?? producto.fecha_caducidad ?? null,
-    fechaCaducidad: producto.fecha_caducidad ?? producto.expirationDate ?? null,
-  }));
+  const lista = catalogoProductos.map((p) => {
+    const pLocalId = String(p.id);
+    const pServId = p.servidor_id ? String(p.servidor_id) : null;
+
+    const invRow = inventario.find((i) => {
+      const invProdId = String(i.producto_id ?? "");
+      if (pServId && invProdId === pServId) return true;
+      if (invProdId === pLocalId) return true;
+      if (p.codigo && i.codigo && String(i.codigo) === String(p.codigo)) return true;
+      return false;
+    });
+
+    const proveedorId = invRow?.proveedor_id ?? p.proveedor_id ?? p.proveedorId ?? null;
+    const nombreProveedor = buscarNombreProveedor(proveedorId, p.proveedor);
+
+    const cantidad = Number(invRow?.cantidad ?? p.cantidad ?? 0) || 0;
+    const stockMinimo = Number(invRow?.stock_minimo ?? p.stock_minimo ?? p.stockMinimo ?? 0) || 0;
+    const precioUnidad = Number(p.precio_unidad ?? p.precioUnidad ?? 0) || 0;
+
+    return {
+      id: p.id,
+      productoId: p.id,
+      servidorId: p.servidor_id ?? null,
+      codigo: p.codigo ?? "",
+      nombre: p.nombre ?? `Producto ${p.id}`,
+      categoria: p.categoria ?? "",
+      proveedor: nombreProveedor,
+      proveedorId,
+      cantidad,
+      unidad: p.unidad ?? "",
+      stockMinimo,
+      stock_maximo: stockMinimo,
+      precioUnidad,
+      precio_unidad: precioUnidad,
+      entryDate: p.entryDate ?? p.fecha_ingreso ?? null,
+      expirationDate: p.expirationDate ?? p.fecha_caducidad ?? null,
+      fechaCaducidad: p.fecha_caducidad ?? p.expirationDate ?? null,
+    };
+  });
+
+  return lista;
 }
 
 export async function getProductosInventario() {

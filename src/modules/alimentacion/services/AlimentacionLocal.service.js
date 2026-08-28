@@ -13,6 +13,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { localApi } from "../../../database/local/localApi.service";
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
+import { obtenerCamposAuditoria } from "../../../shared/utils/sessionUtils";
 
 /*
 ============================================================
@@ -353,106 +355,215 @@ async function getById(id) {
 
 
 
-async function create(alimentacionDTO) {
-
+/**
+ * Descuenta stock del inventario local y registra el movimiento de Salida.
+ */
+async function descontarStockAlimentacion(productoId, cantidadKg) {
+    if (!productoId || !cantidadKg || Number(cantidadKg) <= 0) return;
     try {
+        const prodIdStr = String(productoId);
+        const cant = Number(cantidadKg);
+        const [resInv, resProds] = await Promise.all([
+            localApi.inventario.obtenerTodos({ incluirInactivos: false }),
+            localApi.productos.obtenerTodos({ incluirInactivos: false }),
+        ]);
+        const invList = (resInv?.success && Array.isArray(resInv.data)) ? resInv.data : [];
+        const prodList = (resProds?.success && Array.isArray(resProds.data)) ? resProds.data : [];
+        const db = await obtenerBaseLocal();
 
-        const datosLocales =
-            await mapearAlimentacionParaLocal(
-                alimentacionDTO
-            );
-
-
-        const respuesta =
-            await ejecutarMetodoAlimentacion(
-                "crear",
-                [
-                    datosLocales
-                ]
-            );
-
-
-        return mapearAlimentacionDesdeLocal(
-            obtenerDataRespuesta(respuesta)
+        const pCatalog = prodList.find(p =>
+            String(p.id) === prodIdStr ||
+            (p.servidor_id && String(p.servidor_id) === prodIdStr) ||
+            (p.codigo && String(p.codigo) === prodIdStr)
         );
 
+        const pLocalId = pCatalog ? String(pCatalog.id) : prodIdStr;
+        const pServId = pCatalog?.servidor_id ? String(pCatalog.servidor_id) : null;
+        const pCodigo = pCatalog?.codigo ? String(pCatalog.codigo) : null;
 
-    } catch(error) {
+        const invItem = invList.find(i => {
+            const invProdId = String(i.producto_id ?? '');
+            if (pServId && invProdId === pServId) return true;
+            if (invProdId === pLocalId) return true;
+            if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
+            return false;
+        });
 
-        console.error(
-            "Error al crear la alimentacion local",
-            extraerError(error)
-        );
+        if (invItem) {
+            const cantActual = Number(invItem.cantidad) || 0;
+            const nuevaCantidad = Math.max(0, cantActual - cant);
 
-        throw error;
+            await db.runAsync(
+                `UPDATE inventario SET cantidad = ?, version = version + 1 WHERE id = ?`,
+                [nuevaCantidad, invItem.id]
+            );
+
+            try {
+                await localApi.inventario.actualizar(invItem.id, { cantidad: nuevaCantidad });
+            } catch (_) {}
+
+            try {
+                const auditoria = await obtenerCamposAuditoria();
+                await localApi.movimientosInventario.crear({
+                    ...auditoria,
+                    inventario_id: invItem.id,
+                    producto_id: Number(invItem.producto_id || pLocalId),
+                    tipo_movimiento: 'Salida',
+                    cantidad: cant,
+                    observacion: 'Salida automatica por registro de alimentacion.',
+                });
+            } catch (_) {}
+        }
+    } catch (err) {
+        console.warn("Error al descontar stock en alimentacion:", err);
     }
 }
 
+/**
+ * Restaura stock en el inventario local y registra el movimiento de Entrada.
+ */
+async function restaurarStockAlimentacion(productoId, cantidadKg) {
+    if (!productoId || !cantidadKg || Number(cantidadKg) <= 0) return;
+    try {
+        const prodIdStr = String(productoId);
+        const cant = Number(cantidadKg);
+        const [resInv, resProds] = await Promise.all([
+            localApi.inventario.obtenerTodos({ incluirInactivos: false }),
+            localApi.productos.obtenerTodos({ incluirInactivos: false }),
+        ]);
+        const invList = (resInv?.success && Array.isArray(resInv.data)) ? resInv.data : [];
+        const prodList = (resProds?.success && Array.isArray(resProds.data)) ? resProds.data : [];
+        const db = await obtenerBaseLocal();
 
+        const pCatalog = prodList.find(p =>
+            String(p.id) === prodIdStr ||
+            (p.servidor_id && String(p.servidor_id) === prodIdStr) ||
+            (p.codigo && String(p.codigo) === prodIdStr)
+        );
+
+        const pLocalId = pCatalog ? String(pCatalog.id) : prodIdStr;
+        const pServId = pCatalog?.servidor_id ? String(pCatalog.servidor_id) : null;
+        const pCodigo = pCatalog?.codigo ? String(pCatalog.codigo) : null;
+
+        const invItem = invList.find(i => {
+            const invProdId = String(i.producto_id ?? '');
+            if (pServId && invProdId === pServId) return true;
+            if (invProdId === pLocalId) return true;
+            if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
+            return false;
+        });
+
+        if (invItem) {
+            const cantActual = Number(invItem.cantidad) || 0;
+            const nuevaCantidad = cantActual + cant;
+
+            await db.runAsync(
+                `UPDATE inventario SET cantidad = ?, version = version + 1 WHERE id = ?`,
+                [nuevaCantidad, invItem.id]
+            );
+
+            try {
+                await localApi.inventario.actualizar(invItem.id, { cantidad: nuevaCantidad });
+            } catch (_) {}
+
+            try {
+                const auditoria = await obtenerCamposAuditoria();
+                await localApi.movimientosInventario.crear({
+                    ...auditoria,
+                    inventario_id: invItem.id,
+                    producto_id: Number(invItem.producto_id || pLocalId),
+                    tipo_movimiento: 'Entrada',
+                    cantidad: cant,
+                    observacion: 'Reversion automatica de stock por eliminacion/edicion de alimentacion.',
+                });
+            } catch (_) {}
+        }
+    } catch (err) {
+        console.warn("Error al restaurar stock en alimentacion:", err);
+    }
+}
+
+async function create(alimentacionDTO) {
+    try {
+        const datosLocales = await mapearAlimentacionParaLocal(alimentacionDTO);
+
+        // Verificar duplicado local (estanque_id, fecha, hora)
+        if (datosLocales.estanque_id && datosLocales.fecha && datosLocales.hora) {
+            try {
+                const db = await obtenerBaseLocal();
+                const existente = await db.getFirstAsync(
+                    `SELECT id FROM alimentaciones WHERE estanque_id = ? AND fecha = ? AND hora = ? AND activo = 1`,
+                    [datosLocales.estanque_id, datosLocales.fecha, datosLocales.hora]
+                );
+                if (existente) {
+                    throw new Error("Ya existe un registro de alimentación para ese estanque en esa fecha y hora.");
+                }
+            } catch (errDb) {
+                if (errDb.message?.includes("Ya existe")) throw errDb;
+            }
+        }
+
+        const respuesta = await ejecutarMetodoAlimentacion("crear", [datosLocales]);
+        const dataCreada = obtenerDataRespuesta(respuesta);
+
+        // Descontar stock local
+        if (datosLocales.producto_id && datosLocales.cantidad_kg > 0) {
+            await descontarStockAlimentacion(datosLocales.producto_id, datosLocales.cantidad_kg);
+        }
+
+        return mapearAlimentacionDesdeLocal(dataCreada);
+    } catch(error) {
+        console.error("Error al crear la alimentacion local", extraerError(error));
+        throw error;
+    }
+}
 
 async function update(id, alimentacionDTO) {
-
     try {
+        let registroPrevio = null;
+        try {
+            registroPrevio = await getById(id);
+        } catch (_) {}
 
-        const datosLocales =
-            await mapearAlimentacionParaLocal(
-                alimentacionDTO
-            );
+        const datosLocales = await mapearAlimentacionParaLocal(alimentacionDTO);
+        const respuesta = await ejecutarMetodoAlimentacion("actualizar", [id, datosLocales]);
+        const dataActualizada = obtenerDataRespuesta(respuesta);
 
+        // Revertir stock previo si existía
+        if (registroPrevio && registroPrevio.productoId && registroPrevio.cantidadKg > 0) {
+            await restaurarStockAlimentacion(registroPrevio.productoId, registroPrevio.cantidadKg);
+        }
 
-        const respuesta =
-            await ejecutarMetodoAlimentacion(
-                "actualizar",
-                [
-                    id,
-                    datosLocales
-                ]
-            );
+        // Aplicar nuevo descuento de stock
+        if (datosLocales.producto_id && datosLocales.cantidad_kg > 0) {
+            await descontarStockAlimentacion(datosLocales.producto_id, datosLocales.cantidad_kg);
+        }
 
-
-        return mapearAlimentacionDesdeLocal(
-            obtenerDataRespuesta(respuesta)
-        );
-
-
+        return mapearAlimentacionDesdeLocal(dataActualizada);
     } catch(error) {
-
-        console.error(
-            "Error al actualizar la alimentacion local",
-            extraerError(error)
-        );
-
+        console.error("Error al actualizar la alimentacion local", extraerError(error));
         throw error;
     }
 }
 
-
-
 async function deleteById(id) {
-
     try {
+        let registroPrevio = null;
+        try {
+            registroPrevio = await getById(id);
+        } catch (_) {}
 
-        const respuesta =
-            await ejecutarMetodoAlimentacion(
-                "eliminar",
-                [
-                    id
-                ]
-            );
+        const respuesta = await ejecutarMetodoAlimentacion("eliminar", [id]);
+        const dataEliminada = obtenerDataRespuesta(respuesta);
 
+        // Revertir stock si existía
+        if (registroPrevio && registroPrevio.productoId && registroPrevio.cantidadKg > 0) {
+            await restaurarStockAlimentacion(registroPrevio.productoId, registroPrevio.cantidadKg);
+        }
 
-        return mapearAlimentacionDesdeLocal(
-            obtenerDataRespuesta(respuesta)
-        );
-
-
+        return mapearAlimentacionDesdeLocal(dataEliminada);
     } catch(error) {
-
-        console.error(
-            "Error al eliminar la alimentacion local",
-            extraerError(error)
-        );
-
+        console.error("Error al eliminar la alimentacion local", extraerError(error));
         throw error;
     }
 }

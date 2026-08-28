@@ -77,8 +77,25 @@ FUNCIONES GENERALES
 const camelASnake = (str) =>
   str.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
 
+const normalizarFechaMySQL = (valor) => {
+  if (!valor) return valor;
+  if (typeof valor === "string") {
+    const isoMatch = valor.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/);
+    if (isoMatch) {
+      return `${isoMatch[1]} ${isoMatch[2]}`;
+    }
+  }
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    return valor.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  return valor;
+};
+
 const normalizarValor = (valor) => {
-  if (valor instanceof Date) return valor.toISOString();
+  if (valor instanceof Date) return normalizarFechaMySQL(valor);
+  if (typeof valor === "string" && valor.includes("T") && valor.length >= 19) {
+    return normalizarFechaMySQL(valor);
+  }
   if (typeof valor === "boolean") return valor ? 1 : 0;
   if (valor !== null && typeof valor === "object") return JSON.stringify(valor);
 
@@ -349,6 +366,14 @@ const normalizarPorTabla = async (
       ) {
         r.fecha_ultimo_encendido =
           r.fecha_ultimo_encendido_at;
+      }
+
+      if (r.fecha_ultimo_encendido) {
+        r.fecha_ultimo_encendido = normalizarFechaMySQL(r.fecha_ultimo_encendido);
+      }
+
+      if (r.fecha_instalacion) {
+        r.fecha_instalacion = normalizarFechaMySQL(r.fecha_instalacion);
       }
       break;
 
@@ -1353,9 +1378,23 @@ export const configSyncService = {
     } catch (err) {
       if (err?.response?.status === 401 || err?.status === 401) {
         const e = new Error("Sesion no autorizada o expirada.");
-
         e.status = 401;
         throw e;
+      }
+
+      const msg = String(err?.response?.data?.error || err?.response?.data?.message || err?.message || "");
+      if (msg.includes("Ya existe un registro de alimentacion")) {
+        // Si el registro ya existe en el servidor, marcar las alimentaciones locales como resueltas para no bloquear la sincronización
+        try {
+          const respuestaPendientes = await localApi.sync.obtenerPendientes();
+          const items = respuestaPendientes?.data ?? [];
+          for (const item of items) {
+            if (item.tabla === "alimentaciones") {
+              await localApi.sync.marcarSincronizado("alimentaciones", item.registro.id, null);
+            }
+          }
+          return await configSyncService.subirCambiosPendientes();
+        } catch (_) {}
       }
 
       throw new Error(obtenerMensajeErrorSubida(err));

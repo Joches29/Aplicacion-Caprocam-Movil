@@ -212,19 +212,29 @@ export function useProveedorProductoAlimentacion(
             return [];
         }
 
+        const proveedorSel = proveedores.find(p =>
+            String(p.id) === String(idProveedorSeleccionado) ||
+            (p.servidor_id && String(p.servidor_id) === String(idProveedorSeleccionado))
+        );
+        const provLocalId = proveedorSel ? String(proveedorSel.id) : String(idProveedorSeleccionado);
+        const provServId = proveedorSel?.servidor_id ? String(proveedorSel.servidor_id) : null;
+
         return productos
             .filter((producto) => {
-                const proveedorId =
+                const prodProvId = String(
                     obtenerValor(
                         producto,
                         [
-                            "proveedorId",
                             "proveedor_id",
+                            "proveedorId",
                             "idProveedor"
                         ],
-                        0
-                    );
-                return (Number(proveedorId)=== Number(idProveedorSeleccionado));
+                        ""
+                    )
+                );
+                if (provServId && prodProvId === provServId) return true;
+                if (prodProvId && prodProvId === provLocalId) return true;
+                return false;
             })
             .map((producto) => {
                 const id =
@@ -238,8 +248,6 @@ export function useProveedorProductoAlimentacion(
                         ""
                     );
 
-
-
                 const nombre =
                     obtenerValor(
                         producto,
@@ -250,7 +258,9 @@ export function useProveedorProductoAlimentacion(
                         "Producto"
                     );
                 return {
-                    label: nombre, value: String(id)};
+                    label: nombre,
+                    value: String(id),
+                };
             })
             .filter(
                 (item) =>

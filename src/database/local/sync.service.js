@@ -180,6 +180,25 @@ const obtenerRegistrosDescarga = (data) => {
 };
 
 /**
+ * Convierte cualquier fecha en formato ISO a formato MySQL (YYYY-MM-DD HH:mm:ss).
+ * @param {*} valor - Valor a verificar.
+ * @returns {*} Valor formateado.
+ */
+const formatearFechaParaMySQL = (valor) => {
+  if (!valor) return valor;
+  if (typeof valor === 'string') {
+    const isoMatch = valor.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/);
+    if (isoMatch) {
+      return `${isoMatch[1]} ${isoMatch[2]}`;
+    }
+  }
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    return valor.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  return valor;
+};
+
+/**
  * Prepara un registro local antes de enviarlo al backend.
  * @param {object} registro - Registro local.
  * @returns {object} Registro limpio.
@@ -192,6 +211,15 @@ const prepararRegistroParaServidor = (registro) => {
   CAMPOS_SOLO_LOCALES.forEach((campo) => {
     delete datos[campo];
   });
+
+  // Convertir cualquier fecha ISO a formato MySQL
+  for (const [campo, valor] of Object.entries(datos)) {
+    if (typeof valor === 'string' && valor.includes('T') && valor.length >= 19) {
+      datos[campo] = formatearFechaParaMySQL(valor);
+    } else if (valor instanceof Date) {
+      datos[campo] = formatearFechaParaMySQL(valor);
+    }
+  }
 
   return datos;
 };
