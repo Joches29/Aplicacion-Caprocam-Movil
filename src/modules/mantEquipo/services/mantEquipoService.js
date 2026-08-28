@@ -40,42 +40,87 @@ export {
  */
 export async function getProductosCatalogo() {
   try {
-    const [resProductos, resInventario] = await Promise.allSettled([
-      localApi.productos.obtenerTodos({ incluirInactivos: false }),
-      localApi.inventario.obtenerTodos({ incluirInactivos: false }),
+    const [
+      resProductos,
+      resInventario,
+    ] = await Promise.allSettled([
+      localApi.productos.obtenerTodos({
+        incluirInactivos: false,
+      }),
+      localApi.inventario.obtenerTodos({
+        incluirInactivos: false,
+      }),
     ]);
 
-    const prodsRaw = resProductos.status === 'fulfilled' && resProductos.value.success
-      ? (resProductos.value.data || [])
-      : [];
-    const invRaw = resInventario.status === 'fulfilled' && resInventario.value.success
-      ? (resInventario.value.data || [])
-      : [];
+    const prodsRaw =
+      resProductos.status === "fulfilled" &&
+        resProductos.value.success
+        ? resProductos.value.data || []
+        : [];
 
-    return prodsRaw.map((p) => {
-      const pLocalId = String(p.id);
-      const pServId = p.servidor_id ? String(p.servidor_id) : null;
-      const inv = invRaw.find((i) => {
-        const invProdId = String(i.producto_id ?? '');
-        if (pServId && invProdId === pServId) return true;
-        if (invProdId === pLocalId) return true;
-        return false;
-      });
+    const invRaw =
+      resInventario.status === "fulfilled" &&
+        resInventario.value.success
+        ? resInventario.value.data || []
+        : [];
 
-      const price = Number(p.precio_unidad ?? p.precioUnidad ?? 0);
-      const stock = Number(inv?.cantidad ?? p.cantidad ?? 0);
+    return prodsRaw.map((producto) => {
+      const productoLocalId =
+        Number(producto.id);
+
+      const inventario =
+        invRaw.find((item) => {
+          return (
+            Number(item.producto_id) ===
+            productoLocalId
+          );
+        });
+
+      const precio =
+        Number(
+          producto.precio_unidad ??
+          producto.precioUnidad ??
+          0
+        ) || 0;
+
+      const stock =
+        Number(
+          inventario?.cantidad ??
+          producto.cantidad ??
+          0
+        ) || 0;
 
       return {
-        ...p,
-        id: pLocalId,
-        productoId: pLocalId,
-        servidorId: pServId,
-        nombre: p.nombre || `Producto ${p.id}`,
-        categoria: p.categoria || '',
-        precioUnidad: price,
-        costoUnitario: price,
-        stockMaximo: stock,
-        cantidad: stock,
+        ...producto,
+
+        id:
+          String(productoLocalId),
+
+        productoId:
+          String(productoLocalId),
+
+        servidorId:
+          producto.servidor_id ??
+          null,
+
+        nombre:
+          producto.nombre ||
+          `Producto ${productoLocalId}`,
+
+        categoria:
+          producto.categoria || "",
+
+        precioUnidad:
+          precio,
+
+        costoUnitario:
+          precio,
+
+        stockMaximo:
+          stock,
+
+        cantidad:
+          stock,
       };
     });
   } catch (err) {
@@ -192,7 +237,7 @@ export async function obtenerTickets() {
       if (respColabs.success && Array.isArray(respColabs.data)) {
         listaColaboradores = respColabs.data;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     for (const item of tickets) {
       const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
@@ -211,7 +256,7 @@ export async function obtenerTickets() {
 
       if (cid) {
         const colab = listaColaboradores.find(c => Number(c.servidor_id) === Number(cid)) ||
-                      listaColaboradores.find(c => Number(c.id) === Number(cid));
+          listaColaboradores.find(c => Number(c.id) === Number(cid));
         if (colab) {
           const nom = [colab.nombre, colab.apellidos].filter(Boolean).join(' ').trim();
           creadorNom = nom || colab.nombre_usuario || colab.nombreUsuario || `Colaborador #${cid}`;
@@ -261,7 +306,7 @@ export async function obtenerTicketPorId(id) {
         const respColabs = await localApi.colaboradores.obtenerTodos();
         if (respColabs.success && Array.isArray(respColabs.data)) {
           const colab = respColabs.data.find(c => Number(c.servidor_id) === Number(cid)) ||
-                        respColabs.data.find(c => Number(c.id) === Number(cid));
+            respColabs.data.find(c => Number(c.id) === Number(cid));
           if (colab) {
             const nom = [colab.nombre, colab.apellidos].filter(Boolean).join(' ').trim();
             nombreCreador = nom || colab.nombre_usuario || colab.nombreUsuario || `Colaborador #${cid}`;
@@ -276,13 +321,13 @@ export async function obtenerTicketPorId(id) {
             const nom = [uData.nombre, uData.apellidos].filter(Boolean).join(' ').trim();
             nombreCreador = nom || uData.nombreUsuario || uData.email;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         if (!nombreCreador) {
           nombreCreador = MAPA_USUARIOS_CONOCIDOS[String(uid)] || `Usuario #${uid}`;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
       mantenimiento_equipo_id: numericId,
@@ -410,149 +455,191 @@ async function vincularProductosLocal(mantenimientoEquipoId, productos, auditori
 }
 
 // ─── Descontar stock de inventario local ──────────────────────────────────────
-export async function descontarStockLocal(productos) {
-  if (!Array.isArray(productos) || productos.length === 0) return;
+async function descontarStockLocal(productos) {
+  if (
+    !Array.isArray(productos) ||
+    productos.length === 0
+  ) {
+    return;
+  }
+
   try {
-    const auditoria = await obtenerCamposAuditoria();
-    const [resInv, resProds] = await Promise.all([
-      localApi.inventario.obtenerTodos({ incluirInactivos: false }),
-      localApi.productos.obtenerTodos({ incluirInactivos: false }),
-    ]);
-    const invList = (resInv.success && Array.isArray(resInv.data)) ? resInv.data : [];
-    const prodList = (resProds.success && Array.isArray(resProds.data)) ? resProds.data : [];
-    const db = await obtenerBaseLocal();
-
-    for (const prod of productos) {
-      const prodId = String(prod.productoId ?? prod.producto_id ?? prod.id ?? '');
-      if (!prodId) continue;
-
-      const cantUsada = Number(prod.cantidad) || 1;
-      if (cantUsada <= 0) continue;
-
-      // Buscar producto en catalogo para conocer su local id, servidor_id y codigo
-      const pCatalog = prodList.find(p =>
-        String(p.id) === prodId ||
-        (p.servidor_id && String(p.servidor_id) === prodId) ||
-        (p.codigo && String(p.codigo) === prodId)
-      );
-
-      const pLocalId = pCatalog ? String(pCatalog.id) : prodId;
-      const pServId = pCatalog?.servidor_id ? String(pCatalog.servidor_id) : null;
-      const pCodigo = pCatalog?.codigo ? String(pCatalog.codigo) : null;
-
-      const invItem = invList.find(i => {
-        const invProdId = String(i.producto_id ?? '');
-        if (pServId && invProdId === pServId) return true;
-        if (invProdId === pLocalId) return true;
-        if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
-        return false;
+    const respuestaInventario =
+      await localApi.inventario.obtenerTodos({
+        incluirInactivos: false,
       });
 
-      if (invItem) {
-        const cantActual = Number(invItem.cantidad) || 0;
-        const nuevaCantidad = Math.max(0, cantActual - cantUsada);
+    const inventario =
+      respuestaInventario?.success &&
+        Array.isArray(
+          respuestaInventario.data
+        )
+        ? respuestaInventario.data
+        : [];
 
-        // 1. Actualización directa e incondicional en SQLite
-        await db.runAsync(
-          `UPDATE inventario SET cantidad = ?, version = version + 1 WHERE id = ?`,
-          [nuevaCantidad, invItem.id]
+    const db =
+      await obtenerBaseLocal();
+
+    for (const producto of productos) {
+      const productoLocalId =
+        Number(
+          producto.productoId ??
+          producto.producto_id ??
+          producto.id
         );
 
-        // 2. Actualización en localApi
-        try {
-          await localApi.inventario.actualizar(invItem.id, {
-            cantidad: nuevaCantidad,
-          });
-        } catch (_) {}
-
-        // 3. Registrar movimiento de Salida
-        try {
-          await localApi.movimientosInventario.crear({
-            ...auditoria,
-            inventario_id: invItem.id,
-            producto_id: Number(invItem.producto_id || pLocalId),
-            tipo_movimiento: 'Salida',
-            cantidad: cantUsada,
-            observacion: 'Salida automatica por finalizacion de ticket de mantenimiento.',
-          });
-        } catch (_) {}
+      if (
+        !Number.isFinite(
+          productoLocalId
+        ) ||
+        productoLocalId <= 0
+      ) {
+        continue;
       }
+
+      const cantidadUsada =
+        Number(producto.cantidad) || 1;
+
+      if (cantidadUsada <= 0) {
+        continue;
+      }
+
+      const inventarioItem =
+        inventario.find((item) => {
+          return (
+            Number(item.producto_id) ===
+            productoLocalId
+          );
+        });
+
+      if (!inventarioItem) {
+        continue;
+      }
+
+      const cantidadActual =
+        Number(
+          inventarioItem.cantidad
+        ) || 0;
+
+      const nuevaCantidad =
+        Math.max(
+          0,
+          cantidadActual -
+          cantidadUsada
+        );
+
+      await db.runAsync(
+        `
+        UPDATE inventario
+        SET
+          cantidad = ?,
+          version = version + 1
+        WHERE id = ?
+        `,
+        [
+          nuevaCantidad,
+          inventarioItem.id,
+        ]
+      );
     }
   } catch (err) {
-    console.warn('descontarStockLocal error:', err?.message || err);
+    console.warn(
+      "descontarStockLocal error:",
+      err?.message || err
+    );
   }
 }
 
 // ─── Restaurar / Sumar stock de inventario local ──────────────────────────────
-export async function restaurarStockLocal(productos) {
-  if (!Array.isArray(productos) || productos.length === 0) return;
+async function restaurarStockLocal(productos) {
+  if (
+    !Array.isArray(productos) ||
+    productos.length === 0
+  ) {
+    return;
+  }
+
   try {
-    const auditoria = await obtenerCamposAuditoria();
-    const [resInv, resProds] = await Promise.all([
-      localApi.inventario.obtenerTodos({ incluirInactivos: false }),
-      localApi.productos.obtenerTodos({ incluirInactivos: false }),
-    ]);
-    const invList = (resInv.success && Array.isArray(resInv.data)) ? resInv.data : [];
-    const prodList = (resProds.success && Array.isArray(resProds.data)) ? resProds.data : [];
-    const db = await obtenerBaseLocal();
-
-    for (const prod of productos) {
-      const prodId = String(prod.productoId ?? prod.producto_id ?? prod.id ?? '');
-      if (!prodId) continue;
-
-      const cantDevuelta = Number(prod.cantidad) || 1;
-      if (cantDevuelta <= 0) continue;
-
-      const pCatalog = prodList.find(p =>
-        String(p.id) === prodId ||
-        (p.servidor_id && String(p.servidor_id) === prodId) ||
-        (p.codigo && String(p.codigo) === prodId)
-      );
-
-      const pLocalId = pCatalog ? String(pCatalog.id) : prodId;
-      const pServId = pCatalog?.servidor_id ? String(pCatalog.servidor_id) : null;
-      const pCodigo = pCatalog?.codigo ? String(pCatalog.codigo) : null;
-
-      const invItem = invList.find(i => {
-        const invProdId = String(i.producto_id ?? '');
-        if (pServId && invProdId === pServId) return true;
-        if (invProdId === pLocalId) return true;
-        if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
-        return false;
+    const respuestaInventario =
+      await localApi.inventario.obtenerTodos({
+        incluirInactivos: false,
       });
 
-      if (invItem) {
-        const cantActual = Number(invItem.cantidad) || 0;
-        const nuevaCantidad = cantActual + cantDevuelta;
+    const inventario =
+      respuestaInventario?.success &&
+        Array.isArray(
+          respuestaInventario.data
+        )
+        ? respuestaInventario.data
+        : [];
 
-        // 1. Actualización directa e incondicional en SQLite
-        await db.runAsync(
-          `UPDATE inventario SET cantidad = ?, version = version + 1 WHERE id = ?`,
-          [nuevaCantidad, invItem.id]
+    const db =
+      await obtenerBaseLocal();
+
+    for (const producto of productos) {
+      const productoLocalId =
+        Number(
+          producto.productoId ??
+          producto.producto_id ??
+          producto.id
         );
 
-        // 2. Actualización en localApi
-        try {
-          await localApi.inventario.actualizar(invItem.id, {
-            cantidad: nuevaCantidad,
-          });
-        } catch (_) {}
-
-        // 3. Registrar movimiento de Entrada (reversión)
-        try {
-          await localApi.movimientosInventario.crear({
-            ...auditoria,
-            inventario_id: invItem.id,
-            producto_id: Number(invItem.producto_id || pLocalId),
-            tipo_movimiento: 'Entrada',
-            cantidad: cantDevuelta,
-            observacion: 'Reversion automatica de stock por reapertura de ticket de mantenimiento.',
-          });
-        } catch (_) {}
+      if (
+        !Number.isFinite(
+          productoLocalId
+        ) ||
+        productoLocalId <= 0
+      ) {
+        continue;
       }
+
+      const cantidadDevuelta =
+        Number(producto.cantidad) || 1;
+
+      if (cantidadDevuelta <= 0) {
+        continue;
+      }
+
+      const inventarioItem =
+        inventario.find((item) => {
+          return (
+            Number(item.producto_id) ===
+            productoLocalId
+          );
+        });
+
+      if (!inventarioItem) {
+        continue;
+      }
+
+      const cantidadActual =
+        Number(
+          inventarioItem.cantidad
+        ) || 0;
+
+      const nuevaCantidad =
+        cantidadActual +
+        cantidadDevuelta;
+
+      await db.runAsync(
+        `
+        UPDATE inventario
+        SET
+          cantidad = ?,
+          version = version + 1
+        WHERE id = ?
+        `,
+        [
+          nuevaCantidad,
+          inventarioItem.id,
+        ]
+      );
     }
   } catch (err) {
-    console.warn('restaurarStockLocal error:', err?.message || err);
+    console.warn(
+      "restaurarStockLocal error:",
+      err?.message || err
+    );
   }
 }
 
@@ -695,7 +782,7 @@ export async function actualizarTicket(ticket) {
     let ticketAnterior = null;
     try {
       ticketAnterior = await obtenerTicketPorId(targetId);
-    } catch (_) {}
+    } catch (_) { }
 
     const auditoria = await obtenerCamposAuditoria();
     const payload = buildPayloadLocal(ticket, auditoria);
@@ -760,7 +847,7 @@ export async function eliminarTicket(id) {
     let ticketAnterior = null;
     try {
       ticketAnterior = await obtenerTicketPorId(targetId);
-    } catch (_) {}
+    } catch (_) { }
 
     const res = await localApi.mantenimientoEquipo.eliminar(targetId);
     if (!res.success) {

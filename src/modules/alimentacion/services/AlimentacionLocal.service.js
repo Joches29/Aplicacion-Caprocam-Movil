@@ -14,7 +14,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { localApi } from "../../../database/local/localApi.service";
 import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
-import { obtenerCamposAuditoria } from "../../../shared/utils/sessionUtils";
 
 /*
 ============================================================
@@ -127,7 +126,7 @@ async function obtenerContextoLocal() {
 }
 
 async function ejecutarMetodoAlimentacion(tipoMetodo, argumentos = []) {
-    const apiAlimentaciones =localApi.alimentaciones;
+    const apiAlimentaciones = localApi.alimentaciones;
 
     if (!apiAlimentaciones) {
         throw new Error("localApi.alimentaciones no esta disponible.");
@@ -136,7 +135,7 @@ async function ejecutarMetodoAlimentacion(tipoMetodo, argumentos = []) {
     const nombres = METODOS_LOCAL_API[tipoMetodo] || [];
 
     for (let i = 0; i < nombres.length; i += 1) {
-        const nombreMetodo =nombres[i];
+        const nombreMetodo = nombres[i];
 
         if (
             typeof apiAlimentaciones[nombreMetodo] === "function") {
@@ -155,30 +154,30 @@ MAPEADORES
 function mapearAlimentacionDesdeLocal(registro) {
     return registro
         ? {
-            id:obtenerValor(registro,["id"],null),
-            servidorId:obtenerValor(registro,["servidor_id","servidorId"],null),
-            uuid:obtenerValor(registro,["uuid"],""),
-            grupoDatos:obtenerValor(registro,["grupo_datos","grupoDatos"],null),
-            fincaId:obtenerValor(registro,["finca_id","fincaId"],null),
-            estanqueId:obtenerValor(registro,["estanque_id","estanqueId"],null),
-            colaboradorId:obtenerValor(registro,["colaborador_id","colaboradorId"],null),
-            proveedorId:obtenerValor(registro,["proveedor_id","proveedorId"],null),
-            productoId:obtenerValor(registro,["producto_id","productoId"],null),
-            fecha:obtenerValor(registro,["fecha"],""),
-            hora:obtenerValor(registro,["hora"],""),
-            metodo:obtenerValor(registro,["metodo"],""),
-            cantidadKg:obtenerValor(registro,["cantidad_kg","cantidadKg"],0),
-            presentacion:obtenerValor(registro,["presentacion"],""),
-            proveedor:obtenerValor(registro,["proveedor"],""),
-            tipoAlimento:obtenerValor(registro,["tipo_alimento","tipoAlimento"],""),
-            observaciones:obtenerValor(registro,["observaciones"],""),
-            activo:obtenerValor(registro,["activo"],1),
-            sincronizado:obtenerValor(registro,["sincronizado"],0),
-            pendienteSync:obtenerValor(registro,["pendiente_sync","pendienteSync"],1),
-            accionSync:obtenerValor(registro,["accion_sync","accionSync"],null),
-            fechaSync:obtenerValor(registro,["fecha_sync","fechaSync"],null),
-            fechaCreacion:obtenerValor(registro,["fecha_creacion","fechaCreacion"],null),
-            fechaActualizacion:obtenerValor(registro,["fecha_actualizacion","fechaActualizacion"],null),
+            id: obtenerValor(registro, ["id"], null),
+            servidorId: obtenerValor(registro, ["servidor_id", "servidorId"], null),
+            uuid: obtenerValor(registro, ["uuid"], ""),
+            grupoDatos: obtenerValor(registro, ["grupo_datos", "grupoDatos"], null),
+            fincaId: obtenerValor(registro, ["finca_id", "fincaId"], null),
+            estanqueId: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+            colaboradorId: obtenerValor(registro, ["colaborador_id", "colaboradorId"], null),
+            proveedorId: obtenerValor(registro, ["proveedor_id", "proveedorId"], null),
+            productoId: obtenerValor(registro, ["producto_id", "productoId"], null),
+            fecha: obtenerValor(registro, ["fecha"], ""),
+            hora: obtenerValor(registro, ["hora"], ""),
+            metodo: obtenerValor(registro, ["metodo"], ""),
+            cantidadKg: obtenerValor(registro, ["cantidad_kg", "cantidadKg"], 0),
+            presentacion: obtenerValor(registro, ["presentacion"], ""),
+            proveedor: obtenerValor(registro, ["proveedor"], ""),
+            tipoAlimento: obtenerValor(registro, ["tipo_alimento", "tipoAlimento"], ""),
+            observaciones: obtenerValor(registro, ["observaciones"], ""),
+            activo: obtenerValor(registro, ["activo"], 1),
+            sincronizado: obtenerValor(registro, ["sincronizado"], 0),
+            pendienteSync: obtenerValor(registro, ["pendiente_sync", "pendienteSync"], 1),
+            accionSync: obtenerValor(registro, ["accion_sync", "accionSync"], null),
+            fechaSync: obtenerValor(registro, ["fecha_sync", "fechaSync"], null),
+            fechaCreacion: obtenerValor(registro, ["fecha_creacion", "fechaCreacion"], null),
+            fechaActualizacion: obtenerValor(registro, ["fecha_actualizacion", "fechaActualizacion"], null),
         }
         : null;
 }
@@ -190,59 +189,59 @@ async function mapearAlimentacionParaLocal(alimentacionDTO) {
     const contexto = await obtenerContextoLocal();
     const grupoDatos = obtenerValor(
         alimentacionDTO,
-        ["grupoDatos","grupo_datos"],
-         contexto.grupoDatos
-        );
+        ["grupoDatos", "grupo_datos"],
+        contexto.grupoDatos
+    );
 
     const fincaId = obtenerValor(
         alimentacionDTO,
-        ["fincaId","finca_id","idFinca"],
+        ["fincaId", "finca_id", "idFinca"],
         null
-        );
+    );
 
 
-    const estanqueId =obtenerValor(
+    const estanqueId = obtenerValor(
         alimentacionDTO,
-        ["estanqueId","estanque_id","idEstanque"],
+        ["estanqueId", "estanque_id", "idEstanque"],
         null
-        );
+    );
 
-    const colaboradorId =obtenerValor(
+    const colaboradorId = obtenerValor(
         alimentacionDTO,
-        ["colaboradorId","colaborador_id","idColaborador"],
+        ["colaboradorId", "colaborador_id", "idColaborador"],
         contexto.colaboradorId
-        );
+    );
 
 
-    const creadoPorColaboradorId =obtenerValor(
+    const creadoPorColaboradorId = obtenerValor(
         alimentacionDTO,
-        ["creadoPorColaboradorId","creado_por_colaborador_id"],
+        ["creadoPorColaboradorId", "creado_por_colaborador_id"],
         contexto.colaboradorId
-        );
+    );
 
-    const creadoPorUsuarioId =obtenerValor(
+    const creadoPorUsuarioId = obtenerValor(
         alimentacionDTO,
-        ["creadoPorUsuarioId","creado_por_usuario_id"],
+        ["creadoPorUsuarioId", "creado_por_usuario_id"],
         null
-        );
+    );
 
     return {
-        grupo_datos:convertirNumero(grupoDatos,contexto.grupoDatos),
-        finca_id:convertirNumero(fincaId,null),
-        estanque_id:convertirNumero(estanqueId,null),
-        colaborador_id:convertirNumero(colaboradorId,null),
-        proveedor_id:convertirNumero(obtenerValor(alimentacionDTO,["proveedorId","proveedor_id"],null),null),
-        producto_id:convertirNumero(obtenerValor(alimentacionDTO,["productoId","producto_id"],null),null),
-        fecha:convertirTexto(obtenerValor(alimentacionDTO,["fecha"],"")),
-        hora:convertirTexto(obtenerValor(alimentacionDTO,["hora"],"")),
-        metodo:convertirTexto(obtenerValor(alimentacionDTO,["metodo"],"")),
-        cantidad_kg:convertirNumero(obtenerValor(alimentacionDTO,["cantidadKg","cantidad_kg"],0),0),
-        presentacion:convertirTexto(obtenerValor(alimentacionDTO,["presentacion"],"")),
-        proveedor:convertirTexto(obtenerValor(alimentacionDTO,["proveedor"],"")),
-        tipo_alimento:convertirTexto(obtenerValor(alimentacionDTO,["tipoAlimento","tipo_alimento"],"")),
-        observaciones:convertirTexto(obtenerValor(alimentacionDTO,["observaciones"],"")).trim(),
-        creado_por_usuario_id:creadoPorUsuarioId,
-        creado_por_colaborador_id:creadoPorColaboradorId,
+        grupo_datos: convertirNumero(grupoDatos, contexto.grupoDatos),
+        finca_id: convertirNumero(fincaId, null),
+        estanque_id: convertirNumero(estanqueId, null),
+        colaborador_id: convertirNumero(colaboradorId, null),
+        proveedor_id: convertirNumero(obtenerValor(alimentacionDTO, ["proveedorId", "proveedor_id"], null), null),
+        producto_id: convertirNumero(obtenerValor(alimentacionDTO, ["productoId", "producto_id"], null), null),
+        fecha: convertirTexto(obtenerValor(alimentacionDTO, ["fecha"], "")),
+        hora: convertirTexto(obtenerValor(alimentacionDTO, ["hora"], "")),
+        metodo: convertirTexto(obtenerValor(alimentacionDTO, ["metodo"], "")),
+        cantidad_kg: convertirNumero(obtenerValor(alimentacionDTO, ["cantidadKg", "cantidad_kg"], 0), 0),
+        presentacion: convertirTexto(obtenerValor(alimentacionDTO, ["presentacion"], "")),
+        proveedor: convertirTexto(obtenerValor(alimentacionDTO, ["proveedor"], "")),
+        tipo_alimento: convertirTexto(obtenerValor(alimentacionDTO, ["tipoAlimento", "tipo_alimento"], "")),
+        observaciones: convertirTexto(obtenerValor(alimentacionDTO, ["observaciones"], "")).trim(),
+        creado_por_usuario_id: creadoPorUsuarioId,
+        creado_por_colaborador_id: creadoPorColaboradorId,
     };
 }
 /*
@@ -252,24 +251,24 @@ FILTROS
 */
 
 function aplicarFiltros(registros, filtros = {}) {
-    const fincaId =obtenerValor(filtros,["fincaId","finca_id"],null);
-    const estanqueId =obtenerValor(filtros,["estanqueId","estanque_id"],null);
-    const colaboradorId =obtenerValor(filtros,["colaboradorId","colaborador_id"],null);
-    const fecha =obtenerValor(filtros,["fecha"],null);
-    const hora =obtenerValor(filtros,["hora"],null);
-    const tipoAlimento =obtenerValor(filtros,["tipoAlimento","tipo_alimento"],null);
-    const presentacion =obtenerValor(filtros,["presentacion"],null);
+    const fincaId = obtenerValor(filtros, ["fincaId", "finca_id"], null);
+    const estanqueId = obtenerValor(filtros, ["estanqueId", "estanque_id"], null);
+    const colaboradorId = obtenerValor(filtros, ["colaboradorId", "colaborador_id"], null);
+    const fecha = obtenerValor(filtros, ["fecha"], null);
+    const hora = obtenerValor(filtros, ["hora"], null);
+    const tipoAlimento = obtenerValor(filtros, ["tipoAlimento", "tipo_alimento"], null);
+    const presentacion = obtenerValor(filtros, ["presentacion"], null);
 
     return registros.filter((item) => {
-        const coincideFinca =fincaId? Number(item.fincaId) === Number(fincaId): true;
-        const coincideEstanque =estanqueId? Number(item.estanqueId) === Number(estanqueId): true;
-        const coincideColaborador =colaboradorId? Number(item.colaboradorId) === Number(colaboradorId): true;
-        const coincideFecha =fecha? String(item.fecha) === String(fecha): true;
-        const coincideHora =hora? String(item.hora) === String(hora): true;
-        const coincideTipo =tipoAlimento? String(item.tipoAlimento) === String(tipoAlimento): true;
-        const coincidePresentacion =presentacion? String(item.presentacion) === String(presentacion): true;
+        const coincideFinca = fincaId ? Number(item.fincaId) === Number(fincaId) : true;
+        const coincideEstanque = estanqueId ? Number(item.estanqueId) === Number(estanqueId) : true;
+        const coincideColaborador = colaboradorId ? Number(item.colaboradorId) === Number(colaboradorId) : true;
+        const coincideFecha = fecha ? String(item.fecha) === String(fecha) : true;
+        const coincideHora = hora ? String(item.hora) === String(hora) : true;
+        const coincideTipo = tipoAlimento ? String(item.tipoAlimento) === String(tipoAlimento) : true;
+        const coincidePresentacion = presentacion ? String(item.presentacion) === String(presentacion) : true;
 
-        return (coincideFinca &&coincideEstanque &&coincideColaborador &&coincideFecha &&coincideHora &&coincideTipo &&coincidePresentacion);
+        return (coincideFinca && coincideEstanque && coincideColaborador && coincideFecha && coincideHora && coincideTipo && coincidePresentacion);
     });
 }
 
@@ -311,7 +310,7 @@ async function getAll(filtros = {}) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al obtener alimentaciones locales",
@@ -342,7 +341,7 @@ async function getById(id) {
         );
 
 
-    } catch(error) {
+    } catch (error) {
 
         console.error(
             "Error al obtener la alimentacion local",
@@ -358,128 +357,153 @@ async function getById(id) {
 /**
  * Descuenta stock del inventario local y registra el movimiento de Salida.
  */
-async function descontarStockAlimentacion(productoId, cantidadKg) {
-    if (!productoId || !cantidadKg || Number(cantidadKg) <= 0) return;
+async function descontarStockAlimentacion(
+    productoId,
+    cantidadKg
+) {
+    if (
+        !productoId ||
+        !cantidadKg ||
+        Number(cantidadKg) <= 0
+    ) {
+        return;
+    }
+
     try {
-        const prodIdStr = String(productoId);
-        const cant = Number(cantidadKg);
-        const [resInv, resProds] = await Promise.all([
-            localApi.inventario.obtenerTodos({ incluirInactivos: false }),
-            localApi.productos.obtenerTodos({ incluirInactivos: false }),
-        ]);
-        const invList = (resInv?.success && Array.isArray(resInv.data)) ? resInv.data : [];
-        const prodList = (resProds?.success && Array.isArray(resProds.data)) ? resProds.data : [];
-        const db = await obtenerBaseLocal();
+        const productoLocalId =
+            Number(productoId);
 
-        const pCatalog = prodList.find(p =>
-            String(p.id) === prodIdStr ||
-            (p.servidor_id && String(p.servidor_id) === prodIdStr) ||
-            (p.codigo && String(p.codigo) === prodIdStr)
-        );
+        const cantidad =
+            Number(cantidadKg);
 
-        const pLocalId = pCatalog ? String(pCatalog.id) : prodIdStr;
-        const pServId = pCatalog?.servidor_id ? String(pCatalog.servidor_id) : null;
-        const pCodigo = pCatalog?.codigo ? String(pCatalog.codigo) : null;
+        const respuestaInventario =
+            await localApi.inventario.obtenerTodos({
+                incluirInactivos: false,
+            });
 
-        const invItem = invList.find(i => {
-            const invProdId = String(i.producto_id ?? '');
-            if (pServId && invProdId === pServId) return true;
-            if (invProdId === pLocalId) return true;
-            if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
-            return false;
-        });
+        const inventario =
+            respuestaInventario?.success &&
+                Array.isArray(respuestaInventario.data)
+                ? respuestaInventario.data
+                : [];
 
-        if (invItem) {
-            const cantActual = Number(invItem.cantidad) || 0;
-            const nuevaCantidad = Math.max(0, cantActual - cant);
+        const inventarioItem =
+            inventario.find((item) => {
+                return (
+                    Number(item.producto_id) ===
+                    productoLocalId
+                );
+            });
 
-            await db.runAsync(
-                `UPDATE inventario SET cantidad = ?, version = version + 1 WHERE id = ?`,
-                [nuevaCantidad, invItem.id]
+        if (!inventarioItem) {
+            return;
+        }
+
+        const cantidadActual =
+            Number(inventarioItem.cantidad) || 0;
+
+        const nuevaCantidad =
+            Math.max(
+                0,
+                cantidadActual - cantidad
             );
 
-            try {
-                await localApi.inventario.actualizar(invItem.id, { cantidad: nuevaCantidad });
-            } catch (_) {}
+        const db =
+            await obtenerBaseLocal();
 
-            try {
-                const auditoria = await obtenerCamposAuditoria();
-                await localApi.movimientosInventario.crear({
-                    ...auditoria,
-                    inventario_id: invItem.id,
-                    producto_id: Number(invItem.producto_id || pLocalId),
-                    tipo_movimiento: 'Salida',
-                    cantidad: cant,
-                    observacion: 'Salida automatica por registro de alimentacion.',
-                });
-            } catch (_) {}
-        }
-    } catch (err) {
-        console.warn("Error al descontar stock en alimentacion:", err);
+        await db.runAsync(
+            `
+            UPDATE inventario
+            SET
+                cantidad = ?,
+                version = version + 1
+            WHERE id = ?
+            `,
+            [
+                nuevaCantidad,
+                inventarioItem.id,
+            ]
+        );
+    } catch (error) {
+        console.warn(
+            "Error al descontar stock en alimentacion:",
+            error
+        );
     }
 }
 
 /**
  * Restaura stock en el inventario local y registra el movimiento de Entrada.
  */
-async function restaurarStockAlimentacion(productoId, cantidadKg) {
-    if (!productoId || !cantidadKg || Number(cantidadKg) <= 0) return;
+async function restaurarStockAlimentacion(
+    productoId,
+    cantidadKg
+) {
+    if (
+        !productoId ||
+        !cantidadKg ||
+        Number(cantidadKg) <= 0
+    ) {
+        return;
+    }
+
     try {
-        const prodIdStr = String(productoId);
-        const cant = Number(cantidadKg);
-        const [resInv, resProds] = await Promise.all([
-            localApi.inventario.obtenerTodos({ incluirInactivos: false }),
-            localApi.productos.obtenerTodos({ incluirInactivos: false }),
-        ]);
-        const invList = (resInv?.success && Array.isArray(resInv.data)) ? resInv.data : [];
-        const prodList = (resProds?.success && Array.isArray(resProds.data)) ? resProds.data : [];
-        const db = await obtenerBaseLocal();
+        const productoLocalId =
+            Number(productoId);
 
-        const pCatalog = prodList.find(p =>
-            String(p.id) === prodIdStr ||
-            (p.servidor_id && String(p.servidor_id) === prodIdStr) ||
-            (p.codigo && String(p.codigo) === prodIdStr)
-        );
+        const cantidad =
+            Number(cantidadKg);
 
-        const pLocalId = pCatalog ? String(pCatalog.id) : prodIdStr;
-        const pServId = pCatalog?.servidor_id ? String(pCatalog.servidor_id) : null;
-        const pCodigo = pCatalog?.codigo ? String(pCatalog.codigo) : null;
+        const respuestaInventario =
+            await localApi.inventario.obtenerTodos({
+                incluirInactivos: false,
+            });
 
-        const invItem = invList.find(i => {
-            const invProdId = String(i.producto_id ?? '');
-            if (pServId && invProdId === pServId) return true;
-            if (invProdId === pLocalId) return true;
-            if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
-            return false;
-        });
+        const inventario =
+            respuestaInventario?.success &&
+                Array.isArray(respuestaInventario.data)
+                ? respuestaInventario.data
+                : [];
 
-        if (invItem) {
-            const cantActual = Number(invItem.cantidad) || 0;
-            const nuevaCantidad = cantActual + cant;
+        const inventarioItem =
+            inventario.find((item) => {
+                return (
+                    Number(item.producto_id) ===
+                    productoLocalId
+                );
+            });
 
-            await db.runAsync(
-                `UPDATE inventario SET cantidad = ?, version = version + 1 WHERE id = ?`,
-                [nuevaCantidad, invItem.id]
-            );
-
-            try {
-                await localApi.inventario.actualizar(invItem.id, { cantidad: nuevaCantidad });
-            } catch (_) {}
-
-            try {
-                const auditoria = await obtenerCamposAuditoria();
-                await localApi.movimientosInventario.crear({
-                    ...auditoria,
-                    inventario_id: invItem.id,
-                    producto_id: Number(invItem.producto_id || pLocalId),
-                    tipo_movimiento: 'Entrada',
-                    cantidad: cant,
-                    observacion: 'Reversion automatica de stock por eliminacion/edicion de alimentacion.',
-                });
-            } catch (_) {}
+        if (!inventarioItem) {
+            return;
         }
-    } catch (err) {
-        console.warn("Error al restaurar stock en alimentacion:", err);
+
+        const cantidadActual =
+            Number(inventarioItem.cantidad) || 0;
+
+        const nuevaCantidad =
+            cantidadActual + cantidad;
+
+        const db =
+            await obtenerBaseLocal();
+
+        await db.runAsync(
+            `
+            UPDATE inventario
+            SET
+                cantidad = ?,
+                version = version + 1
+            WHERE id = ?
+            `,
+            [
+                nuevaCantidad,
+                inventarioItem.id,
+            ]
+        );
+    } catch (error) {
+        console.warn(
+            "Error al restaurar stock en alimentacion:",
+            error
+        );
     }
 }
 
@@ -512,7 +536,7 @@ async function create(alimentacionDTO) {
         }
 
         return mapearAlimentacionDesdeLocal(dataCreada);
-    } catch(error) {
+    } catch (error) {
         console.error("Error al crear la alimentacion local", extraerError(error));
         throw error;
     }
@@ -523,7 +547,7 @@ async function update(id, alimentacionDTO) {
         let registroPrevio = null;
         try {
             registroPrevio = await getById(id);
-        } catch (_) {}
+        } catch (_) { }
 
         const datosLocales = await mapearAlimentacionParaLocal(alimentacionDTO);
         const respuesta = await ejecutarMetodoAlimentacion("actualizar", [id, datosLocales]);
@@ -540,7 +564,7 @@ async function update(id, alimentacionDTO) {
         }
 
         return mapearAlimentacionDesdeLocal(dataActualizada);
-    } catch(error) {
+    } catch (error) {
         console.error("Error al actualizar la alimentacion local", extraerError(error));
         throw error;
     }
@@ -551,7 +575,7 @@ async function deleteById(id) {
         let registroPrevio = null;
         try {
             registroPrevio = await getById(id);
-        } catch (_) {}
+        } catch (_) { }
 
         const respuesta = await ejecutarMetodoAlimentacion("eliminar", [id]);
         const dataEliminada = obtenerDataRespuesta(respuesta);
@@ -562,7 +586,7 @@ async function deleteById(id) {
         }
 
         return mapearAlimentacionDesdeLocal(dataEliminada);
-    } catch(error) {
+    } catch (error) {
         console.error("Error al eliminar la alimentacion local", extraerError(error));
         throw error;
     }

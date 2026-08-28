@@ -323,6 +323,35 @@ const normalizarPorTabla = async (
 
         delete r.expiration_date;
       }
+
+      if (r.proveedor_id != null) {
+        r.proveedor_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.proveedores,
+            r.proveedor_id,
+            "proveedor del producto"
+          );
+      }
+      break;
+
+    case "inventario":
+      if (r.producto_id != null) {
+        r.producto_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.productos,
+            r.producto_id,
+            "producto del inventario"
+          );
+      }
+
+      if (r.proveedor_id != null) {
+        r.proveedor_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.proveedores,
+            r.proveedor_id,
+            "proveedor del inventario"
+          );
+      }
       break;
 
     case "equipos":
@@ -369,11 +398,17 @@ const normalizarPorTabla = async (
       }
 
       if (r.fecha_ultimo_encendido) {
-        r.fecha_ultimo_encendido = normalizarFechaMySQL(r.fecha_ultimo_encendido);
+        r.fecha_ultimo_encendido =
+          normalizarFechaMySQL(
+            r.fecha_ultimo_encendido
+          );
       }
 
       if (r.fecha_instalacion) {
-        r.fecha_instalacion = normalizarFechaMySQL(r.fecha_instalacion);
+        r.fecha_instalacion =
+          normalizarFechaMySQL(
+            r.fecha_instalacion
+          );
       }
       break;
 
@@ -521,6 +556,15 @@ const normalizarPorTabla = async (
         r.estado_equipo =
           r.estado_equipo_actual;
       }
+
+      if (r.equipo_id != null) {
+        r.equipo_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.equipos,
+            r.equipo_id,
+            "equipo del mantenimiento"
+          );
+      }
       break;
 
     case "mantenimiento_equipo_tareas":
@@ -559,6 +603,26 @@ const normalizarPorTabla = async (
         r.estado_tarea =
           r.estado;
       }
+
+      if (
+        r.mantenimiento_equipo_id != null
+      ) {
+        r.mantenimiento_equipo_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.mantenimientoEquipo,
+            r.mantenimiento_equipo_id,
+            "mantenimiento de la tarea"
+          );
+      }
+
+      if (r.tarea_id != null) {
+        r.tarea_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.tareas,
+            r.tarea_id,
+            "tarea del mantenimiento"
+          );
+      }
       break;
 
     case "mantenimiento_equipo_productos":
@@ -579,6 +643,26 @@ const normalizarPorTabla = async (
       ) {
         r.mantenimiento_equipo_id =
           r.ticket_id;
+      }
+
+      if (
+        r.mantenimiento_equipo_id != null
+      ) {
+        r.mantenimiento_equipo_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.mantenimientoEquipo,
+            r.mantenimiento_equipo_id,
+            "mantenimiento del producto"
+          );
+      }
+
+      if (r.producto_id != null) {
+        r.producto_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.productos,
+            r.producto_id,
+            "producto del mantenimiento"
+          );
       }
       break;
 
@@ -689,7 +773,9 @@ const normalizarPorTabla = async (
         }
       }
 
-      if (r.creado_por_colaborador_id != null) {
+      if (
+        r.creado_por_colaborador_id != null
+      ) {
         const colaboradorLocal =
           await obtenerIdLocalDesdeServidor(
             localApi.colaboradores,
@@ -829,6 +915,54 @@ function normalizarAccion(item) {
   }
 
   return accion;
+}
+
+async function obtenerIdServidorSiExiste(
+  servicio,
+  idValor
+) {
+  if (
+    idValor === undefined ||
+    idValor === null ||
+    idValor === ""
+  ) {
+    return null;
+  }
+
+  const id = Number(idValor);
+
+  if (
+    !Number.isFinite(id) ||
+    id <= 0
+  ) {
+    return idValor;
+  }
+
+  const respuesta =
+    await servicio.obtenerPorId(id);
+
+  const registro =
+    obtenerDataLocal(respuesta);
+
+  if (!registro) {
+    return id;
+  }
+
+  const servidorId =
+    Number(
+      registro.servidor_id ??
+      registro.servidorId ??
+      0
+    );
+
+  if (
+    Number.isFinite(servidorId) &&
+    servidorId > 0
+  ) {
+    return servidorId;
+  }
+
+  return id;
 }
 
 async function normalizarRegistroParaSubida(
@@ -1009,6 +1143,79 @@ async function normalizarRegistroParaSubida(
               localApi.productos,
               r.producto_id,
               "producto"
+            );
+        }
+        break;
+
+      case "mantenimiento_equipo":
+        if (r.equipo_id != null) {
+          r.equipo_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.equipos,
+              r.equipo_id,
+              "equipo de mantenimiento"
+            );
+        }
+        break;
+
+      case "mantenimiento_equipo_tareas":
+        if (
+          r.mantenimiento_equipo_id != null
+        ) {
+          r.mantenimiento_equipo_id =
+            await obtenerIdServidorSiExiste(
+              localApi.mantenimientoEquipo,
+              r.mantenimiento_equipo_id
+            );
+        }
+
+        if (r.tarea_id != null) {
+          r.tarea_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.tareas,
+              r.tarea_id,
+              "tarea de mantenimiento"
+            );
+        }
+        break;
+
+      case "mantenimiento_equipo_productos":
+        if (
+          r.mantenimiento_equipo_id != null
+        ) {
+          r.mantenimiento_equipo_id =
+            await obtenerIdServidorSiExiste(
+              localApi.mantenimientoEquipo,
+              r.mantenimiento_equipo_id
+            );
+        }
+
+        if (r.producto_id != null) {
+          r.producto_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.productos,
+              r.producto_id,
+              "producto de mantenimiento"
+            );
+        }
+        break;
+
+      case "movimientos_inventario":
+        if (r.inventario_id != null) {
+          r.inventario_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.inventario,
+              r.inventario_id,
+              "inventario del movimiento"
+            );
+        }
+
+        if (r.producto_id != null) {
+          r.producto_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.productos,
+              r.producto_id,
+              "producto del movimiento"
             );
         }
         break;
@@ -1292,16 +1499,22 @@ export const configSyncService = {
 
   subirCambiosPendientes: async () => {
     try {
-      const tokenValido = await configSyncService.validarTokenAntesDeSincronizar();
+      const tokenValido =
+        await configSyncService.validarTokenAntesDeSincronizar();
+
       if (!tokenValido) {
-        const e = new Error("Sesion no autorizada o expirada. Por favor inicie sesion de nuevo.");
+        const e = new Error(
+          "Sesion no autorizada o expirada. Por favor inicie sesion de nuevo."
+        );
+
         e.status = 401;
         throw e;
       }
 
       await localApi.inicializar();
 
-      const respuestaPendientes = await localApi.sync.obtenerPendientes();
+      const respuestaPendientes =
+        await localApi.sync.obtenerPendientes();
 
       if (!respuestaPendientes.success) {
         throw new Error(
@@ -1310,12 +1523,14 @@ export const configSyncService = {
         );
       }
 
-      const pendientes = respuestaPendientes.data ?? [];
+      const pendientes =
+        respuestaPendientes.data ?? [];
 
       if (pendientes.length === 0) {
         return {
           success: true,
-          message: "No hay registros pendientes de sincronizar.",
+          message:
+            "No hay registros pendientes de sincronizar.",
           subidos: 0,
         };
       }
@@ -1335,34 +1550,51 @@ export const configSyncService = {
         }
       }
 
-      const payload = construirPayloadSubida(porTabla);
+      const payload =
+        construirPayloadSubida(
+          porTabla
+        );
 
-      if (Object.keys(payload).length === 0) {
+      if (
+        Object.keys(payload).length === 0
+      ) {
         return {
           success: true,
-          message: "No hay modulos operativos pendientes.",
+          message:
+            "No hay modulos operativos pendientes.",
           subidos: 0,
         };
       }
 
-      const androidId = obtenerAndroidId();
+      const androidId =
+        obtenerAndroidId();
 
-      const respuestaServidor = await api.post(
-        "/sync/sincronizar",
-        {
-          ...payload,
-          androidId,
-        },
-        {
-          headers: {
-            "x-android-id": androidId,
+      const respuestaServidor =
+        await api.post(
+          "/sync/sincronizar",
+          {
+            ...payload,
+            androidId,
           },
-        }
-      );
+          {
+            headers: {
+              "x-android-id":
+                androidId,
+            },
+          }
+        );
 
-      const dataServidor = respuestaServidor?.data?.data;
-      const resultadoServidor = dataServidor?.resultado ?? {};
-      const mapaIds = construirMapaIds(resultadoServidor);
+      const dataServidor =
+        respuestaServidor?.data?.data;
+
+      const resultadoServidor =
+        dataServidor?.resultado ??
+        {};
+
+      const mapaIds =
+        construirMapaIds(
+          resultadoServidor
+        );
 
       await marcarPendientesEnviadosComoSincronizados(
         pendientesEnviados,
@@ -1371,33 +1603,29 @@ export const configSyncService = {
 
       return {
         success: true,
-        subidos: pendientesEnviados.length,
-        resultado: resultadoServidor,
-        fechaSubida: new Date().toISOString(),
+        subidos:
+          pendientesEnviados.length,
+        resultado:
+          resultadoServidor,
+        fechaSubida:
+          new Date().toISOString(),
       };
     } catch (err) {
-      if (err?.response?.status === 401 || err?.status === 401) {
-        const e = new Error("Sesion no autorizada o expirada.");
+      if (
+        err?.response?.status === 401 ||
+        err?.status === 401
+      ) {
+        const e = new Error(
+          "Sesion no autorizada o expirada."
+        );
+
         e.status = 401;
         throw e;
       }
 
-      const msg = String(err?.response?.data?.error || err?.response?.data?.message || err?.message || "");
-      if (msg.includes("Ya existe un registro de alimentacion")) {
-        // Si el registro ya existe en el servidor, marcar las alimentaciones locales como resueltas para no bloquear la sincronización
-        try {
-          const respuestaPendientes = await localApi.sync.obtenerPendientes();
-          const items = respuestaPendientes?.data ?? [];
-          for (const item of items) {
-            if (item.tabla === "alimentaciones") {
-              await localApi.sync.marcarSincronizado("alimentaciones", item.registro.id, null);
-            }
-          }
-          return await configSyncService.subirCambiosPendientes();
-        } catch (_) {}
-      }
-
-      throw new Error(obtenerMensajeErrorSubida(err));
+      throw new Error(
+        obtenerMensajeErrorSubida(err)
+      );
     }
   },
 

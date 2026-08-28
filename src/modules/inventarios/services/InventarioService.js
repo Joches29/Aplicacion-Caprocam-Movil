@@ -33,67 +33,149 @@ import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
 
 async function obtenerProductosInventarioLocal() {
-  const [respInventario, respProductos, respProveedores] = await Promise.all([
-    localApi.inventario.obtenerTodos({ incluirInactivos: false }),
-    localApi.productos.obtenerTodos({ incluirInactivos: false }),
-    localApi.proveedores.obtenerTodos({ incluirInactivos: false }),
+  const [
+    respInventario,
+    respProductos,
+    respProveedores,
+  ] = await Promise.all([
+    localApi.inventario.obtenerTodos({
+      incluirInactivos: false,
+    }),
+    localApi.productos.obtenerTodos({
+      incluirInactivos: false,
+    }),
+    localApi.proveedores.obtenerTodos({
+      incluirInactivos: false,
+    }),
   ]);
 
-  const inventario = respInventario.success ? (respInventario.data || []) : [];
-  const catalogoProductos = respProductos.success ? (respProductos.data || []) : [];
-  const catalogoProveedores = respProveedores.success ? (respProveedores.data || []) : [];
+  const inventario =
+    respInventario.success
+      ? respInventario.data || []
+      : [];
 
-  const buscarNombreProveedor = (provId, prodFallback) => {
-    if (provId) {
-      const provIdStr = String(provId);
+  const catalogoProductos =
+    respProductos.success
+      ? respProductos.data || []
+      : [];
+
+  const catalogoProveedores =
+    respProveedores.success
+      ? respProveedores.data || []
+      : [];
+
+  const buscarNombreProveedor = (
+    provId,
+    prodFallback
+  ) => {
+    if (provId != null) {
       const prov = catalogoProveedores.find(
-        (p) => String(p.servidor_id) === provIdStr || String(p.id) === provIdStr
+        (p) =>
+          String(p.id) ===
+          String(provId)
       );
-      if (prov?.nombre_empresa || prov?.nombre) return prov.nombre_empresa || prov.nombre;
+
+      if (
+        prov?.nombre_empresa ||
+        prov?.nombre
+      ) {
+        return (
+          prov.nombre_empresa ||
+          prov.nombre
+        );
+      }
     }
-    if (prodFallback && isNaN(Number(prodFallback))) return prodFallback;
+
+    if (
+      prodFallback &&
+      isNaN(Number(prodFallback))
+    ) {
+      return prodFallback;
+    }
+
     return "Sin proveedor asignado";
   };
 
-  const lista = catalogoProductos.map((p) => {
-    const pLocalId = String(p.id);
-    const pServId = p.servidor_id ? String(p.servidor_id) : null;
+  const lista = catalogoProductos.map(
+    (p) => {
+      const invRow = inventario.find(
+        (i) =>
+          String(
+            i.producto_id ?? ""
+          ) === String(p.id)
+      );
 
-    const invRow = inventario.find((i) => {
-      const invProdId = String(i.producto_id ?? "");
-      if (pServId && invProdId === pServId) return true;
-      if (invProdId === pLocalId) return true;
-      if (p.codigo && i.codigo && String(i.codigo) === String(p.codigo)) return true;
-      return false;
-    });
+      const proveedorId =
+        invRow?.proveedor_id ??
+        p.proveedor_id ??
+        p.proveedorId ??
+        null;
 
-    const proveedorId = invRow?.proveedor_id ?? p.proveedor_id ?? p.proveedorId ?? null;
-    const nombreProveedor = buscarNombreProveedor(proveedorId, p.proveedor);
+      const nombreProveedor =
+        buscarNombreProveedor(
+          proveedorId,
+          p.proveedor
+        );
 
-    const cantidad = Number(invRow?.cantidad ?? p.cantidad ?? 0) || 0;
-    const stockMinimo = Number(invRow?.stock_minimo ?? p.stock_minimo ?? p.stockMinimo ?? 0) || 0;
-    const precioUnidad = Number(p.precio_unidad ?? p.precioUnidad ?? 0) || 0;
+      const cantidad =
+        Number(
+          invRow?.cantidad ??
+          p.cantidad ??
+          0
+        ) || 0;
 
-    return {
-      id: p.id,
-      productoId: p.id,
-      servidorId: p.servidor_id ?? null,
-      codigo: p.codigo ?? "",
-      nombre: p.nombre ?? `Producto ${p.id}`,
-      categoria: p.categoria ?? "",
-      proveedor: nombreProveedor,
-      proveedorId,
-      cantidad,
-      unidad: p.unidad ?? "",
-      stockMinimo,
-      stock_maximo: stockMinimo,
-      precioUnidad,
-      precio_unidad: precioUnidad,
-      entryDate: p.entryDate ?? p.fecha_ingreso ?? null,
-      expirationDate: p.expirationDate ?? p.fecha_caducidad ?? null,
-      fechaCaducidad: p.fecha_caducidad ?? p.expirationDate ?? null,
-    };
-  });
+      const stockMinimo =
+        Number(
+          invRow?.stock_minimo ??
+          p.stock_minimo ??
+          p.stockMinimo ??
+          0
+        ) || 0;
+
+      const precioUnidad =
+        Number(
+          p.precio_unidad ??
+          p.precioUnidad ??
+          0
+        ) || 0;
+
+      return {
+        id: p.id,
+        productoId: p.id,
+        servidorId:
+          p.servidor_id ?? null,
+        codigo: p.codigo ?? "",
+        nombre:
+          p.nombre ??
+          `Producto ${p.id}`,
+        categoria:
+          p.categoria ?? "",
+        proveedor:
+          nombreProveedor,
+        proveedorId,
+        cantidad,
+        unidad: p.unidad ?? "",
+        stockMinimo,
+        stock_maximo:
+          stockMinimo,
+        precioUnidad,
+        precio_unidad:
+          precioUnidad,
+        entryDate:
+          p.entryDate ??
+          p.fecha_ingreso ??
+          null,
+        expirationDate:
+          p.expirationDate ??
+          p.fecha_caducidad ??
+          null,
+        fechaCaducidad:
+          p.fecha_caducidad ??
+          p.expirationDate ??
+          null,
+      };
+    }
+  );
 
   return lista;
 }

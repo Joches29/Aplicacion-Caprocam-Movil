@@ -30,7 +30,7 @@ HELPERS
 */
 const obtenerDataRespuesta = (respuesta) =>
     respuesta &&
-    Object.prototype.hasOwnProperty.call(respuesta, "data")
+        Object.prototype.hasOwnProperty.call(respuesta, "data")
         ? respuesta.data
         : respuesta;
 function obtenerValor(
@@ -135,7 +135,7 @@ export function useProveedorProductoAlimentacion(
                         ? productosLocales
                         : []
                 );
-            } catch(error) {
+            } catch (error) {
                 console.error(
                     "Error cargando proveedores y productos:",
                     error
@@ -176,23 +176,24 @@ export function useProveedorProductoAlimentacion(
                 .map((proveedor) => {
                     const id =
                         obtenerValor(
-                        proveedor,
-                        [
-                            "id",
-                            "proveedorId",
-                            "proveedor_id"
-                        ],"");
+                            proveedor,
+                            [
+                                "id",
+                                "proveedorId",
+                                "proveedor_id"
+                            ], "");
                     const nombre =
                         obtenerValor(
-                        proveedor,
-                        [
-                            "nombre_empresa",
-                            "nombre",
-                            "nombreProveedor",
-                            "nombre_proveedor"
-                        ],"Proveedor"
+                            proveedor,
+                            [
+                                "nombre_empresa",
+                                "nombre",
+                                "nombreProveedor",
+                                "nombre_proveedor"
+                            ], "Proveedor"
                         );
-                    return {label: nombre,value: String(id)
+                    return {
+                        label: nombre, value: String(id)
                     };
                 })
                 .filter(
@@ -207,21 +208,17 @@ export function useProveedorProductoAlimentacion(
     ============================================================
     */
     const productosOptions = useMemo(() => {
-
         if (!idProveedorSeleccionado) {
             return [];
         }
 
-        const proveedorSel = proveedores.find(p =>
-            String(p.id) === String(idProveedorSeleccionado) ||
-            (p.servidor_id && String(p.servidor_id) === String(idProveedorSeleccionado))
+        const proveedorLocalId = String(
+            idProveedorSeleccionado
         );
-        const provLocalId = proveedorSel ? String(proveedorSel.id) : String(idProveedorSeleccionado);
-        const provServId = proveedorSel?.servidor_id ? String(proveedorSel.servidor_id) : null;
 
         return productos
             .filter((producto) => {
-                const prodProvId = String(
+                const productoProveedorId = String(
                     obtenerValor(
                         producto,
                         [
@@ -232,31 +229,32 @@ export function useProveedorProductoAlimentacion(
                         ""
                     )
                 );
-                if (provServId && prodProvId === provServId) return true;
-                if (prodProvId && prodProvId === provLocalId) return true;
-                return false;
+
+                return (
+                    productoProveedorId ===
+                    proveedorLocalId
+                );
             })
             .map((producto) => {
-                const id =
-                    obtenerValor(
-                        producto,
-                        [
-                            "id",
-                            "productoId",
-                            "producto_id"
-                        ],
-                        ""
-                    );
+                const id = obtenerValor(
+                    producto,
+                    [
+                        "id",
+                        "productoId",
+                        "producto_id"
+                    ],
+                    ""
+                );
 
-                const nombre =
-                    obtenerValor(
-                        producto,
-                        [
-                            "nombre",
-                            "descripcion"
-                        ],
-                        "Producto"
-                    );
+                const nombre = obtenerValor(
+                    producto,
+                    [
+                        "nombre",
+                        "descripcion"
+                    ],
+                    "Producto"
+                );
+
                 return {
                     label: nombre,
                     value: String(id),
