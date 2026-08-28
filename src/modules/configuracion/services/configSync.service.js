@@ -49,6 +49,7 @@ const MAPEO_DESCARGA = {
 };
 
 const MAPEO_SUBIDA = {
+  siembras: "siembras",
   equipos: "equipos",
   alimentaciones: "alimentacion",
   crecimientos: "crecimiento",
@@ -976,6 +977,44 @@ async function normalizarRegistroParaSubida(
 
   try {
     switch (tabla) {
+      case "siembras":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+
+        if (r.lote_larva_id != null) {
+          r.lote_larva_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.lotesLarva,
+              r.lote_larva_id,
+              "lote de larva"
+            );
+        }
+
+        if (r.precria_id != null) {
+          r.precria_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.precrias,
+              r.precria_id,
+              "pre-cria"
+            );
+        }
+        break;
+
       case "densidad_poblacional":
         if (r.finca_id != null) {
           r.finca_id =
