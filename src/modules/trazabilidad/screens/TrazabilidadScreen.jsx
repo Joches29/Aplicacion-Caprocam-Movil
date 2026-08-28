@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from "react";
 import { View, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 
 import { styles } from "../styles/TrazabilidadStyles";
@@ -30,7 +31,14 @@ import SearchBar from "../../../shared/components/SearchBar";
 import FilterButton from "../components/FilterButton";
 import { useTrazabilidadList, formatRegistroForView } from "../hooks/useTrazabilidadList";
 
+// Alto aproximado del bloque flotante inferior: paddingTop (10) +
+// altura del boton (~46) + paddingBottom (18).
+const ALTO_BOTON_FLOTANTE = 74;
+
 export default function TrazabilidadScreen() {
+  // Espacio que ocupa la barra de gestos del sistema abajo.
+  const insets = useSafeAreaInsets();
+
   const params = useLocalSearchParams();
   const [visibleSuccessMessage, setVisibleSuccessMessage] = useState(
     typeof params.successMessage === "string" ? params.successMessage : ""
@@ -124,7 +132,19 @@ export default function TrazabilidadScreen() {
   return (
     <View style={STYLE.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          /*
+          El boton "Registrar movimiento" flota ENCIMA de la lista, asi
+          que hay que reservarle espacio abajo o el ultimo registro
+          queda tapado y no se puede leer por mas que se scrollee.
+
+          ALTO_BOTON_FLOTANTE es la altura real del bloque (sus
+          paddings + la altura del boton), y se le suma el inset de la
+          barra de gestos del dispositivo.
+          */
+          { paddingBottom: ALTO_BOTON_FLOTANTE + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={STYLE.contentWrapper}>
@@ -216,7 +236,14 @@ export default function TrazabilidadScreen() {
 
         </View>
       </ScrollView>
-      <View style={styles.floatingButtonContainer}>
+      <View
+        style={[
+          styles.floatingButtonContainer,
+          // Se suma el inset real del dispositivo para que el boton no
+          // quede debajo de la barra de gestos del sistema.
+          { paddingBottom: styles.floatingButtonContainer.paddingBottom + insets.bottom },
+        ]}
+      >
         <Button variant="outline" onPress={nuevoRegistro} style={styles.fullButton}>
           + Registrar movimiento
         </Button>
