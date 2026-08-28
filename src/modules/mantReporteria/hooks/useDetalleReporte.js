@@ -2,8 +2,8 @@
  * ============================================================
  * HOOK: useDetalleReporte (LOCAL / SQLite)
  * ============================================================
- * Carga catálogos y filtros desde localApi,(inicializar DB,
- * mapear ids y nombres de finca/estanque).
+ * Carga catalogos y filtros desde localApi.
+ * Inicializa SQLite, mapea ids y nombres de finca/estanque.
  */
 
 import { useEffect, useState } from "react";
@@ -15,7 +15,7 @@ import { TIPOS_AUTOGESTIONADOS } from "../constants/tipoReporte.js";
 
 /*
 ============================================================
-HELPERS
+HELPERS GENERALES
 ============================================================
 */
 
@@ -29,10 +29,12 @@ function obtenerValor(objeto, llaves, valorDefecto = null) {
 
   for (let i = 0; i < llaves.length; i += 1) {
     const llave = llaves[i];
+
     if (
       Object.prototype.hasOwnProperty.call(objeto, llave) &&
       objeto[llave] !== undefined &&
-      objeto[llave] !== null
+      objeto[llave] !== null &&
+      String(objeto[llave]).trim() !== ""
     ) {
       return objeto[llave];
     }
@@ -41,11 +43,29 @@ function obtenerValor(objeto, llaves, valorDefecto = null) {
   return valorDefecto;
 }
 
+function obtenerNumero(valor, valorDefecto = 0) {
+  const numero = Number(String(valor ?? "").replace(",", "."));
+
+  return Number.isNaN(numero) ? valorDefecto : numero;
+}
+
+function obtenerTexto(valor, valorDefecto = "") {
+  if (
+    valor === undefined ||
+    valor === null ||
+    String(valor).trim() === ""
+  ) {
+    return valorDefecto;
+  }
+
+  return String(valor).trim();
+}
+
 async function obtenerRegistrosLocales(seccion) {
   const apiSeccion = localApi[seccion];
 
   if (!apiSeccion || typeof apiSeccion.obtenerTodos !== "function") {
-    throw new Error(`localApi.${seccion}.obtenerTodos no está disponible.`);
+    throw new Error(`localApi.${seccion}.obtenerTodos no esta disponible.`);
   }
 
   const respuesta = await apiSeccion.obtenerTodos();
@@ -54,51 +74,277 @@ async function obtenerRegistrosLocales(seccion) {
   return Array.isArray(data) ? data : [];
 }
 
-const obtenerIdFinca = (finca) =>
-  Number(
+/*
+============================================================
+HELPERS DE FINCAS
+============================================================
+*/
+
+function obtenerIdLocalFinca(finca) {
+  return obtenerNumero(
     obtenerValor(
       finca,
-      ["id", "fincaId", "idFinca", "finca_id", "servidor_id", "servidorId"],
+      ["idLocal", "id_local", "id", "value"],
       0
     )
   );
+}
 
-const obtenerIdEstanque = (estanque) =>
-  Number(
+function obtenerServidorIdFinca(finca) {
+  return obtenerNumero(
+    obtenerValor(
+      finca,
+      ["servidorId", "servidor_id", "idServidor"],
+      0
+    )
+  );
+}
+
+function obtenerIdFinca(finca) {
+  const idLocal = obtenerIdLocalFinca(finca);
+  const servidorId = obtenerServidorIdFinca(finca);
+
+  if (idLocal > 0) {
+    return idLocal;
+  }
+
+  return servidorId;
+}
+
+function obtenerIdsValidosFinca(finca, fincaSeleccionada = null) {
+  const ids = [
+    obtenerNumero(fincaSeleccionada),
+    obtenerIdLocalFinca(finca),
+    obtenerServidorIdFinca(finca),
+  ];
+
+  return ids.filter(function (id, index, arreglo) {
+    return id > 0 && arreglo.indexOf(id) === index;
+  });
+}
+
+function fincaCoincideConSeleccion(finca, fincaSeleccionada) {
+  const idsValidos = obtenerIdsValidosFinca(finca, fincaSeleccionada);
+
+  return idsValidos.includes(obtenerNumero(fincaSeleccionada));
+}
+
+function obtenerIdsValidosDeFincaSeleccionada(fincas, fincaSeleccionada) {
+  const fincaActual = fincas.find(function (finca) {
+    return fincaCoincideConSeleccion(finca, fincaSeleccionada);
+  });
+
+  return obtenerIdsValidosFinca(fincaActual, fincaSeleccionada);
+}
+
+function obtenerNombreFinca(item, id) {
+  return obtenerTexto(
+    obtenerValor(
+      item,
+      [
+        "nombreFinca",
+        "nombre_finca",
+        "nombre",
+        "codigoCBO",
+        "codigoCbo",
+        "codigo_cbo",
+      ],
+      ""
+    ),
+    `Finca ${id}`
+  );
+}
+
+/*
+============================================================
+HELPERS DE ESTANQUES
+============================================================
+*/
+
+function obtenerIdLocalEstanque(estanque) {
+  return obtenerNumero(
     obtenerValor(
       estanque,
-      [
-        "id",
-        "estanqueId",
-        "idEstanque",
-        "estanque_id",
-        "servidor_id",
-        "servidorId",
-      ],
+      ["idLocal", "id_local", "id", "value"],
+      0
+    )
+  );
+}
+
+function obtenerServidorIdEstanque(estanque) {
+  return obtenerNumero(
+    obtenerValor(
+      estanque,
+      ["servidorId", "servidor_id", "idServidor"],
+      0
+    )
+  );
+}
+
+function obtenerIdEstanque(estanque) {
+  const idLocal = obtenerIdLocalEstanque(estanque);
+  const servidorId = obtenerServidorIdEstanque(estanque);
+
+  if (idLocal > 0) {
+    return idLocal;
+  }
+
+  return servidorId;
+}
+
+function obtenerIdsValidosEstanque(estanque, estanqueSeleccionado = null) {
+  const ids = [
+    obtenerNumero(estanqueSeleccionado),
+    obtenerIdLocalEstanque(estanque),
+    obtenerServidorIdEstanque(estanque),
+  ];
+
+  return ids.filter(function (id, index, arreglo) {
+    return id > 0 && arreglo.indexOf(id) === index;
+  });
+}
+
+function estanqueCoincideConSeleccion(estanque, estanqueSeleccionado) {
+  const idsValidos = obtenerIdsValidosEstanque(
+    estanque,
+    estanqueSeleccionado
+  );
+
+  return idsValidos.includes(obtenerNumero(estanqueSeleccionado));
+}
+
+function obtenerFincaIdEstanque(estanque) {
+  return obtenerNumero(
+    obtenerValor(
+      estanque,
+      ["fincaId", "finca_id", "idFinca", "id_finca"],
+      0
+    )
+  );
+}
+
+function estanquePerteneceAFinca(estanque, idsValidosFinca) {
+  const fincaIdEstanque = obtenerFincaIdEstanque(estanque);
+
+  return idsValidosFinca.includes(fincaIdEstanque);
+}
+
+function obtenerNombreEstanque(item, id) {
+  return obtenerTexto(
+    obtenerValor(
+      item,
+      ["codigo", "nombre", "codigoEstanque", "estanqueCodigo"],
+      ""
+    ),
+    `Estanque ${id}`
+  );
+}
+
+/*
+============================================================
+HELPERS DE COLABORADORES
+============================================================
+*/
+
+function obtenerIdColaborador(colaborador) {
+  const idLocal = obtenerNumero(
+    obtenerValor(
+      colaborador,
+      ["id", "idLocal", "id_local"],
       0
     )
   );
 
-const obtenerFincaIdEstanque = (estanque) =>
-  Number(obtenerValor(estanque, ["finca_id", "fincaId", "idFinca"], 0));
+  const servidorId = obtenerNumero(
+    obtenerValor(
+      colaborador,
+      ["servidor_id", "servidorId", "idServidor"],
+      0
+    )
+  );
 
-const obtenerNombreFinca = (item, id) =>
-  obtenerValor(
-    item,
-    ["nombreFinca", "nombre_finca", "nombre", "codigoCBO", "codigo_cbo"],
-    ""
-  ) || `Finca ${id}`;
+  if (idLocal > 0) {
+    return idLocal;
+  }
 
-const obtenerNombreEstanque = (item, id) =>
-  obtenerValor(item, ["codigo", "nombre", "codigoEstanque"], "") ||
-  `Estanque ${id}`;
+  return servidorId;
+}
 
-const obtenerNombreColaborador = (item, id) => {
-  const nombre = obtenerValor(item, ["nombre"], "");
-  const apellidos = obtenerValor(item, ["apellidos", "apellido"], "");
+function obtenerNombreColaborador(item, id) {
+  const nombre = obtenerTexto(obtenerValor(item, ["nombre"], ""));
+  const apellidos = obtenerTexto(obtenerValor(item, ["apellidos", "apellido"], ""));
   const completo = `${nombre} ${apellidos}`.trim();
-  return completo || obtenerValor(item, ["nombreUsuario", "nombre_usuario"], "") || `Colaborador ${id}`;
-};
+
+  return completo ||
+    obtenerTexto(
+      obtenerValor(item, ["nombreUsuario", "nombre_usuario"], ""),
+      `Colaborador ${id}`
+    );
+}
+
+/*
+============================================================
+HELPERS PARA RELACIONAR REGISTROS
+============================================================
+*/
+
+function obtenerFincaIdRegistro(registro) {
+  return obtenerNumero(
+    obtenerValor(
+      registro,
+      ["finca_id", "fincaId", "idFinca", "finca"],
+      0
+    )
+  );
+}
+
+function obtenerEstanqueIdRegistro(registro) {
+  return obtenerNumero(
+    obtenerValor(
+      registro,
+      ["estanque_id", "estanqueId", "idEstanque", "estanque"],
+      0
+    )
+  );
+}
+
+function obtenerColaboradorIdRegistro(registro) {
+  return obtenerNumero(
+    obtenerValor(
+      registro,
+      ["colaborador_id", "colaboradorId", "idColaborador", "creado_por_colaborador_id"],
+      0
+    )
+  );
+}
+
+function buscarFincaPorRegistro(fincas, registro) {
+  const fincaIdRegistro = obtenerFincaIdRegistro(registro);
+
+  return fincas.find(function (finca) {
+    const idsValidos = obtenerIdsValidosFinca(finca);
+
+    return idsValidos.includes(fincaIdRegistro);
+  });
+}
+
+function buscarEstanquePorRegistro(estanques, registro) {
+  const estanqueIdRegistro = obtenerEstanqueIdRegistro(registro);
+
+  return estanques.find(function (estanque) {
+    const idsValidos = obtenerIdsValidosEstanque(estanque);
+
+    return idsValidos.includes(estanqueIdRegistro);
+  });
+}
+
+function buscarColaboradorPorRegistro(colaboradores, registro) {
+  const colaboradorIdRegistro = obtenerColaboradorIdRegistro(registro);
+
+  return colaboradores.find(function (colaborador) {
+    return Number(colaborador.value) === colaboradorIdRegistro;
+  });
+}
 
 /*
 ============================================================
@@ -127,18 +373,27 @@ export function useDetalleReporte() {
 
   const filtrosCompletos = !!registroTipo && !!finca && !!estanque;
 
+  /*
+  ============================================================
+  ALERTA DESDE PARAMETRO
+  ============================================================
+  */
+
   useEffect(() => {
     if (alertParam === "edited") {
       setAlert("edited");
-      router.setParams({ alert: undefined });
+      router.setParams({
+        alert: undefined,
+      });
     }
-  }, [alertParam, setAlert, router]);
+  }, [alertParam, router]);
 
   /*
   ============================================================
-  CARGA DE CATÁLOGOS (mismo patrón que enfermedades)
+  CARGA DE CATALOGOS
   ============================================================
   */
+
   useEffect(() => {
     let activo = true;
 
@@ -146,70 +401,87 @@ export function useDetalleReporte() {
       try {
         setCargandoCatalogos(true);
 
-        // Importante: inicializar SQLite antes de consultar
         if (typeof localApi.inicializar === "function") {
           await localApi.inicializar();
         }
 
-        const [fincasData, estanquesData, colaboradoresData] = await Promise.all([
+        const [
+          fincasData,
+          estanquesData,
+          colaboradoresData,
+        ] = await Promise.all([
           obtenerRegistrosLocales("fincas"),
           obtenerRegistrosLocales("estanques"),
           obtenerRegistrosLocales("colaboradores"),
         ]);
 
-        if (!activo) return;
+        if (!activo) {
+          return;
+        }
 
-        const fincasOptions = (fincasData || [])
-          .map((item) => {
+        const fincasOptions = fincasData
+          .map(function (item) {
             const id = obtenerIdFinca(item);
+
             return {
               label: obtenerNombreFinca(item, id),
-              value: id,
+              value: String(id),
+              id,
+              idLocal: obtenerIdLocalFinca(item),
+              servidorId: obtenerServidorIdFinca(item),
+              data: item,
             };
           })
-          .filter((item) => Number(item.value) > 0);
+          .filter(function (item) {
+            return Number(item.value) > 0;
+          });
 
-        const estanquesOptions = (estanquesData || [])
-          .map((item) => {
+        const estanquesOptions = estanquesData
+          .map(function (item) {
             const id = obtenerIdEstanque(item);
+
             return {
               label: obtenerNombreEstanque(item, id),
-              value: id,
+              value: String(id),
+              id,
+              idLocal: obtenerIdLocalEstanque(item),
+              servidorId: obtenerServidorIdEstanque(item),
               fincaId: obtenerFincaIdEstanque(item),
+              data: item,
             };
           })
-          .filter((item) => Number(item.value) > 0);
+          .filter(function (item) {
+            return Number(item.value) > 0;
+          });
 
-        const colaboradoresOptions = (colaboradoresData || [])
-          .map((item) => {
-            const id = Number(obtenerValor(item, ["id", "servidor_id", "servidorId"], 0));
+        const colaboradoresOptions = colaboradoresData
+          .map(function (item) {
+            const id = obtenerIdColaborador(item);
+
             return {
-              value: id,
+              value: String(id),
               label: obtenerNombreColaborador(item, id),
+              id,
+              data: item,
             };
           })
-          .filter((item) => Number(item.value) > 0);
+          .filter(function (item) {
+            return Number(item.value) > 0;
+          });
 
         setFincas(fincasOptions);
         setEstanques(estanquesOptions);
         setColaboradores(colaboradoresOptions);
-
-        if (__DEV__) {
-          console.log("[Reporteria] Catálogos locales:", {
-            fincas: fincasOptions.length,
-            estanques: estanquesOptions.length,
-            colaboradores: colaboradoresOptions.length,
-          });
-        }
       } catch (error) {
-        console.error("Error cargando catálogos locales de reportería:", error);
         if (activo) {
           setFincas([]);
           setEstanques([]);
           setColaboradores([]);
         }
       } finally {
-        if (activo) setCargandoCatalogos(false);
+        if (activo) {
+          setCargandoCatalogos(false);
+        }
       }
     }
 
@@ -225,6 +497,7 @@ export function useDetalleReporte() {
   FILTRO DE ESTANQUES POR FINCA
   ============================================================
   */
+
   useEffect(() => {
     if (!finca) {
       setEstanquesFiltrados([]);
@@ -232,19 +505,25 @@ export function useDetalleReporte() {
       return;
     }
 
-    const filtrados = estanques.filter(
-      (item) => Number(item.fincaId) === Number(finca)
+    const idsValidosFinca = obtenerIdsValidosDeFincaSeleccionada(
+      fincas,
+      finca
     );
+
+    const filtrados = estanques.filter(function (item) {
+      return estanquePerteneceAFinca(item, idsValidosFinca);
+    });
 
     setEstanquesFiltrados(filtrados);
     setEstanque(null);
-  }, [finca, estanques]);
+  }, [finca, fincas, estanques]);
 
   /*
   ============================================================
-  CARGA DE REGISTROS (tipos no autogestionados)
+  CARGA DE REGISTROS
   ============================================================
   */
+
   useEffect(() => {
     let activo = true;
 
@@ -269,48 +548,28 @@ export function useDetalleReporte() {
           estanqueId: estanque,
         });
 
-        if (activo) {
-          const registrosConNombres = (registrosData || []).map((registro) => {
-            const fincaEncontrada = fincas.find(
-              (f) =>
-                Number(f.value) ===
-                Number(registro.finca_id || registro.fincaId || registro.idFinca)
-            );
-
-            const estanqueEncontrado = estanques.find(
-              (e) =>
-                Number(e.value) ===
-                Number(
-                  registro.estanque_id ||
-                    registro.estanqueId ||
-                    registro.idEstanque
-                )
-            );
-
-            const colaboradorEncontrado = colaboradores.find(
-              (c) =>
-                Number(c.value) ===
-                Number(
-                  registro.colaborador_id ||
-                    registro.colaboradorId ||
-                    registro.idColaborador
-                )
-            );
-
-            return {
-              ...registro,
-              nombreFinca: fincaEncontrada?.label ?? "No encontrada",
-              codigoEstanque: estanqueEncontrado?.label ?? "No encontrado",
-              nombreColaborador:
-                colaboradorEncontrado?.label ?? "No encontrado",
-            };
-          });
-
-          setRegistros(registrosConNombres);
+        if (!activo) {
+          return;
         }
-      } catch (error) {
-        console.error("Error cargando registros locales:", error);
 
+        const registrosConNombres = (registrosData || []).map(function (registro) {
+          const fincaEncontrada = buscarFincaPorRegistro(fincas, registro);
+          const estanqueEncontrado = buscarEstanquePorRegistro(estanques, registro);
+          const colaboradorEncontrado = buscarColaboradorPorRegistro(
+            colaboradores,
+            registro
+          );
+
+          return {
+            ...registro,
+            nombreFinca: fincaEncontrada?.label ?? "No encontrada",
+            codigoEstanque: estanqueEncontrado?.label ?? "No encontrado",
+            nombreColaborador: colaboradorEncontrado?.label ?? "No encontrado",
+          };
+        });
+
+        setRegistros(registrosConNombres);
+      } catch (error) {
         if (activo) {
           setRegistros([]);
         }

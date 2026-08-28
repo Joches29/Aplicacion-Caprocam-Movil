@@ -32,9 +32,8 @@ export const colorCategoria = {
     Alimentación: { fondo: COLORS.warningLight, texto: COLORS.warning },
     Tratamiento: { fondo: COLORS.secondary, texto: COLORS.primary },
     Químico: { fondo: COLORS.secondary, texto: COLORS.primary },
-    Fertilizante: { fondo: COLORS.secondary, texto: COLORS.primary },
-    Antibiótico: { fondo: COLORS.secondary, texto: COLORS.primary },
-    Probiótico: { fondo: COLORS.successLight, texto: COLORS.success },
+    Mantenimiento: { fondo: COLORS.secondary, texto: COLORS.primary },
+    Equipos: { fondo: COLORS.secondary, texto: COLORS.primary },
 };
 
 export const colorCategoriaDefault = {

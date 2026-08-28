@@ -1,3 +1,4 @@
+import api from "../../../api/api";
 /**
  * ============================================================
  * SERVICIO: mantEquipoService
@@ -62,6 +63,7 @@ export async function getProductosCatalogo() {
             id: idStr,
             productoId: idStr,
             nombre: p.nombre ?? `Producto ${idStr}`,
+            categoria: p.categoria ?? '',
             precioUnidad: Number(p.precio_unidad ?? p.precioUnidad ?? 0),
             costoUnitario: Number(p.precio_unidad ?? p.precioUnidad ?? 0),
             stockMaximo: p.cantidad !== undefined ? Number(p.cantidad) : 999,
@@ -82,6 +84,7 @@ export async function getProductosCatalogo() {
             id: idStr,
             productoId: idStr,
             nombre: p.nombre ?? existente.nombre ?? `Producto ${idStr}`,
+            categoria: p.categoria ?? existente.categoria ?? '',
             precioUnidad: Number(p.precio_unidad ?? p.precioUnidad ?? existente.precioUnidad ?? 0),
             costoUnitario: Number(p.precio_unidad ?? p.precioUnidad ?? existente.costoUnitario ?? 0),
             stockMaximo: p.cantidad !== undefined ? Number(p.cantidad) : (existente.stockMaximo ?? 999),
@@ -97,7 +100,7 @@ export async function getProductosCatalogo() {
 }
 
 // ─── Adaptador: respuesta local SQLite → objeto frontend ───────────────────────
-function adaptTicketLocal(item, tareas = [], productos = []) {
+function adaptTicketLocal(item, tareas = [], productos = [], creadorNombre = null) {
   if (!item || !item.id) throw new Error(MENSAJES_SERVICIOS?.itemInvalido || 'Ticket inválido');
 
   const estadoRaw = item.estado_ticket || 'En espera';
@@ -118,9 +121,9 @@ function adaptTicketLocal(item, tareas = [], productos = []) {
     tareas,
     productos,
     estado: estadoFront,
-    creadoPor: item.creado_por_colaborador_id
+    creadoPor: creadorNombre || (item.creado_por_colaborador_id
       ? String(item.creado_por_colaborador_id)
-      : (item.creado_por_usuario_id ? String(item.creado_por_usuario_id) : 'Usuario'),
+      : (item.creado_por_usuario_id ? String(item.creado_por_usuario_id) : 'Usuario')),
     fechaCreacion: new Date(item.fecha_mantenimiento || item.fecha_creacion || Date.now()),
     estadoEquipo: item.estado_equipo || '',
     tipoPersonal,
@@ -177,6 +180,13 @@ function mapProductoVinculado(p, catalogoProductos = []) {
 }
 
 // ─── OBTENER todos los tickets desde SQLite ────────────────────────────────────
+const MAPA_USUARIOS_CONOCIDOS = {
+  '1': 'Administrador Sistema',
+  '2': 'Carlos Mendoza Solano',
+  '3': 'Maria Jimenez Castro',
+  '4': 'Roberto Vargas Quiros',
+};
+
 export async function obtenerTickets() {
   try {
     const respTickets = await localApi.mantenimientoEquipo.obtenerTodos();
@@ -189,9 +199,15 @@ export async function obtenerTickets() {
 
     let catalogoTareas = [];
     let catalogoProductos = [];
+    let listaColaboradores = [];
+
     try {
       catalogoTareas = await obtenerTareas();
       catalogoProductos = await getProductosCatalogo();
+      const respColabs = await localApi.colaboradores.obtenerTodos();
+      if (respColabs.success && Array.isArray(respColabs.data)) {
+        listaColaboradores = respColabs.data;
+      }
     } catch (_) {}
 
     for (const item of tickets) {
@@ -205,7 +221,24 @@ export async function obtenerTickets() {
       const tareasMapeadas = (respTareas.data || []).map(t => mapTareaVinculada(t, catalogoTareas));
       const productosMapeados = (respProductos.data || []).map(p => mapProductoVinculado(p, catalogoProductos));
 
-      result.push(adaptTicketLocal(item, tareasMapeadas, productosMapeados));
+      const cid = item.creado_por_colaborador_id || item.creadoPorColaboradorId;
+      const uid = item.creado_por_usuario_id || item.creadoPorUsuarioId;
+      let creadorNom = null;
+
+      if (cid) {
+        const colab = listaColaboradores.find(c => Number(c.servidor_id) === Number(cid)) ||
+                      listaColaboradores.find(c => Number(c.id) === Number(cid));
+        if (colab) {
+          const nom = [colab.nombre, colab.apellidos].filter(Boolean).join(' ').trim();
+          creadorNom = nom || colab.nombre_usuario || colab.nombreUsuario || `Colaborador #${cid}`;
+        } else {
+          creadorNom = `Colaborador #${cid}`;
+        }
+      } else if (uid) {
+        creadorNom = MAPA_USUARIOS_CONOCIDOS[String(uid)] || `Usuario #${uid}`;
+      }
+
+      result.push(adaptTicketLocal(item, tareasMapeadas, productosMapeados, creadorNom));
     }
 
     return result;
@@ -214,7 +247,7 @@ export async function obtenerTickets() {
   }
 }
 
-// ─── OBTENER un ticket por ID con sus tareas y productos de SQLite ───────────
+// ─── OBTENER un ticket por ID con sus tareas y productos de SQLite ─────────────
 export async function obtenerTicketPorId(id) {
   const numericId = Number(String(id).replace(/\D/g, ''));
 
@@ -232,9 +265,39 @@ export async function obtenerTicketPorId(id) {
 
     let catalogoTareas = [];
     let catalogoProductos = [];
+    let nombreCreador = null;
+
     try {
       catalogoTareas = await obtenerTareas();
       catalogoProductos = await getProductosCatalogo();
+      const cid = item.creado_por_colaborador_id || item.creadoPorColaboradorId;
+      const uid = item.creado_por_usuario_id || item.creadoPorUsuarioId;
+
+      if (cid) {
+        const respColabs = await localApi.colaboradores.obtenerTodos();
+        if (respColabs.success && Array.isArray(respColabs.data)) {
+          const colab = respColabs.data.find(c => Number(c.servidor_id) === Number(cid)) ||
+                        respColabs.data.find(c => Number(c.id) === Number(cid));
+          if (colab) {
+            const nom = [colab.nombre, colab.apellidos].filter(Boolean).join(' ').trim();
+            nombreCreador = nom || colab.nombre_usuario || colab.nombreUsuario || `Colaborador #${cid}`;
+          }
+        }
+      } else if (uid) {
+        // Intentar resolver online si hay conexión
+        try {
+          const respOnline = await api.get(`/login/${uid}`, { timeout: 2000 });
+          const uData = respOnline.data?.data || respOnline.data;
+          if (uData) {
+            const nom = [uData.nombre, uData.apellidos].filter(Boolean).join(' ').trim();
+            nombreCreador = nom || uData.nombreUsuario || uData.email;
+          }
+        } catch (_) {}
+
+        if (!nombreCreador) {
+          nombreCreador = MAPA_USUARIOS_CONOCIDOS[String(uid)] || `Usuario #${uid}`;
+        }
+      }
     } catch (_) {}
 
     const respTareas = await localApi.mantenimientoEquipoTareas.obtenerTodos({
@@ -247,7 +310,7 @@ export async function obtenerTicketPorId(id) {
     const tareasMapeadas = (respTareas.data || []).map(t => mapTareaVinculada(t, catalogoTareas));
     const productosMapeados = (respProductos.data || []).map(p => mapProductoVinculado(p, catalogoProductos));
 
-    return adaptTicketLocal(item, tareasMapeadas, productosMapeados);
+    return adaptTicketLocal(item, tareasMapeadas, productosMapeados, nombreCreador);
   } catch (errorDirecto) {
     const todos = await obtenerTickets();
     const encontrado = todos.find(

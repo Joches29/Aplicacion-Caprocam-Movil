@@ -21,13 +21,13 @@ import { crearRegistro } from "./TrazabilidadServices";
 
 export async function crearRegistroTrazabilidad(formData) {
   const body = {
-    fincaId: formData.fincaId,
-    estanqueOrigenId: formData.estanqueOrigenId,
-    estanqueDestinoId: formData.estanqueDestinoId,
+    fincaId: Number(formData.fincaId) || formData.fincaId,
+    estanqueOrigenId: Number(formData.estanqueOrigenId) || formData.estanqueOrigenId,
+    estanqueDestinoId: Number(formData.estanqueDestinoId) || formData.estanqueDestinoId,
     fecha: toMysqlDate(formData.fecha) || formData.fecha,
-    tamano: formData.tamaño,
-    dias: formData.dias,
-    pl: formData.pl,
+    tamano: Number(formData.tamaño),
+    dias: Number(formData.dias),
+    pl: Number(formData.pl),
   };
 
   return crearRegistro(body);

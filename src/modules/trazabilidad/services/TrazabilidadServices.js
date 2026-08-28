@@ -5,32 +5,9 @@ CABEZA DE ARCHIVO
 Archivo: TrazabilidadServices.js
 Modulo: Trazabilidad (Movil)
 Descripcion:
-Version SQLite (offline-first) del service de Trazabilidad.
-Reemplaza las llamadas HTTP directas por lectura/escritura en
-la base local (via TrazabilidadLocal.service) y por lectura de
-catalogos ya descargados (fincas, estanques, colaboradores,
-siembras), para poder trabajar sin depender del backend.
-
-IMPORTANTE:
-- Mantiene exactamente los mismos nombres de funcion y la
-  misma forma de los datos que la version anterior (basada en
-  HTTP directo), para no tener que tocar ninguno de los hooks
-  que ya consumen este service (useTrazabilidad, useTrazabilidad
-  List, useFilterButton). La version anterior queda respaldada
-  en el PR para referencia.
-- Se elimino toggleActivoRegistro(): no se usaba en ningun
-  hook ni pantalla, y llamaba a un endpoint (PUT .../activo)
-  que no existe en el backend real -- Trazabilidad no tiene
-  edicion ni borrado, ni fisico ni logico.
-- La sesion (JWT / colaborador por PIN) ya NO se decodifica a
-  mano: se usa la infraestructura compartida real
-  (tokenStorage.js, jwtUtils.js, sessionUtils.js). OJO: al
-  05/08/2026 esa infraestructura existe pero el modulo Login
-  todavia no llama saveToken/saveUsuario ni llena las claves de
-  AsyncStorage que sessionUtils.js espera -- mientras eso no se
-  conecte, la sesion de este modulo se ve "vacia" en runtime.
-  No es un bug de Trazabilidad, es una dependencia de Login que
-  hay que avisar en el PR.
+Version SQLite offline-first del service de Trazabilidad.
+Lee los catalogos locales de fincas, estanques, colaboradores
+y siembras para trabajar sin depender del backend.
 //////////////////////////////////////////////////////////
 */
 
@@ -56,7 +33,7 @@ import {
 
 /*
 //////////////////////////////////////////////////////////
-FUNCIONES SECUNDARIAS - CATALOGOS LOCALES
+FUNCIONES SECUNDARIAS - GENERALES
 //////////////////////////////////////////////////////////
 */
 
@@ -68,11 +45,31 @@ const obtenerDatosLocal = (respuesta) => {
     return Array.isArray(respuesta.data) ? respuesta.data : [];
 };
 
+function tieneValor(valor) {
+    return valor !== undefined && valor !== null && String(valor).trim() !== "";
+}
+
+function valoresIguales(valorUno, valorDos) {
+    if (!tieneValor(valorUno) || !tieneValor(valorDos)) {
+        return false;
+    }
+
+    return String(valorUno) === String(valorDos);
+}
+
+function listaIncluyeValor(lista, valor) {
+    if (!Array.isArray(lista)) {
+        return false;
+    }
+
+    return lista.some((item) => valoresIguales(item, valor));
+}
+
 function obtenerValor(objeto, campos) {
     for (const campo of campos) {
         const valor = objeto?.[campo];
 
-        if (valor !== undefined && valor !== null && valor !== "") {
+        if (tieneValor(valor)) {
             return valor;
         }
     }
@@ -80,38 +77,208 @@ function obtenerValor(objeto, campos) {
     return undefined;
 }
 
-function normalizarEstanque(estanque) {
+function normalizarTexto(valor) {
+    return String(valor ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function obtenerServidorId(registro) {
+    return obtenerValor(registro, ["servidor_id", "servidorId"]);
+}
+
+function obtenerIdLocal(registro) {
+    return obtenerValor(registro, ["id", "value"]);
+}
+
+function obtenerIdPrincipal(registro) {
+    const servidorId = obtenerServidorId(registro);
+
+    if (tieneValor(servidorId)) {
+        return servidorId;
+    }
+
+    return obtenerIdLocal(registro);
+}
+
+function agregarMapa(mapa, llave, valor) {
+    if (!tieneValor(llave) || !tieneValor(valor)) {
+        return;
+    }
+
+    mapa.set(llave, valor);
+    mapa.set(String(llave), valor);
+}
+
+function obtenerDeMapa(mapa, llave) {
+    if (!tieneValor(llave)) {
+        return undefined;
+    }
+
+    return mapa.get(llave) ?? mapa.get(String(llave));
+}
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES SECUNDARIAS - FINCAS Y ESTANQUES
+//////////////////////////////////////////////////////////
+*/
+
+function normalizarFinca(finca) {
+    const servidorId = obtenerServidorId(finca);
+    const id = obtenerIdLocal(finca);
+
     return {
-        ...estanque,
-        id: estanque.id,
-        fincaId: estanque.finca_id,
-        finca_id: estanque.finca_id,
-        codigo: estanque.codigo,
-        tipoEstanque: estanque.tipo_estanque,
-        tipo_estanque: estanque.tipo_estanque,
-        estado: estanque.estado,
-        precria: estanque.precria,
-        usa_precria: estanque.precria
+        ...finca,
+        id,
+        servidorId,
+        servidor_id: servidorId,
+        value: tieneValor(servidorId) ? servidorId : id,
+        label: obtenerValor(finca, ["nombre_finca", "nombreFinca", "nombre"]) ?? "Finca"
     };
 }
 
+function normalizarEstanque(estanque) {
+    const servidorId = obtenerServidorId(estanque);
+    const id = obtenerIdLocal(estanque);
+    const fincaId = obtenerValor(estanque, ["finca_id", "fincaId", "id_finca", "idFinca"]);
+
+    return {
+        ...estanque,
+        id,
+        servidorId,
+        servidor_id: servidorId,
+        value: tieneValor(servidorId) ? servidorId : id,
+        fincaId,
+        finca_id: fincaId,
+        codigo: obtenerValor(estanque, ["codigo", "nombre", "label"]) ?? "Estanque",
+        tipoEstanque: obtenerValor(estanque, ["tipo_estanque", "tipoEstanque"]) ?? "",
+        tipo_estanque: obtenerValor(estanque, ["tipo_estanque", "tipoEstanque"]) ?? "",
+        estado: obtenerValor(estanque, ["estado"]) ?? "",
+        precria: obtenerValor(estanque, ["precria", "usa_precria", "usaPrecria"]) ?? "",
+        usa_precria: obtenerValor(estanque, ["precria", "usa_precria", "usaPrecria"]) ?? ""
+    };
+}
+
+function obtenerIdsValidosFinca(fincas, fincaSeleccionada) {
+    const ids = new Set();
+
+    if (tieneValor(fincaSeleccionada)) {
+        ids.add(String(fincaSeleccionada));
+    }
+
+    const fincaEncontrada = fincas.find((finca) => {
+        return (
+            valoresIguales(finca.id, fincaSeleccionada) ||
+            valoresIguales(finca.value, fincaSeleccionada) ||
+            valoresIguales(finca.servidor_id, fincaSeleccionada) ||
+            valoresIguales(finca.servidorId, fincaSeleccionada)
+        );
+    });
+
+    if (fincaEncontrada) {
+        const id = obtenerIdLocal(fincaEncontrada);
+        const servidorId = obtenerServidorId(fincaEncontrada);
+
+        if (tieneValor(id)) {
+            ids.add(String(id));
+        }
+
+        if (tieneValor(servidorId)) {
+            ids.add(String(servidorId));
+        }
+    }
+
+    return Array.from(ids);
+}
+
+function obtenerIdsValidosEstanque(estanques, estanqueSeleccionado) {
+    const ids = new Set();
+
+    if (tieneValor(estanqueSeleccionado)) {
+        ids.add(String(estanqueSeleccionado));
+    }
+
+    const estanqueEncontrado = estanques.find((estanque) => {
+        return (
+            valoresIguales(estanque.id, estanqueSeleccionado) ||
+            valoresIguales(estanque.value, estanqueSeleccionado) ||
+            valoresIguales(estanque.servidor_id, estanqueSeleccionado) ||
+            valoresIguales(estanque.servidorId, estanqueSeleccionado)
+        );
+    });
+
+    if (estanqueEncontrado) {
+        const id = obtenerIdLocal(estanqueEncontrado);
+        const servidorId = obtenerServidorId(estanqueEncontrado);
+
+        if (tieneValor(id)) {
+            ids.add(String(id));
+        }
+
+        if (tieneValor(servidorId)) {
+            ids.add(String(servidorId));
+        }
+    }
+
+    return Array.from(ids);
+}
+
+function estanquePerteneceAFinca(estanque, idsFinca) {
+    const fincaId = obtenerValor(estanque, [
+        "finca_id",
+        "fincaId",
+        "id_finca",
+        "idFinca"
+    ]);
+
+    return idsFinca.some((id) => valoresIguales(id, fincaId));
+}
+
+function siembraPerteneceAEstanque(siembra, idsEstanque) {
+    const estanqueId = obtenerValor(siembra, [
+        "estanque_id",
+        "estanqueId",
+        "id_estanque",
+        "idEstanque"
+    ]);
+
+    return idsEstanque.some((id) => valoresIguales(id, estanqueId));
+}
+
 function mapearEstanquesAOptions(estanques) {
-    return (estanques ?? []).map((estanque) => ({
-        label: `${estanque.codigo ?? "Estanque"} (${estanque.tipoEstanque ?? ""})`,
-        value: estanque.id,
-        raw: estanque
-    }));
+    return (estanques ?? []).map((estanque) => {
+        const tipo = estanque.tipoEstanque || estanque.tipo_estanque || "";
+        const label = tipo
+            ? `${estanque.codigo ?? "Estanque"} (${tipo})`
+            : `${estanque.codigo ?? "Estanque"}`;
+
+        return {
+            label,
+            value: obtenerIdPrincipal(estanque),
+            id: estanque.id,
+            servidorId: estanque.servidorId,
+            servidor_id: estanque.servidor_id,
+            fincaId: estanque.fincaId,
+            finca_id: estanque.finca_id,
+            raw: estanque
+        };
+    });
 }
 
 function obtenerTipoEstanque(estanque) {
     const rawTipo = obtenerValor(estanque, ["tipoEstanque", "tipo_estanque"]);
-    if (rawTipo !== undefined && rawTipo !== null && rawTipo !== "") {
-        return String(rawTipo).trim().toLowerCase();
+
+    if (tieneValor(rawTipo)) {
+        return normalizarTexto(rawTipo);
     }
 
     const rawEstado = obtenerValor(estanque, ["estado"]);
-    if (rawEstado !== undefined && rawEstado !== null && rawEstado !== "") {
-        return String(rawEstado).trim().toLowerCase();
+
+    if (tieneValor(rawEstado)) {
+        return normalizarTexto(rawEstado);
     }
 
     return "";
@@ -119,24 +286,50 @@ function obtenerTipoEstanque(estanque) {
 
 export function esEstanquePreCria(estanque) {
     const tipo = obtenerTipoEstanque(estanque);
-    if (tipo.includes("pre")) return true;
-    if (tipo.includes("engorde")) return false;
+
+    if (tipo.includes("pre")) {
+        return true;
+    }
+
+    if (tipo.includes("engorde")) {
+        return false;
+    }
 
     const raw = estanque?.precria ?? estanque?.usa_precria ?? "";
-    if (Number(raw) === 1) return true;
-    const val = String(raw).trim().toLowerCase();
+    const val = normalizarTexto(raw);
+
+    if (Number(raw) === 1) {
+        return true;
+    }
+
     return val === "si" || val === "yes" || val === "true";
 }
 
 export function esEstanqueEngorde(estanque) {
     const tipo = obtenerTipoEstanque(estanque);
-    if (tipo.includes("engorde")) return true;
-    if (tipo.includes("pre")) return false;
 
-    const estado = String(obtenerValor(estanque, ["estado"]) ?? "")
-        .trim()
-        .toLowerCase();
-    return estado.includes("engorde");
+    if (tipo.includes("engorde")) {
+        return true;
+    }
+
+    if (tipo.includes("pre")) {
+        return false;
+    }
+
+    const raw = estanque?.precria ?? estanque?.usa_precria ?? "";
+    const val = normalizarTexto(raw);
+
+    if (Number(raw) === 0) {
+        return true;
+    }
+
+    if (val === "no" || val === "false") {
+        return true;
+    }
+
+    const estado = normalizarTexto(obtenerValor(estanque, ["estado"]));
+
+    return estado.includes("engorde") || estado.includes("activo");
 }
 
 /*
@@ -185,17 +378,30 @@ export function filtrarRegistrosTrazabilidad(registros, texto, filtros) {
             registro.creadoPorColaboradorId ??
             (registro.creadoPorUsuarioId ? `user_${registro.creadoPorUsuarioId}` : registro.colaboradorNombre);
 
-        const coincideFiltros =
-            (filtros.fincas.length === 0 || filtros.fincas.includes(registro.fincaId)) &&
-            ((filtros.estanques ?? []).length === 0 ||
-                filtros.estanques.includes(registro.estanqueOrigenId) ||
-                filtros.estanques.includes(registro.estanqueDestinoId)) &&
-            (filtros.colaboradores.length === 0 ||
-                filtros.colaboradores.includes(keyResponsable) ||
-                filtros.colaboradores.includes(registro.colaboradorNombre)) &&
-            (filtros.fecha === "" || registro.fecha === filtros.fecha);
+        const coincideFinca =
+            filtros.fincas.length === 0 ||
+            listaIncluyeValor(filtros.fincas, registro.fincaId);
 
-        return coincideBusqueda && coincideFiltros;
+        const coincideEstanque =
+            (filtros.estanques ?? []).length === 0 ||
+            listaIncluyeValor(filtros.estanques, registro.estanqueOrigenId) ||
+            listaIncluyeValor(filtros.estanques, registro.estanqueDestinoId);
+
+        const coincideColaborador =
+            filtros.colaboradores.length === 0 ||
+            listaIncluyeValor(filtros.colaboradores, keyResponsable) ||
+            listaIncluyeValor(filtros.colaboradores, registro.colaboradorNombre);
+
+        const coincideFecha =
+            filtros.fecha === "" || registro.fecha === filtros.fecha;
+
+        return (
+            coincideBusqueda &&
+            coincideFinca &&
+            coincideEstanque &&
+            coincideColaborador &&
+            coincideFecha
+        );
     });
 }
 
@@ -209,12 +415,17 @@ export async function crearRegistro(datos) {
     const resultado = await crearRegistroLocal(datos);
 
     if (!resultado.exito) {
-        const error = new Error(resultado.errores[0] || "No se pudo guardar el registro.");
-        // Se imita la forma de un error de axios (response.data.message)
-        // para que el manejo de errores existente en useTrazabilidad.js
-        // (que revisa error?.response?.data?.message) siga funcionando
-        // igual sin tener que tocar el hook.
-        error.response = { status: 400, data: { message: resultado.errores[0] } };
+        const error = new Error(
+            resultado.errores[0] || "No se pudo guardar el registro."
+        );
+
+        error.response = {
+            status: 400,
+            data: {
+                message: resultado.errores[0]
+            }
+        };
+
         throw error;
     }
 
@@ -223,28 +434,48 @@ export async function crearRegistro(datos) {
 
 /*
 //////////////////////////////////////////////////////////
-FUNCIONES PRINCIPALES - CATALOGOS (LOCALES, YA DESCARGADOS)
+FUNCIONES PRINCIPALES - CATALOGOS LOCALES
 //////////////////////////////////////////////////////////
 */
 
 export async function obtenerFincas() {
     const respuesta = await localApi.fincas.obtenerTodos();
-    const fincas = obtenerDatosLocal(respuesta);
+    const fincas = obtenerDatosLocal(respuesta).map(normalizarFinca);
 
-    return fincas.map((finca) => ({ label: finca.nombre_finca, value: finca.id }));
+    return fincas.map((finca) => ({
+        label: finca.label,
+        value: finca.value,
+        id: finca.id,
+        servidorId: finca.servidorId,
+        servidor_id: finca.servidor_id,
+        raw: finca
+    }));
 }
 
 export async function obtenerEstanquesPorFinca(fincaId) {
-    if (!fincaId) return [];
+    if (!fincaId) {
+        return [];
+    }
 
-    const respuesta = await localApi.estanques.obtenerTodos({ finca_id: fincaId });
-    const estanques = obtenerDatosLocal(respuesta).map(normalizarEstanque);
+    const [respuestaFincas, respuestaEstanques] = await Promise.all([
+        localApi.fincas.obtenerTodos(),
+        localApi.estanques.obtenerTodos()
+    ]);
+
+    const fincas = obtenerDatosLocal(respuestaFincas).map(normalizarFinca);
+    const idsFinca = obtenerIdsValidosFinca(fincas, fincaId);
+
+    const estanques = obtenerDatosLocal(respuestaEstanques)
+        .map(normalizarEstanque)
+        .filter((estanque) => estanquePerteneceAFinca(estanque, idsFinca));
 
     return mapearEstanquesAOptions(estanques);
 }
 
 export async function obtenerEstanquesPreCriaPorFinca(fincaId) {
-    if (!fincaId) return [];
+    if (!fincaId) {
+        return [];
+    }
 
     const estanques = await obtenerEstanquesPorFinca(fincaId);
 
@@ -252,7 +483,9 @@ export async function obtenerEstanquesPreCriaPorFinca(fincaId) {
 }
 
 export async function obtenerEstanquesEngordePorFinca(fincaId) {
-    if (!fincaId) return [];
+    if (!fincaId) {
+        return [];
+    }
 
     const estanques = await obtenerEstanquesPorFinca(fincaId);
 
@@ -261,60 +494,173 @@ export async function obtenerEstanquesEngordePorFinca(fincaId) {
 
 export async function obtenerTodosLosEstanques() {
     const respuesta = await localApi.estanques.obtenerTodos();
-    const estanques = obtenerDatosLocal(respuesta);
+    const estanques = obtenerDatosLocal(respuesta).map(normalizarEstanque);
 
-    return estanques.map((estanque) => ({
-        label: `${estanque.codigo} (${estanque.tipo_estanque})`,
-        value: estanque.id
-    }));
+    return estanques.map((estanque) => {
+        const tipo = estanque.tipoEstanque || estanque.tipo_estanque || "";
+        const label = tipo
+            ? `${estanque.codigo} (${tipo})`
+            : `${estanque.codigo}`;
+
+        return {
+            label,
+            value: obtenerIdPrincipal(estanque),
+            id: estanque.id,
+            servidorId: estanque.servidorId,
+            servidor_id: estanque.servidor_id,
+            fincaId: estanque.fincaId,
+            finca_id: estanque.finca_id,
+            raw: estanque
+        };
+    });
 }
 
 export async function obtenerColaboradores() {
     const respuesta = await localApi.colaboradores.obtenerTodos();
     const colaboradores = obtenerDatosLocal(respuesta);
 
-    return colaboradores.map((colaborador) => ({
-        label: [colaborador.nombre, colaborador.apellidos].filter(Boolean).join(" "),
-        value: colaborador.id
-    }));
+    return colaboradores.map((colaborador) => {
+        const servidorId = obtenerServidorId(colaborador);
+        const id = obtenerIdLocal(colaborador);
+        const value = tieneValor(servidorId) ? servidorId : id;
+
+        return {
+            label: [colaborador.nombre, colaborador.apellidos]
+                .filter(Boolean)
+                .join(" "),
+            value,
+            id,
+            servidorId,
+            servidor_id: servidorId,
+            raw: colaborador
+        };
+    });
 }
 
 /**
- * Trae la siembra activa del estanque de origen, para
- * precargar PL y dias de cultivo en el formulario. Antes
- * dependia de GET /siembras/activa (modulo Siembra, fuera de
- * alcance). Ahora que Siembra ya tiene su propia tabla local
- * (siembras) descargada por su propio SiembraSync.service, se
- * lee de ahi directo -- sin llamar a la API ni tocar codigo
- * del modulo Siembra.
- * SUPUESTO A CONFIRMAR con el dueño de Siembra: "dias" aqui se
- * calcula como dias transcurridos desde fecha_siembra hasta
- * hoy, porque la tabla local no guarda ese calculo (el backend
- * si lo calculaba en el endpoint que ya no se usa). Si Siembra
- * define ese calculo distinto, hay que ajustarlo aqui.
- * @param {number} estanqueId - Id del estanque de origen.
- * @returns {Promise<object|null>} {pl_siembra, dias} o null.
+ * Lee el catalogo local de usuarios.
+ *
+ * Los registros creados desde WEB guardan creado_por_usuario_id, no
+ * un colaborador. Sin este catalogo la pantalla solo puede mostrar
+ * "Usuario #2" en vez del nombre.
+ *
+ * La tabla `usuarios` se descarga en el sync general (el backend la
+ * manda con findUsuariosSync, sin password_hash). Si todavia no se
+ * sincronizo, esta lista viene vacia y enriquecerRegistro cae al id,
+ * que es el comportamiento correcto: nunca se inventa un nombre.
+ *
+ * @returns {Promise<Array<object>>} [{ label, value, id, servidorId }]
  */
-export async function obtenerSiembraActivaPorEstanque(estanqueId) {
-    if (!estanqueId) return null;
+export async function obtenerUsuarios() {
+    const respuesta = await localApi.usuarios.obtenerTodos();
+    const usuarios = obtenerDatosLocal(respuesta);
 
+    return usuarios.map((usuario) => {
+        const servidorId = obtenerServidorId(usuario);
+        const id = obtenerIdLocal(usuario);
+        const value = tieneValor(servidorId) ? servidorId : id;
+
+        const nombreCompleto = [usuario.nombre, usuario.apellidos]
+            .filter(Boolean)
+            .join(" ");
+
+        return {
+            label: nombreCompleto || usuario.nombre_usuario || "Usuario",
+            value,
+            id,
+            servidorId,
+            servidor_id: servidorId,
+            raw: usuario
+        };
+    });
+}
+
+/*
+//////////////////////////////////////////////////////////
+FUNCIONES PRINCIPALES - SIEMBRA / PRECRIA ACTIVA
+//////////////////////////////////////////////////////////
+
+Al elegir el estanque de ORIGEN, el formulario autocompleta PL
+y Dias. El dato puede estar en dos tablas distintas segun el
+tipo de estanque:
+
+- Estanque de ENGORDE  -> el dato esta en "siembras".
+- Estanque de PRECRIA  -> NO hay siembra ahi, hay una PRECRIA.
+
+Esto es asi por el flujo real del negocio: primero se hace la
+precria, despues se mueve a engorde (ese movimiento es
+justamente Trazabilidad) y RECIEN AHI se crea la siembra en el
+estanque de engorde. Es decir, cuando se registra el movimiento
+la siembra destino todavia no existe.
+
+La cadena se puede verificar en los datos: la precria de EST-02
+termina con pl_final = 25 y 740000 animales, y la siembra que se
+crea despues en EST-01 (con precria_id apuntando a ella) arranca
+con pl_siembra = 25 y cantidad_sembrada = 740000. Coinciden.
+
+Como el formulario solo deja elegir estanques de PRECRIA como
+origen, sin este fallback el autocompletado nunca encontraba
+nada: buscaba siembras en un estanque donde por definicion no
+las hay.
+
+Se replica el mismo criterio que ya usa el frontend web
+(fallback 3 de obtenerSiembraActivaPorEstanque): PL sale de
+pl_final (o pl_inicial si no hay), y los dias se cuentan desde
+fecha_inicio. Se mantiene igual a web A PROPOSITO para no
+introducir una diferencia de criterio entre plataformas sin
+validarla antes con el profe (hay dudas abiertas sobre si los
+dias deberian ser duracion_dias cuando la precria ya finalizo).
+//////////////////////////////////////////////////////////
+*/
+
+async function buscarEnSiembras(estanqueId) {
     try {
-        const respuesta = await localApi.siembras.obtenerTodos({
-            estanque_id: estanqueId,
-            estado: "Activa"
-        });
-        const siembras = obtenerDatosLocal(respuesta);
+        const [respuestaEstanques, respuestaSiembras] = await Promise.all([
+            localApi.estanques.obtenerTodos(),
+            localApi.siembras.obtenerTodos()
+        ]);
 
-        if (siembras.length === 0) return null;
+        const estanques = obtenerDatosLocal(respuestaEstanques).map(normalizarEstanque);
+        const idsEstanque = obtenerIdsValidosEstanque(estanques, estanqueId);
+
+        const siembras = obtenerDatosLocal(respuestaSiembras).filter((siembra) => {
+            const estado = normalizarTexto(siembra.estado);
+            const pertenece = siembraPerteneceAEstanque(siembra, idsEstanque);
+
+            return pertenece && estado === "activa";
+        });
+
+        if (siembras.length === 0) {
+            return null;
+        }
 
         const masReciente = siembras
             .slice()
             .sort((a, b) => String(a.fecha_siembra).localeCompare(String(b.fecha_siembra)))
             .pop();
 
-        const fechaSiembra = new Date(`${masReciente.fecha_siembra}T00:00:00`);
+        /*
+        fecha_siembra puede llegar en dos formatos distintos:
+        - "2026-06-22"                 -> creada localmente en el
+                                          telefono (SQLite guarda DATE).
+        - "2026-06-22T06:00:00.000Z"   -> descargada del backend, que
+                                          la serializa como ISO completo.
+
+        Antes se concatenaba "T00:00:00" a ciegas, lo que con el
+        formato ISO producia "2026-06-22T06:00:00.000ZT00:00:00":
+        una fecha invalida -> NaN -> dias quedaba null y el campo
+        salia en blanco (con PL si autocompletado, porque ese es un
+        numero directo). Por eso se corta la cadena a los primeros
+        10 caracteres (YYYY-MM-DD) antes de armar la fecha.
+        */
+        const fechaTexto = String(masReciente.fecha_siembra ?? "").slice(0, 10);
+        const fechaSiembra = new Date(`${fechaTexto}T00:00:00`);
+
         const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
         const msPorDia = 1000 * 60 * 60 * 24;
+
         const dias = Number.isNaN(fechaSiembra.getTime())
             ? null
             : Math.max(0, Math.floor((hoy - fechaSiembra) / msPorDia));
@@ -328,19 +674,111 @@ export async function obtenerSiembraActivaPorEstanque(estanqueId) {
     }
 }
 
+/**
+ * Busca una precria del estanque indicado y arma los datos de
+ * autocompletado a partir de ella.
+ *
+ * Se usa cuando no hay siembra en el estanque, que es el caso
+ * normal de un estanque de PRECRIA (ver nota de la seccion).
+ *
+ * Criterio identico al del frontend web:
+ * - PL   -> pl_final, y si no hay, pl_inicial.
+ * - Dias -> hoy menos fecha_inicio; si la fecha no se puede
+ *           parsear, se cae a duracion_dias.
+ *
+ * @param {number|string} estanqueId - Id del estanque de origen.
+ * @returns {Promise<object|null>} {pl_siembra, dias} o null.
+ */
+async function buscarEnPrecrias(estanqueId) {
+    try {
+        const [respuestaEstanques, respuestaPrecrias] = await Promise.all([
+            localApi.estanques.obtenerTodos(),
+            localApi.precrias.obtenerTodos()
+        ]);
+
+        const estanques = obtenerDatosLocal(respuestaEstanques).map(normalizarEstanque);
+        const idsEstanque = obtenerIdsValidosEstanque(estanques, estanqueId);
+
+        /*
+        No se filtra por estado a proposito: web tampoco lo hace.
+        En el flujo real la precria suele estar Finalizada justo
+        cuando se registra el movimiento (el camaron ya salio de
+        ahi), asi que exigir "Activa" dejaria el campo vacio en el
+        caso mas comun.
+        */
+        const precrias = obtenerDatosLocal(respuestaPrecrias).filter((precria) =>
+            siembraPerteneceAEstanque(precria, idsEstanque)
+        );
+
+        if (precrias.length === 0) {
+            return null;
+        }
+
+        const masReciente = precrias
+            .slice()
+            .sort((a, b) =>
+                String(a.fecha_inicio ?? "").localeCompare(String(b.fecha_inicio ?? ""))
+            )
+            .pop();
+
+        // Mismo recorte de 10 caracteres que en siembras: la fecha
+        // puede venir como "2026-06-01" (local) o como ISO completo
+        // "2026-06-01T06:00:00.000Z" (descargada del backend).
+        const fechaTexto = String(masReciente.fecha_inicio ?? "").slice(0, 10);
+        const fechaInicio = new Date(`${fechaTexto}T00:00:00`);
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const msPorDia = 1000 * 60 * 60 * 24;
+
+        const dias = Number.isNaN(fechaInicio.getTime())
+            ? (masReciente.duracion_dias ?? null)
+            : Math.max(0, Math.floor((hoy - fechaInicio) / msPorDia));
+
+        const pl = masReciente.pl_final ?? masReciente.pl_inicial ?? null;
+
+        return {
+            pl_siembra: pl,
+            dias
+        };
+    } catch (error) {
+        return null;
+    }
+}
+
+/**
+ * Obtiene los datos de autocompletado (PL y dias) para el
+ * estanque de origen elegido.
+ *
+ * Busca primero en siembras y, si no encuentra, en precrias.
+ * Ese orden importa: un estanque de engorde tendra siembra, y
+ * uno de precria tendra precria. Ver la nota de la seccion para
+ * el porque del fallback.
+ *
+ * @param {number|string} estanqueId - Id del estanque de origen.
+ * @returns {Promise<object|null>} {pl_siembra, dias} o null.
+ */
+export async function obtenerSiembraActivaPorEstanque(estanqueId) {
+    if (!estanqueId) {
+        return null;
+    }
+
+    const desdeSiembra = await buscarEnSiembras(estanqueId);
+
+    if (desdeSiembra) {
+        return desdeSiembra;
+    }
+
+    return buscarEnPrecrias(estanqueId);
+}
+
 /*
 //////////////////////////////////////////////////////////
-FUNCIONES PRINCIPALES - SESION (formulario)
+FUNCIONES PRINCIPALES - SESION
 //////////////////////////////////////////////////////////
 */
 
-/**
- * Version sincronica y "segura": usada solo como valor inicial
- * de useState en el hook, antes de que se resuelva la sesion
- * real de forma asincrona. Nunca se le debe confiar el dato
- * final -- ver obtenerColaboradorSesion(true).
- * @returns {object} Sesion por defecto (colaborador vacio).
- */
 function obtenerSesionPorDefecto() {
     return {
         esColaborador: true,
@@ -351,14 +789,6 @@ function obtenerSesionPorDefecto() {
     };
 }
 
-/**
- * Resuelve la sesion real de forma asincrona. Prioriza la
- * sesion de colaborador (PIN, AsyncStorage via sessionUtils),
- * que es el flujo real de captura en campo; si no hay
- * colaborador activo, cae a la sesion de usuario por JWT
- * (tokenStorage + jwtUtils).
- * @returns {Promise<object>} Sesion resuelta.
- */
 async function resolverSesionActual() {
     const colaboradorId = await obtenerColaboradorIdSesion();
 
@@ -373,6 +803,7 @@ async function resolverSesionActual() {
     }
 
     await cargarSesionPersistida();
+
     const token = getToken();
     const usuarioGuardado = getUsuario();
     const payload = decodeToken(token);
@@ -421,7 +852,11 @@ export function obtenerColaboradorSesion(esAsync = false) {
         try {
             const respuesta = await localApi.colaboradores.obtenerPorId(sesion.colaboradorId);
             const colaborador = respuesta?.success ? respuesta.data : null;
-            const nombreCompleto = [colaborador?.nombre, colaborador?.apellidos]
+
+            const nombreCompleto = [
+                colaborador?.nombre,
+                colaborador?.apellidos
+            ]
                 .filter(Boolean)
                 .join(" ");
 
@@ -437,42 +872,93 @@ export function obtenerColaboradorSesion(esAsync = false) {
 
 /*
 //////////////////////////////////////////////////////////
-FUNCIONES PRINCIPALES - ENRIQUECIMIENTO (cruce de IDs a nombres)
+FUNCIONES PRINCIPALES - ENRIQUECIMIENTO
 //////////////////////////////////////////////////////////
 */
 
-export function construirMapas({ fincas = [], colaboradores = [], estanques = [] } = {}) {
-    const fincasMap = new Map(fincas.map((f) => [f.value, f.label]));
-    const colaboradoresMap = new Map(colaboradores.map((c) => [c.value, c.label]));
-    const estanquesMap = new Map(estanques.map((e) => [e.value, e.label]));
+export function construirMapas({
+    fincas = [],
+    colaboradores = [],
+    estanques = [],
+    usuarios = []
+} = {}) {
+    const fincasMap = new Map();
+    const colaboradoresMap = new Map();
+    const estanquesMap = new Map();
+    const usuariosMap = new Map();
 
-    return { fincasMap, colaboradoresMap, estanquesMap };
+    fincas.forEach((finca) => {
+        agregarMapa(fincasMap, finca.value, finca.label);
+        agregarMapa(fincasMap, finca.id, finca.label);
+        agregarMapa(fincasMap, finca.servidorId, finca.label);
+        agregarMapa(fincasMap, finca.servidor_id, finca.label);
+    });
+
+    colaboradores.forEach((colaborador) => {
+        agregarMapa(colaboradoresMap, colaborador.value, colaborador.label);
+        agregarMapa(colaboradoresMap, colaborador.id, colaborador.label);
+        agregarMapa(colaboradoresMap, colaborador.servidorId, colaborador.label);
+        agregarMapa(colaboradoresMap, colaborador.servidor_id, colaborador.label);
+    });
+
+    estanques.forEach((estanque) => {
+        agregarMapa(estanquesMap, estanque.value, estanque.label);
+        agregarMapa(estanquesMap, estanque.id, estanque.label);
+        agregarMapa(estanquesMap, estanque.servidorId, estanque.label);
+        agregarMapa(estanquesMap, estanque.servidor_id, estanque.label);
+    });
+
+    usuarios.forEach((usuario) => {
+        agregarMapa(usuariosMap, usuario.value, usuario.label);
+        agregarMapa(usuariosMap, usuario.id, usuario.label);
+        agregarMapa(usuariosMap, usuario.servidorId, usuario.label);
+        agregarMapa(usuariosMap, usuario.servidor_id, usuario.label);
+    });
+
+    return {
+        fincasMap,
+        colaboradoresMap,
+        estanquesMap,
+        usuariosMap
+    };
 }
 
-/**
- * Cruza un registro local (ya trae sus propios IDs de quien lo
- * creo: creadoPorUsuarioId / creadoPorColaboradorId) con los
- * catalogos locales para mostrar nombres en vez de IDs. A
- * diferencia de la version anterior, ya NO necesita adivinar
- * "la sesion actual" como respaldo: cada registro local ya
- * guarda quien lo creo desde el momento en que se genero.
- * @param {object} registro - Registro en formato de vista.
- * @param {object} mapas - {fincasMap, colaboradoresMap, estanquesMap}.
- * @returns {object} Registro enriquecido con nombres.
- */
 export function enriquecerRegistro(registro = {}, mapas = {}) {
-    const { fincasMap = new Map(), colaboradoresMap = new Map(), estanquesMap = new Map() } = mapas;
+    const {
+        fincasMap = new Map(),
+        colaboradoresMap = new Map(),
+        estanquesMap = new Map(),
+        usuariosMap = new Map()
+    } = mapas;
 
     let responsableNombre = "";
     let tipoResponsable = "Colaborador";
 
-    if (registro.creadoPorColaboradorId && colaboradoresMap.has(registro.creadoPorColaboradorId)) {
-        responsableNombre = colaboradoresMap.get(registro.creadoPorColaboradorId);
+    if (
+        registro.creadoPorColaboradorId &&
+        obtenerDeMapa(colaboradoresMap, registro.creadoPorColaboradorId)
+    ) {
+        responsableNombre = obtenerDeMapa(
+            colaboradoresMap,
+            registro.creadoPorColaboradorId
+        );
         tipoResponsable = "Colaborador";
     } else if (registro.creadoPorColaboradorId) {
         responsableNombre = `Colaborador #${registro.creadoPorColaboradorId}`;
         tipoResponsable = "Colaborador";
+    } else if (
+        registro.creadoPorUsuarioId &&
+        obtenerDeMapa(usuariosMap, registro.creadoPorUsuarioId)
+    ) {
+        responsableNombre = obtenerDeMapa(
+            usuariosMap,
+            registro.creadoPorUsuarioId
+        );
+        tipoResponsable = "Usuario";
     } else if (registro.creadoPorUsuarioId) {
+        // El usuario no esta en el catalogo local (todavia no se
+        // sincronizo, o fue dado de baja). Se muestra el id en vez de
+        // inventar un nombre.
         responsableNombre = `Usuario #${registro.creadoPorUsuarioId}`;
         tipoResponsable = "Usuario";
     } else {
@@ -482,16 +968,19 @@ export function enriquecerRegistro(registro = {}, mapas = {}) {
 
     return {
         ...registro,
-        fincaNombre: fincasMap.get(registro.fincaId) ?? registro.fincaNombre ?? "",
+        fincaNombre: obtenerDeMapa(fincasMap, registro.fincaId) ?? registro.fincaNombre ?? "",
         colaboradorNombre: responsableNombre,
         tipoResponsable,
         responsableTexto: `${tipoResponsable}: ${responsableNombre}`,
-        estanqueOrigenLabel: estanquesMap.get(registro.estanqueOrigenId) ?? "",
-        estanqueDestinoLabel: estanquesMap.get(registro.estanqueDestinoId) ?? ""
+        estanqueOrigenLabel: obtenerDeMapa(estanquesMap, registro.estanqueOrigenId) ?? "",
+        estanqueDestinoLabel: obtenerDeMapa(estanquesMap, registro.estanqueDestinoId) ?? ""
     };
 }
 
 export function enriquecerRegistros(registros = [], mapas) {
-    if (!Array.isArray(registros)) return [];
-    return registros.map((r) => enriquecerRegistro(r, mapas));
+    if (!Array.isArray(registros)) {
+        return [];
+    }
+
+    return registros.map((registro) => enriquecerRegistro(registro, mapas));
 }

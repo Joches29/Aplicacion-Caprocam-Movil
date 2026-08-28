@@ -47,12 +47,18 @@ export default function EquipoDetail({ equipo, onQuitar, horasUsoIngreso }) {
         )}
       </View>
 
-      {LABELS_EQUIPO_DETALLE.filter(([campo]) => campo !== "horasUso" && campo !== "horasMantenimiento").map(([campo, etiqueta]) => (
-        <View key={campo} style={styles.equipoDetailRow}>
-          <CustomText style={styles.equipoDetailLabel}>{etiqueta}:</CustomText>
-          <CustomText style={styles.equipoDetailVal} numberOfLines={2}>{equipo[campo] ?? "—"}</CustomText>
-        </View>
-      ))}
+      {LABELS_EQUIPO_DETALLE.filter(([campo]) => campo !== "horasUso" && campo !== "horasMantenimiento").map(([campo, etiqueta]) => {
+        let valor = equipo[campo];
+        if (campo === "estanqueNombre" && (!valor || valor === "—")) {
+          valor = "No asociado";
+        }
+        return (
+          <View key={campo} style={styles.equipoDetailRow}>
+            <CustomText style={styles.equipoDetailLabel}>{etiqueta}:</CustomText>
+            <CustomText style={styles.equipoDetailVal} numberOfLines={2}>{valor ?? "—"}</CustomText>
+          </View>
+        );
+      })}
 
       {/* Horas de uso al ingresar o actual */}
       <View style={styles.equipoDetailRowTop}>

@@ -128,6 +128,37 @@ FUNCIONES PRINCIPALES
  * registros pendientes de subir se mantienen intactos.
  * @returns {Promise<object>} {exito, total, mensaje}.
  */
+/**
+ * Convierte un registro que viene del backend (camelCase) al
+ * formato de columnas de SQLite (snake_case).
+ *
+ * Necesario porque guardarDesdeServidorLocal inserta las claves
+ * TAL CUAL en la tabla: no traduce nombres. Sin esto, un
+ * fincaId nunca cae en la columna finca_id y el registro se
+ * guarda vacio o el insert falla. Es el mismo motivo por el que
+ * configSync.service.js tiene su propio convertirRegistroASnake.
+ * @param {object} registro - Registro del backend.
+ * @returns {object} Registro con claves snake_case.
+ */
+const convertirASnake = (registro) => {
+    if (!registro || typeof registro !== "object") {
+        return registro;
+    }
+
+    const resultado = {};
+
+    for (const [clave, valor] of Object.entries(registro)) {
+        const claveSnake = clave.replace(
+            /[A-Z]/g,
+            (letra) => `_${letra.toLowerCase()}`
+        );
+
+        resultado[claveSnake] = valor;
+    }
+
+    return resultado;
+};
+
 export async function descargarHistorialTrazabilidad() {
     try {
         await localApi.inicializar();
@@ -135,8 +166,10 @@ export async function descargarHistorialTrazabilidad() {
         const response = await api.get(ENDPOINT_TRAZABILIDAD);
         const registrosServidor = response?.data?.data ?? [];
 
+        const registrosNormalizados = registrosServidor.map(convertirASnake);
+
         const respuesta = await localApi.trazabilidad.guardarDesdeServidor(
-            registrosServidor
+            registrosNormalizados
         );
 
         if (!respuesta || respuesta.success !== true) {

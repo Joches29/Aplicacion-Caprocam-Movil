@@ -142,7 +142,8 @@ export default function RaleoForm({
         </View>
 
         <DateInput
-          label="Fecha del Raleo *"
+          label="Fecha del Raleo "
+          required
           value={form.fecha ?? ""}
           onChangeText={(v) => updateField("fecha", v)}
           labelStyle={{ fontFamily: TYPOGRAPHY.fontFamily.medium }}
@@ -150,7 +151,8 @@ export default function RaleoForm({
         />
 
         <Select
-          label="Finca *"
+          label="Finca "
+          required
           value={form.finca}
           onChange={handleFincaChange}
           options={fincasOptions}
@@ -159,7 +161,8 @@ export default function RaleoForm({
         />
 
         <Select
-          label="Estanque *"
+          label="Estanque "
+          required
           value={form.estanque}
           onChange={(v) => updateField("estanque", v)}
           options={estanquesOptions}
@@ -177,7 +180,8 @@ export default function RaleoForm({
         </View>
 
         <Input
-          label="Biomasa antes del raleo (kg) *"
+          label="Biomasa antes del raleo (kg) "
+          required
           placeholder="Ej: 2000"
           value={String(form.biomasaEstimada ?? "")}
           keyboardType="decimal-pad"
@@ -190,7 +194,8 @@ export default function RaleoForm({
         />
 
         <Input
-          label="Cantidad retirada mediante raleo (kg) *"
+          label="Cantidad retirada mediante raleo (kg) "
+          required
           placeholder="Ej: 1000"
           value={String(form.kgRetirados ?? "")}
           keyboardType="decimal-pad"

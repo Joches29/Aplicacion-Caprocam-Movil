@@ -1,4 +1,5 @@
 import api from "../../../api/api";
+import FincaLocalService from "./fincaLocal.service.js";
 
 function construirErrorHttp(error, mensajeGenerico) {
   const status = error?.response?.status;
@@ -15,20 +16,7 @@ function construirErrorHttp(error, mensajeGenerico) {
 
 export const fincaService = {
   getFincas: async () => {
-    try {
-      const response = await api.get("/fincas");
-
-      return response.data.data.map((finca) => ({
-        ...finca,
-        telefonoParse: parseTelefonos(finca.telefono),
-      }));
-    } catch (error) {
-      if (error.response?.status === 404 || error.response?.status === 500) {
-        throw error;
-      }
-
-      throw new Error("No se pudieron obtener las fincas");
-    }
+    return await FincaLocalService.getFincas();
   },
 
   getFincasById: async (codigoCBO) => {

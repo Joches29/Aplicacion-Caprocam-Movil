@@ -18,6 +18,13 @@
  * - Las categorías "Alimentación" y "Tratamiento" son las que habilitan
  *   el campo "Fecha de caducidad" en useAgregarProducto.js / useEditarProducto.js.
  * - unidad arranca en "kg" por defecto en initialForm.
+ * - CATEGORIAS sincronizado con team6 (frontend web) al 22/8/2026:
+ *   se reemplazan "Fertilizante", "Antibiótico" y "Probiótico" por
+ *   "Mantenimiento" y "Equipos", para que el módulo de Mantenimiento
+ *   de Equipos pueda filtrar productos por esa categoría (categoria
+ *   es VARCHAR libre en el back, pero el select debe ofrecer las
+ *   mismas opciones que web para no generar valores huérfanos al
+ *   sincronizar). Ver hilo de WhatsApp del 21-22/8/2026.
  * ============================================================
 */
 
@@ -29,9 +36,8 @@ export const CATEGORIAS = [
   { label: "Alimentación", value: "Alimentación" },
   { label: "Tratamiento", value: "Tratamiento" },
   { label: "Químico", value: "Químico" },
-  { label: "Fertilizante", value: "Fertilizante" },
-  { label: "Antibiótico", value: "Antibiótico" },
-  { label: "Probiótico", value: "Probiótico" },
+  { label: "Mantenimiento", value: "Mantenimiento" },
+  { label: "Equipos", value: "Equipos" },
 ];
 
 export const UNIDADES = [

@@ -15,6 +15,7 @@ import { productoService } from '../../productos/services/producto.service.js';
 import * as MantService from '../services/mantEquipoService.js';
 import { obtenerTareas } from '../services/tareasService.js';
 import { equiposService } from '../services/equiposService.js';
+import { localApi } from '../../../database/local/localApi.service.js';
 import { ALERTAS_NOTIFICACIONES, MENSAJES_ERROR_CARGA, TEXTOS_DETALLE } from '../constants/mantEquipoMensajes.js';
 
 export function useDetalleMantenimiento({ id, alertaTipo, alertaMensaje, onNavigateToMain }) {
@@ -42,6 +43,29 @@ export function useDetalleMantenimiento({ id, alertaTipo, alertaMensaje, onNavig
       setErrorCarga(null);
       try {
         const t = await MantService.obtenerTicketPorId(id);
+
+        if (t && /^\d+$/.test(String(t.creadoPor || '').trim())) {
+          try {
+            const respColab = await localApi.colaboradores.obtenerPorId(Number(t.creadoPor));
+            if (respColab.success && respColab.data) {
+              const c = respColab.data;
+              const nomComp = [c.nombre, c.apellidos].filter(Boolean).join(' ').trim();
+              t.creadoPor = nomComp || c.nombre_usuario || `Colaborador #${c.id}`;
+            } else {
+              const allColabs = await localApi.colaboradores.obtenerTodos();
+              if (allColabs.success && Array.isArray(allColabs.data)) {
+                const found = allColabs.data.find(
+                  c => String(c.id) === String(t.creadoPor) || String(c.servidor_id) === String(t.creadoPor)
+                );
+                if (found) {
+                  const nomComp = [found.nombre, found.apellidos].filter(Boolean).join(' ').trim();
+                  t.creadoPor = nomComp || found.nombre_usuario || `Colaborador #${found.id}`;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
         setTicket(t);
 
         // Cargar equipo asociado al ticket

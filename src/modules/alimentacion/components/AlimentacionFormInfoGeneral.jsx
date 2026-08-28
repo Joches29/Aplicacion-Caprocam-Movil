@@ -77,7 +77,8 @@ export default function AlimentacionFormInfoGeneral({
       </View>
 
       <DateInput
-        label="Fecha de Registro *"
+        label="Fecha de Registro "
+        required
         value={form.fecha ?? ""}
         onChangeText={(v) => updateField("fecha", v)}
         labelStyle={{ fontFamily: TYPOGRAPHY.fontFamily.medium }}
@@ -85,7 +86,7 @@ export default function AlimentacionFormInfoGeneral({
       />
 
       <Text size={14} weight="600" color={COLORS.textSecondary} style={styles.horaLabel}>
-        Hora *
+        Hora <Text size={14} weight="600" color={COLORS.black}> *</Text>
       </Text>
       <View style={[styles.horasContainer, invalidoHora && styles.horasContainerInvalid]}>
         {HORAS.map((h) => {
@@ -105,7 +106,8 @@ export default function AlimentacionFormInfoGeneral({
       </View>
 
       <Select
-        label="Finca *"
+        label="Finca "
+        required
         value={form.finca}
         onChange={handleFincaChange}
         options={fincasOptions}
@@ -114,7 +116,8 @@ export default function AlimentacionFormInfoGeneral({
       />
 
       <Select
-        label="Estanque *"
+        label="Estanque "
+        required
         value={form.estanque}
         onChange={handleEstanqueChange}
         options={estanquesOptions}

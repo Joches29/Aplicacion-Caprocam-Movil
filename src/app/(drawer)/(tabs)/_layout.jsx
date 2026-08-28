@@ -26,6 +26,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="registros"
         options={{
+          // Al salir de la pestaña, reinicia el stack de registros a su
+          // pantalla inicial. Sin esto, si el usuario entra a un
+          // sub-registro (ej. Alimentacion), cambia de seccion y vuelve
+          // a Registros, la app lo devuelve dentro del sub-registro en
+          // lugar del menu principal (hallazgo de QA: "Retorno
+          // incorrecto en la navegacion").
+          popToTopOnBlur: true,
           tabBarIcon: ({ color, size }) => (
             <Icon icon={ICONS.document} color={color} size={20} />
           ),
