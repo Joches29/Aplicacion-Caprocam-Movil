@@ -1,7 +1,6 @@
 import { Stack } from "expo-router";
 import React from "react";
 import { useFonts, Roboto_400Regular, Roboto_500Medium, Roboto_700Bold } from "@expo-google-fonts/roboto";
-import SessionMonitor from '../shared/components/ModalTokenExpired';
 import { ErrorProvider } from "../shared/context/ErrorContext";
 import ErrorModal from "../shared/components/ModalError";
 
@@ -20,14 +19,12 @@ export default function RootLayout() {
     <ErrorProvider>
       <ErrorModal />
 
-      <SessionMonitor>
-        <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false }}>
 
-          <Stack.Screen name="login" />
+        <Stack.Screen name="login" />
 
-          <Stack.Screen name="index" />
-        </Stack>
-      </SessionMonitor>
+        <Stack.Screen name="index" />
+      </Stack>
     </ErrorProvider>
   );
-}
+}
