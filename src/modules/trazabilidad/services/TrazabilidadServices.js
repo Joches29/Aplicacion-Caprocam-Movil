@@ -537,6 +537,44 @@ export async function obtenerColaboradores() {
     });
 }
 
+/**
+ * Lee el catalogo local de usuarios.
+ *
+ * Los registros creados desde WEB guardan creado_por_usuario_id, no
+ * un colaborador. Sin este catalogo la pantalla solo puede mostrar
+ * "Usuario #2" en vez del nombre.
+ *
+ * La tabla `usuarios` se descarga en el sync general (el backend la
+ * manda con findUsuariosSync, sin password_hash). Si todavia no se
+ * sincronizo, esta lista viene vacia y enriquecerRegistro cae al id,
+ * que es el comportamiento correcto: nunca se inventa un nombre.
+ *
+ * @returns {Promise<Array<object>>} [{ label, value, id, servidorId }]
+ */
+export async function obtenerUsuarios() {
+    const respuesta = await localApi.usuarios.obtenerTodos();
+    const usuarios = obtenerDatosLocal(respuesta);
+
+    return usuarios.map((usuario) => {
+        const servidorId = obtenerServidorId(usuario);
+        const id = obtenerIdLocal(usuario);
+        const value = tieneValor(servidorId) ? servidorId : id;
+
+        const nombreCompleto = [usuario.nombre, usuario.apellidos]
+            .filter(Boolean)
+            .join(" ");
+
+        return {
+            label: nombreCompleto || usuario.nombre_usuario || "Usuario",
+            value,
+            id,
+            servidorId,
+            servidor_id: servidorId,
+            raw: usuario
+        };
+    });
+}
+
 /*
 //////////////////////////////////////////////////////////
 FUNCIONES PRINCIPALES - SIEMBRA / PRECRIA ACTIVA
@@ -841,11 +879,13 @@ FUNCIONES PRINCIPALES - ENRIQUECIMIENTO
 export function construirMapas({
     fincas = [],
     colaboradores = [],
-    estanques = []
+    estanques = [],
+    usuarios = []
 } = {}) {
     const fincasMap = new Map();
     const colaboradoresMap = new Map();
     const estanquesMap = new Map();
+    const usuariosMap = new Map();
 
     fincas.forEach((finca) => {
         agregarMapa(fincasMap, finca.value, finca.label);
@@ -868,10 +908,18 @@ export function construirMapas({
         agregarMapa(estanquesMap, estanque.servidor_id, estanque.label);
     });
 
+    usuarios.forEach((usuario) => {
+        agregarMapa(usuariosMap, usuario.value, usuario.label);
+        agregarMapa(usuariosMap, usuario.id, usuario.label);
+        agregarMapa(usuariosMap, usuario.servidorId, usuario.label);
+        agregarMapa(usuariosMap, usuario.servidor_id, usuario.label);
+    });
+
     return {
         fincasMap,
         colaboradoresMap,
-        estanquesMap
+        estanquesMap,
+        usuariosMap
     };
 }
 
@@ -879,7 +927,8 @@ export function enriquecerRegistro(registro = {}, mapas = {}) {
     const {
         fincasMap = new Map(),
         colaboradoresMap = new Map(),
-        estanquesMap = new Map()
+        estanquesMap = new Map(),
+        usuariosMap = new Map()
     } = mapas;
 
     let responsableNombre = "";
@@ -897,7 +946,19 @@ export function enriquecerRegistro(registro = {}, mapas = {}) {
     } else if (registro.creadoPorColaboradorId) {
         responsableNombre = `Colaborador #${registro.creadoPorColaboradorId}`;
         tipoResponsable = "Colaborador";
+    } else if (
+        registro.creadoPorUsuarioId &&
+        obtenerDeMapa(usuariosMap, registro.creadoPorUsuarioId)
+    ) {
+        responsableNombre = obtenerDeMapa(
+            usuariosMap,
+            registro.creadoPorUsuarioId
+        );
+        tipoResponsable = "Usuario";
     } else if (registro.creadoPorUsuarioId) {
+        // El usuario no esta en el catalogo local (todavia no se
+        // sincronizo, o fue dado de baja). Se muestra el id en vez de
+        // inventar un nombre.
         responsableNombre = `Usuario #${registro.creadoPorUsuarioId}`;
         tipoResponsable = "Usuario";
     } else {
