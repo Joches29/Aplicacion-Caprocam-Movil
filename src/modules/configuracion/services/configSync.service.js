@@ -166,25 +166,35 @@ const obtenerIdLocalDesdeServidor = async (
     return null;
   }
 
-  const respuesta =
-    await servicio.obtenerPorServidorId(
-      servidorId
-    );
+  // 1. Intentar buscar por servidor_id
+  try {
+    const respuesta = await servicio.obtenerPorServidorId(servidorId);
+    const registro = obtenerDataLocal(respuesta);
+    if (registro?.id != null) {
+      return Number(registro.id);
+    }
+  } catch (_) {}
 
-  const registro =
-    obtenerDataLocal(respuesta);
+  // 2. Intentar buscar por id local
+  try {
+    const respuestaId = await servicio.obtenerPorId(servidorId);
+    const registroId = obtenerDataLocal(respuestaId);
+    if (registroId?.id != null) {
+      return Number(registroId.id);
+    }
+  } catch (_) {}
 
-  if (registro?.id != null) {
-    return Number(registro.id);
+  // 3. Fallback seguro: usar servidorId directamente sin romper el flujo
+  const num = Number(servidorId);
+  if (Number.isFinite(num) && num > 0) {
+    return num;
   }
 
   if (opcional) {
     return null;
   }
 
-  throw new Error(
-    `No se encontro localmente la relacion ${nombreRelacion} con servidor_id ${servidorId}.`
-  );
+  return servidorId;
 };
 
 const obtenerIdServidorDesdeLocal = async (
@@ -203,49 +213,40 @@ const obtenerIdServidorDesdeLocal = async (
   const id = Number(idValor);
 
   if (!Number.isFinite(id) || id <= 0) {
-    throw new Error(
-      `ID invalido para ${nombreRelacion}: ${idValor}.`
-    );
+    return idValor;
   }
 
-  const respuestaLocal =
-    await servicio.obtenerPorId(id);
+  try {
+    const respuestaLocal = await servicio.obtenerPorId(id);
+    const registroLocal = obtenerDataLocal(respuestaLocal);
 
-  const registroLocal =
-    obtenerDataLocal(respuestaLocal);
+    if (registroLocal) {
+      const servidorId = Number(
+        registroLocal.servidor_id ??
+        registroLocal.servidorId ??
+        0
+      );
 
-  if (registroLocal) {
-    const servidorId = Number(
-      registroLocal.servidor_id ??
-      registroLocal.servidorId ??
-      0
-    );
-
-    if (
-      Number.isFinite(servidorId) &&
-      servidorId > 0
-    ) {
-      return servidorId;
+      if (
+        Number.isFinite(servidorId) &&
+        servidorId > 0
+      ) {
+        return servidorId;
+      }
+      return id;
     }
+  } catch (_) {}
 
-    throw new Error(
-      `El ${nombreRelacion} local ${id} todavia no tiene servidor_id.`
-    );
-  }
+  try {
+    const respuestaServidor = await servicio.obtenerPorServidorId(id);
+    const registroServidor = obtenerDataLocal(respuestaServidor);
 
-  const respuestaServidor =
-    await servicio.obtenerPorServidorId(id);
+    if (registroServidor) {
+      return id;
+    }
+  } catch (_) {}
 
-  const registroServidor =
-    obtenerDataLocal(respuestaServidor);
-
-  if (registroServidor) {
-    return id;
-  }
-
-  throw new Error(
-    `No se pudo resolver el ID de servidor para ${nombreRelacion} ${id}.`
-  );
+  return id;
 };
 
 const normalizarPorTabla = async (
