@@ -123,7 +123,7 @@ export function useDetalleEquipoScreen({ id, router }) {
       await equiposService.deleteEquipo(equipo.id);
       setShowConfirmModal(false);
       router.replace({
-        pathname: '/equipos/equipos',
+        pathname: '/equipos',
         params: {
           alertType: 'success',
           alertMessage: `Equipo "${equipo.nombre}" eliminado.`,
