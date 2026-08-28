@@ -1015,6 +1015,24 @@ async function normalizarRegistroParaSubida(
         }
         break;
 
+      case "equipos":
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque del equipo"
+            );
+        }
+        if (r.fecha_ultimo_encendido) {
+          r.fecha_ultimo_encendido = normalizarFechaMySQL(r.fecha_ultimo_encendido);
+        }
+        if (r.fecha_instalacion) {
+          r.fecha_instalacion = normalizarFechaMySQL(r.fecha_instalacion);
+        }
+        break;
+
+
       case "densidad_poblacional":
         if (r.finca_id != null) {
           r.finca_id =
