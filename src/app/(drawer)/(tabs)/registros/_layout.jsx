@@ -8,8 +8,6 @@ export default function RegistrosStackLayout() {
     <Stack screenOptions={{ headerShown: false, headerStyle: { backgroundColor: COLORS.primary }, headerTintColor: COLORS.white}}>
       <Stack.Screen name="index" options={{ title: "Sección de Registros"}} />
 
-      <Stack.Screen name="EditarEstanque" options={{ title: "Editar Estanque"}} />
-
       <Stack.Screen name="Enfermedades" options={{ title: "Enfermedades" }} />
 
       <Stack.Screen name="Parasitologia" options={{ title: "Parasitologia" }} />
@@ -20,7 +18,7 @@ export default function RegistrosStackLayout() {
 
       <Stack.Screen name="FisicoQuimica" options={{ title: "Registro Físico-Químicos"}} />
 
-      <Stack.Screen name="DetalleEstanque" options={{ title: "Detalle Estanque" }} />
+      <Stack.Screen name="EditarFisicoQuimica" options={{ title: "Editar Físico-Química" }} />
 
       <Stack.Screen name="Crecimiento" options={{ title: "Registro Crecimiento"}}/>
 

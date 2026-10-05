@@ -17,6 +17,7 @@
         "backgroundImage": "./src/assets/shrimp-solid.png",
         "monochromeImage": "./src/assets/shrimp-solid.png"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.fofoexpo.AplicacionCaprocam"
     },
