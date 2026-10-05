@@ -10,6 +10,7 @@ import * as Application from "expo-application";
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
 import { saveToken, getToken, cargarSesionPersistida } from "../../login/utils/tokenStorage";
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
 
 /*
 ============================================================
@@ -43,9 +44,10 @@ const MAPEO_DESCARGA = {
   calculosCrecimiento: "calculos_crecimiento",
   trazabilidad: "trazabilidad",
   ventas: "ventas",
-  mantenimientos: "mantenimiento_equipo",
-  mantenimientoTareas: "mantenimiento_equipo_tareas",
-  mantenimientoProductos: "mantenimiento_equipo_productos",
+  alimentacion: "alimentaciones",
+  densidadPoblacional: "densidad_poblacional",
+  detalleTirosDensidad: "densidad_detalle_tiros",
+  raleos: "raleos",
 };
 
 const MAPEO_SUBIDA = {
@@ -64,9 +66,6 @@ const MAPEO_SUBIDA = {
   ventas: "ventas",
   trazabilidad: "trazabilidad",
   movimientos_inventario: "movimientosInventario",
-  mantenimiento_equipo: "mantenimientos",
-  mantenimiento_equipo_tareas: "tareasMantenimiento",
-  mantenimiento_equipo_productos: "productosMantenimiento",
 };
 
 /*
@@ -268,6 +267,7 @@ const normalizarPorTabla = async (
 
   switch (tabla) {
     case "usuarios":
+      r.grupo_datos = grupoDatos || 1;
       if (!r.password_hash) {
         r.password_hash =
           "__SYNC_PLACEHOLDER__";
@@ -302,9 +302,24 @@ const normalizarPorTabla = async (
       break;
 
     case "colaboradores":
+      r.grupo_datos = grupoDatos || 1;
       if (!r.pin_hash) {
         r.pin_hash =
           "__SYNC_PLACEHOLDER__";
+      }
+      if (!r.nombre) {
+        r.nombre = r.name || "Colaborador";
+      }
+      if (!r.apellidos) {
+        r.apellidos = r.apellido || r.lastName || r.last_name || "";
+      }
+      if (!r.nombre_usuario) {
+        r.nombre_usuario =
+          r.username ||
+          r.usuario ||
+          r.cedula ||
+          r.email ||
+          `colab_${r.id || r.servidor_id || Date.now()}`;
       }
       break;
 
@@ -811,6 +826,281 @@ const normalizarPorTabla = async (
             r.estanque_id,
             "estanque del registro"
           );
+      }
+      break;
+
+    case "ventas":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.comprador !== undefined && r.comprador_id === undefined) {
+        r.comprador_id = r.comprador;
+        delete r.comprador;
+      }
+      if (r.id_comprador !== undefined && r.comprador_id === undefined) {
+        r.comprador_id = r.id_comprador;
+        delete r.id_comprador;
+      }
+      if (r.comprador_id === undefined && r.compradorId !== undefined) {
+        r.comprador_id = r.compradorId;
+      }
+      if (r.cant_vendida !== undefined && r.cantidad_vendida === undefined) {
+        r.cantidad_vendida = r.cant_vendida;
+        delete r.cant_vendida;
+      }
+      if (r.cantidad !== undefined && r.cantidad_vendida === undefined) {
+        r.cantidad_vendida = r.cantidad;
+      }
+      if (r.cantidad_vendida == null) {
+        r.cantidad_vendida = 0;
+      }
+      if (r.precio_kilo == null && r.precioKilo !== undefined) {
+        r.precio_kilo = r.precioKilo;
+      }
+      if (r.precio_kilo == null) {
+        r.precio_kilo = 0;
+      }
+      if (r.total == null) {
+        r.total = (Number(r.cantidad_vendida) || 0) * (Number(r.precio_kilo) || 0);
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de venta"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de venta"
+        );
+      }
+      if (r.comprador_id != null) {
+        r.comprador_id = await obtenerIdLocalDesdeServidor(
+          localApi.compradores,
+          r.comprador_id,
+          "comprador de venta",
+          true
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
+      }
+      break;
+
+    case "alimentaciones":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.cantidad !== undefined && r.cantidad_kg === undefined) {
+        r.cantidad_kg = r.cantidad;
+      }
+      if (r.cantidadKg !== undefined && r.cantidad_kg === undefined) {
+        r.cantidad_kg = r.cantidadKg;
+      }
+      if (r.cantidad_kg == null) {
+        r.cantidad_kg = 0;
+      }
+      if (r.id_producto !== undefined && r.producto_id === undefined) {
+        r.producto_id = r.id_producto;
+      }
+      if (r.productoId !== undefined && r.producto_id === undefined) {
+        r.producto_id = r.productoId;
+      }
+      if (r.id_proveedor !== undefined && r.proveedor_id === undefined) {
+        r.proveedor_id = r.id_proveedor;
+      }
+      if (r.proveedorId !== undefined && r.proveedor_id === undefined) {
+        r.proveedor_id = r.proveedorId;
+      }
+      if (r.tipo_alimento === undefined && r.tipoAlimento !== undefined) {
+        r.tipo_alimento = r.tipoAlimento;
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de alimentacion"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de alimentacion"
+        );
+      }
+      if (r.proveedor_id != null) {
+        r.proveedor_id = await obtenerIdLocalDesdeServidor(
+          localApi.proveedores,
+          r.proveedor_id,
+          "proveedor de alimentacion",
+          true
+        );
+      }
+      if (r.producto_id != null) {
+        r.producto_id = await obtenerIdLocalDesdeServidor(
+          localApi.productos,
+          r.producto_id,
+          "producto de alimentacion",
+          true
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
+      }
+      break;
+
+    case "densidad_poblacional":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.cantidad_tiros !== undefined && r.tiros_atarraya === undefined) {
+        r.tiros_atarraya = r.cantidad_tiros;
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de densidad"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de densidad"
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
+      }
+      break;
+
+    case "densidad_detalle_tiros":
+      if (r.densidad_id != null) {
+        r.densidad_id = await obtenerIdLocalDesdeServidor(
+          localApi.densidadPoblacional,
+          r.densidad_id,
+          "densidad de tiro"
+        );
+      }
+      break;
+
+    case "raleos":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de raleo"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de raleo"
+        );
+      }
+      if (r.siembra_id != null) {
+        r.siembra_id = await obtenerIdLocalDesdeServidor(
+          localApi.siembras,
+          r.siembra_id,
+          "siembra de raleo",
+          true
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
       }
       break;
   }
@@ -1478,12 +1768,88 @@ export const configSyncService = {
 
       await guardarGrupoDatosActivo(grupoDatos);
 
+      // Limpiar cualquier colaborador con pin placeholder que pudiera haberse guardado erróneamente
+      try {
+        const db = await obtenerBaseLocal();
+        await db.runAsync("DELETE FROM colaboradores WHERE pin_hash = '__SYNC_PLACEHOLDER__'");
+      } catch (_) {}
+
+      if (
+        (!Array.isArray(data.alimentacion) || data.alimentacion.length === 0) &&
+        (!Array.isArray(data.alimentaciones) || data.alimentaciones.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/alimentaciones");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.alimentacion = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar alimentaciones REST:", e?.message);
+        }
+      }
+
+      if (
+        (!Array.isArray(data.densidadPoblacional) || data.densidadPoblacional.length === 0) &&
+        (!Array.isArray(data.densidad_poblacional) || data.densidad_poblacional.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/densidad-poblacional");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.densidadPoblacional = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar densidad REST:", e?.message);
+        }
+      }
+
+      if (
+        (!Array.isArray(data.raleos) || data.raleos.length === 0) &&
+        (!Array.isArray(data.raleo) || data.raleo.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/raleo");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.raleos = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar raleos REST:", e?.message);
+        }
+      }
+
+      if (
+        (!Array.isArray(data.ventas) || data.ventas.length === 0) &&
+        (!Array.isArray(data.venta) || data.venta.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/ventas");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.ventas = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar ventas REST:", e?.message);
+        }
+      }
+
+      if (!Array.isArray(data.usuarios) || data.usuarios.length === 0) {
+        try {
+          const resp = await api.get("/usuarios");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.usuarios = lista;
+          }
+        } catch (_) {}
+      }
+
       const resultados = [];
       let totalGuardados = 0;
       const errores = [];
 
       for (const [campoCamel, tablaLocal] of Object.entries(MAPEO_DESCARGA)) {
-        const registros = data[campoCamel] ?? [];
+        const registros = data[campoCamel] ?? data[tablaLocal] ?? [];
 
         const resultado = await guardarCatalogoLocal(
           tablaLocal,
@@ -1519,6 +1885,7 @@ export const configSyncService = {
         equiposCount: data.equipos?.length ?? 0,
         tareasCount: data.tareas?.length ?? 0,
         usuariosCount: data.usuarios?.length ?? 0,
+        colaboradoresCount: (data.colaboradores ?? data.colaborador)?.length ?? 0,
         laboratoriosCount: data.laboratorios?.length ?? 0,
         procedenciasCount: data.procedencias?.length ?? 0,
         proveedoresLarvaCount: data.proveedoresLarva?.length ?? 0,
@@ -1532,9 +1899,10 @@ export const configSyncService = {
         detalleFisicoQuimicaCount:
           data.detalleFisicoQuimica?.length ?? 0,
         ventasCount: data.ventas?.length ?? 0,
-        mantenimientosCount: data.mantenimientos?.length ?? 0,
-        mantenimientoTareasCount: data.mantenimientoTareas?.length ?? 0,
-        mantenimientoProductosCount: data.mantenimientoProductos?.length ?? 0,
+        alimentacionesCount: (data.alimentacion ?? data.alimentaciones)?.length ?? 0,
+        densidadPoblacionalCount: (data.densidadPoblacional ?? data.densidad_poblacional)?.length ?? 0,
+        raleosCount: (data.raleos ?? data.raleo)?.length ?? 0,
+        mantenimientosCount: 0,
       };
     } catch (err) {
       if (err?.response?.status === 401 || err?.status === 401) {

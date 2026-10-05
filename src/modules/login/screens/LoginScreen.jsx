@@ -212,8 +212,10 @@ function WorkerSection({
     setSyncMessage("");
 
     try {
-      // Enviamos la cédula y el PIN al hook / servicio
-      const result = await onSyncData({ cedula, pin: syncPin });
+      // Enviamos la cédula limpia (sin guiones) y el PIN al hook / servicio
+      const cleanCedula = cedula.trim().replace(/-/g, "");
+      const cleanPin = syncPin.trim();
+      const result = await onSyncData({ cedula: cleanCedula, pin: cleanPin });
 
       setIsSyncModalVisible(false);
 
@@ -682,9 +684,10 @@ function SyncModal({
   onPinChange,
   onSubmit,
 }) {
+  const cleanCedula = cedula.trim().replace(/-/g, "");
   const isFormValid =
-    cedula.trim().length === 9 &&
-    syncPin.length === 4;
+    cleanCedula.length >= 4 &&
+    syncPin.trim().length === 4;
 
   return (
     <Modal
@@ -723,7 +726,7 @@ function SyncModal({
         }
         placeholder="Cédula"
         keyboardType="number-pad"
-        maxLength={9}
+        maxLength={15}
         editable={!isSyncing}
         containerStyle={
           styles.pinInputContainer

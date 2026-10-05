@@ -25,6 +25,7 @@ import * as Crypto from "expo-crypto";
 import { localApi } from "./localApi.service";
 import { exitoLocal, errorLocal } from "./respuestaLocal";
 import { saveToken } from "../../modules/login/utils/tokenStorage";
+import { obtenerBaseLocal } from "./sqlite.database";
 
 /*
 //////////////////////////////////////////////////////////
@@ -62,9 +63,6 @@ const ENDPOINTS_SYNC = {
 
   equipos: "/equipos",
   tareas: "/tareas",
-  mantenimiento_equipo: "/mantenimientos",
-  mantenimiento_equipo_tareas: "/mantenimientos/tareas",
-  mantenimiento_equipo_productos: "/mantenimientos/productos",
 
   laboratorios: "/laboratorios",
   procedencias: "/procedencias",
@@ -96,7 +94,6 @@ const TABLAS_DESCARGA_INICIAL = [
   "ventas",
   "equipos",
   "tareas",
-  "mantenimiento_equipo",
   "laboratorios",
   "procedencias",
   "proveedores_larva",
@@ -389,37 +386,86 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
 
     const colabServidor = respuestaData.colaborador;
 
-    await guardarGrupoDatosActivo(colabServidor.grupoDatos);
+    const grupoDatosFinal = Number(colabServidor.grupoDatos) || 1;
+    await guardarGrupoDatosActivo(grupoDatosFinal);
 
-    const salt = bcrypt.genSaltSync(10);
-    const pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
+    let pinHashLocal;
+    try {
+      pinHashLocal = bcrypt.hashSync(String(pin).trim(), 10);
+    } catch (_) {
+      const salt = bcrypt.genSaltSync(10);
+      pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
+    }
 
-    const colaboradoresParaGuardar = [
-      {
-        servidor_id: colabServidor.id,
-        uuid: colabServidor.uuid,
-        nombre: colabServidor.nombre,
-        apellidos: colabServidor.apellidos,
-        cedula: colabServidor.cedula,
-        grupo_datos: colabServidor.grupoDatos,
-        finca_id: colabServidor.fincaId ?? null,
-        nombre_usuario: colabServidor.nombreUsuario,
-        tipo_colaborador: colabServidor.tipoColaborador ?? "external_collab",
-        pin_hash: pinHashLocal,
-        creado_por_usuario_id: colabServidor.creadoPorUsuarioId ?? null,
-      },
-    ];
+    const db = await obtenerBaseLocal();
+    const fechaActual = new Date().toISOString();
+    const cedulaLimpia = String(colabServidor.cedula || cedula).trim();
+    const colabUuid = colabServidor.uuid || Crypto.randomUUID();
 
-    const resultadoGuardado = await localApi.colaboradores.guardarDesdeServidor(colaboradoresParaGuardar);
+    const existente = await db.getFirstAsync(
+      "SELECT id FROM colaboradores WHERE servidor_id = ? OR cedula = ? OR uuid = ?",
+      [colabServidor.id, cedulaLimpia, colabUuid]
+    );
 
-    if (!resultadoGuardado?.success) {
-      return errorLocal(
-        resultadoGuardado?.message || "No se pudo guardar el colaborador en SQLite local.",
-        resultadoGuardado?.error || null
+    if (existente?.id) {
+      await db.runAsync(
+        `UPDATE colaboradores SET 
+          servidor_id = ?,
+          nombre = ?,
+          apellidos = ?,
+          cedula = ?,
+          grupo_datos = ?,
+          finca_id = ?,
+          nombre_usuario = ?,
+          tipo_colaborador = ?,
+          pin_hash = ?,
+          activo = 1,
+          deleted_at = NULL,
+          pendiente_sync = 0,
+          sincronizado = 1,
+          fecha_actualizacion = ?
+        WHERE id = ?`,
+        [
+          colabServidor.id,
+          colabServidor.nombre,
+          colabServidor.apellidos,
+          cedulaLimpia,
+          grupoDatosFinal,
+          colabServidor.fincaId ?? null,
+          colabServidor.nombreUsuario || cedulaLimpia,
+          colabServidor.tipoColaborador ?? "external_collab",
+          pinHashLocal,
+          fechaActual,
+          existente.id,
+        ]
+      );
+    } else {
+      await db.runAsync(
+        `INSERT INTO colaboradores (
+          servidor_id, uuid, nombre, apellidos, cedula, grupo_datos,
+          finca_id, nombre_usuario, tipo_colaborador, pin_hash,
+          creado_por_usuario_id, activo, pendiente_sync, sincronizado,
+          fecha_creacion, fecha_actualizacion
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1, ?, ?)`,
+        [
+          colabServidor.id,
+          colabUuid,
+          colabServidor.nombre,
+          colabServidor.apellidos,
+          cedulaLimpia,
+          grupoDatosFinal,
+          colabServidor.fincaId ?? null,
+          colabServidor.nombreUsuario || cedulaLimpia,
+          colabServidor.tipoColaborador ?? "external_collab",
+          pinHashLocal,
+          colabServidor.creadoPorUsuarioId ?? null,
+          fechaActual,
+          fechaActual,
+        ]
       );
     }
 
-    return exitoLocal("Colaborador sincronizado correctamente.", resultadoGuardado);
+    return exitoLocal("Colaborador sincronizado correctamente.", colabServidor);
   } catch (err) {
     const mensajeError =
       err?.response?.data?.message ||

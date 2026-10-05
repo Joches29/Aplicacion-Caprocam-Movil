@@ -76,6 +76,7 @@ export default function DrawerLayout() {
         options={{
           drawerLabel: "Mantenimiento de Equipos",
           title: "Mantenimiento de Equipos",
+          drawerItemStyle: { display: "none" },
           drawerIcon: ({ color, size }) => (
             <Icon icon={ICONS.clipboard} size={23} />
           )

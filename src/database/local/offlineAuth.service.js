@@ -107,14 +107,16 @@ export const obtenerColaboradoresLoginOffline = async () => {
             await localApi.inicializar();
         }
 
-        const resultado = await localApi.colaboradores.obtenerTodos();
+        const db = await obtenerBaseLocal();
+        const filas = await db.getAllAsync(
+            `SELECT * FROM colaboradores 
+             WHERE activo = 1 
+               AND deleted_at IS NULL 
+             ORDER BY id DESC`
+        );
 
-        if (!resultado || !resultado.success) {
-            return exitoLocal("Sin colaboradores locales guardados.", []);
-        }
-
-        const colaboradores = Array.isArray(resultado.data)
-            ? resultado.data.map((colaborador) => {
+        const colaboradores = Array.isArray(filas)
+            ? filas.map((colaborador) => {
                 return prepararColaboradorLogin(colaborador);
             })
             : [];

@@ -104,18 +104,29 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
     const base = [{ label: "Todos los estanques", value: "" }];
     if (!fincaFiltro) return base;
 
+    const selectedFinca = fincas.find(
+      (f) =>
+        String(f.id) === String(fincaFiltro) ||
+        String(f.servidor_id ?? f.servidorId) === String(fincaFiltro)
+    );
+    const validFincaIds = [
+      String(selectedFinca?.id ?? ""),
+      String(selectedFinca?.servidor_id ?? selectedFinca?.servidorId ?? ""),
+      String(fincaFiltro),
+    ].filter((val) => val !== "");
+
     const filtrados = estanques
-      .filter(
-        (e) =>
-          String(e.finca_id ?? e.idFinca ?? e.fincaId ?? e.finca) === String(fincaFiltro)
-      )
+      .filter((e) => {
+        const estFinca = String(e.finca_id ?? e.idFinca ?? e.fincaId ?? e.finca ?? "");
+        return validFincaIds.includes(estFinca);
+      })
       .map((e) => ({
         label: e.codigo || e.nombre || `Estanque ${e.id}`,
         value: String(e.id),
       }));
 
     return [...base, ...filtrados];
-  }, [fincaFiltro, estanques]);
+  }, [fincaFiltro, fincas, estanques]);
 
   const handleFincaChange = useCallback((value) => {
     setFincaFiltro(value);
@@ -153,14 +164,24 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
 
   const ventasProcesadas = useMemo(() => {
     return ventas.map((v) => {
+      const vFincaId = String(v.finca ?? v.fincaId ?? v.finca_id ?? "");
+      const vEstanqueId = String(v.estanque ?? v.estanqueId ?? v.estanque_id ?? "");
+      const vCompradorId = String(v.comprador ?? v.compradorId ?? v.comprador_id ?? "");
+
       const fincaObj = fincas.find(
-        (f) => String(f.id) === String(v.finca || v.fincaId)
+        (f) =>
+          String(f.id) === vFincaId ||
+          String(f.servidor_id ?? f.servidorId) === vFincaId
       );
       const estanqueObj = estanques.find(
-        (e) => String(e.id) === String(v.estanque || v.estanqueId)
+        (e) =>
+          String(e.id) === vEstanqueId ||
+          String(e.servidor_id ?? e.servidorId) === vEstanqueId
       );
       const compradorObj = compradores.find(
-        (c) => String(c.id) === String(v.comprador || v.compradorId)
+        (c) =>
+          String(c.id) === vCompradorId ||
+          String(c.servidor_id ?? c.servidorId) === vCompradorId
       );
 
       return {
@@ -180,14 +201,44 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
   }, [ventas, fincas, estanques, compradores]);
 
   const ventasFiltradas = useMemo(() => {
+    const selectedFinca = fincaFiltro
+      ? fincas.find(
+          (f) =>
+            String(f.id) === String(fincaFiltro) ||
+            String(f.servidor_id ?? f.servidorId) === String(fincaFiltro)
+        )
+      : null;
+    const validFincaIds = selectedFinca
+      ? [
+          String(selectedFinca.id),
+          String(selectedFinca.servidor_id ?? selectedFinca.servidorId ?? ""),
+          String(fincaFiltro),
+        ].filter((val) => val !== "")
+      : [];
+
+    const selectedEstanque = estanqueFiltro
+      ? estanques.find(
+          (e) =>
+            String(e.id) === String(estanqueFiltro) ||
+            String(e.servidor_id ?? e.servidorId) === String(estanqueFiltro)
+        )
+      : null;
+    const validEstanqueIds = selectedEstanque
+      ? [
+          String(selectedEstanque.id),
+          String(selectedEstanque.servidor_id ?? selectedEstanque.servidorId ?? ""),
+          String(estanqueFiltro),
+        ].filter((val) => val !== "")
+      : [];
+
     return ventasProcesadas.filter((v) => {
-      if (fincaFiltro && String(v.finca || v.fincaId) !== String(fincaFiltro)) {
+      const vFinca = String(v.finca ?? v.fincaId ?? v.finca_id ?? "");
+      const vEstanque = String(v.estanque ?? v.estanqueId ?? v.estanque_id ?? "");
+
+      if (fincaFiltro && !validFincaIds.includes(vFinca)) {
         return false;
       }
-      if (
-        estanqueFiltro &&
-        String(v.estanque || v.estanqueId) !== String(estanqueFiltro)
-      ) {
+      if (estanqueFiltro && !validEstanqueIds.includes(vEstanque)) {
         return false;
       }
       if (fechaFiltro && v.fecha) {
@@ -195,7 +246,7 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
       }
       return true;
     });
-  }, [ventasProcesadas, fincaFiltro, estanqueFiltro, fechaFiltro]);
+  }, [ventasProcesadas, fincaFiltro, estanqueFiltro, fechaFiltro, fincas, estanques]);
 
   // hayFiltro + mensajeDetalle (lógica nueva del web)
   const hayFiltro = Boolean(fincaFiltro && estanqueFiltro);
@@ -214,11 +265,18 @@ export function useDetalleVenta({ onEdit, success, message } = {}) {
   const descripcionEliminar = useMemo(() => {
     if (!ventaSeleccionada) return "la venta";
 
+    const vFinca = String(ventaSeleccionada.finca ?? ventaSeleccionada.fincaId ?? ventaSeleccionada.finca_id ?? "");
+    const vEstanque = String(ventaSeleccionada.estanque ?? ventaSeleccionada.estanqueId ?? ventaSeleccionada.estanque_id ?? "");
+
     const finca = fincas.find(
-      (item) => String(item.id) === String(ventaSeleccionada.finca || ventaSeleccionada.fincaId)
+      (item) =>
+        String(item.id) === vFinca ||
+        String(item.servidor_id ?? item.servidorId) === vFinca
     );
     const estanque = estanques.find(
-      (item) => String(item.id) === String(ventaSeleccionada.estanque || ventaSeleccionada.estanqueId)
+      (item) =>
+        String(item.id) === vEstanque ||
+        String(item.servidor_id ?? item.servidorId) === vEstanque
     );
 
     const nombreFinca = finca?.nombre_finca || finca?.nombreFinca || finca?.nombre || "Finca";
