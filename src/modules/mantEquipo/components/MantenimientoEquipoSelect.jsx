@@ -47,7 +47,10 @@ export default function MantenimientoEquipoSelect({ value, onChange, error }) {
   const handleSelect = (id) => {
     const eq = equipos.find(e => String(e.id) === String(id));
     if (eq && onChange) {
-      onChange(eq);
+      onChange({
+        ...eq,
+        estanqueNombre: eq.estanqueNombre || "No asociado",
+      });
     }
   };
 

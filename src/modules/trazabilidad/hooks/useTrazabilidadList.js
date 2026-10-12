@@ -11,19 +11,22 @@
  * @navigation Navega a /trazabilidad/agregar y /trazabilidad/:id.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import {
   getRegistros,
   obtenerFincas,
   obtenerColaboradores,
+  obtenerUsuarios,
   obtenerTodosLosEstanques,
   construirMapas,
   enriquecerRegistros,
   filtrarRegistrosTrazabilidad,
 } from "../services/TrazabilidadServices";
 import { useError } from "../../../shared/context/ErrorContext";
+import { formatDate } from "../../../shared/utils/dateUtils";
+import TrazabilidadSyncService from "../services/TrazabilidadSync.service";
 
 export function useTrazabilidadList() {
   const router = useRouter();
@@ -41,6 +44,7 @@ export function useTrazabilidadList() {
   const [fincas, setFincas] = useState([]);
   const [colaboradoresCat, setColaboradoresCat] = useState([]);
   const [estanques, setEstanques] = useState([]);
+  const [usuariosCat, setUsuariosCat] = useState([]);
 // Errores fuera de un formulario (cargar catálogos o el listado):
   // se muestran con el mismo Alert que ya usa la pantalla, no en
   // console.error ni en silencio. 401 = token vencido.
@@ -68,7 +72,21 @@ export function useTrazabilidadList() {
     router.replace("/login");
   }
 
-  useEffect(() => {
+  /*
+  Los catalogos se recargan cada vez que la pantalla toma foco, NO
+  solo al montarse.
+
+  Motivo: los catalogos se descargan desde Configuracion, en otra
+  pantalla. Si se cargaban una sola vez con useEffect([], ...) y el
+  usuario sincronizaba con la app ya abierta, la pantalla se quedaba
+  con las listas vacias de antes de sincronizar. Los registros si se
+  veian, pero sin finca ni estanques porque el cruce no encontraba
+  nada contra un catalogo vacio.
+
+  Con useFocusEffect basta con volver a entrar a Trazabilidad
+  despues de sincronizar para que los nombres aparezcan.
+  */
+  const cargarCatalogos = useCallback(() => {
     obtenerFincas().then(setFincas).catch((error) => {
       setFincas([]);
       mostrarErrorCarga("No se pudieron cargar las fincas.", error);
@@ -83,20 +101,78 @@ export function useTrazabilidadList() {
       setEstanques([]);
       mostrarErrorCarga("No se pudieron cargar los estanques.", error);
     });
+
+    /*
+    Los usuarios se leen de SQLite igual que el resto. Hacen falta
+    para los registros creados desde web, que guardan
+    creado_por_usuario_id en vez de un colaborador.
+
+    Si falla no se muestra error al usuario: es un catalogo
+    secundario y la pantalla funciona igual mostrando el id.
+    */
+    obtenerUsuarios()
+      .then(setUsuariosCat)
+      .catch(() => setUsuariosCat([]));
   }, []);
+
+  useFocusEffect(cargarCatalogos);
 
   useFocusEffect(
     useCallback(() => {
-      getRegistros().then(setRegistros).catch((error) => {
-        setRegistros([]);
-        mostrarErrorCarga("No se pudo cargar el listado de trazabilidad.", error);
-      });
+      /*
+      Intenta primero refrescar el historial desde el backend
+      (GET /registrosTrazabilidad) y despues lee de SQLite.
+
+      Por que aqui y no en el sync general de Configuracion:
+      - MAPEO_DESCARGA de configSync.service.js NO incluye
+        trazabilidad, y el backend tampoco la devuelve en
+        GET /sync/sincronizar (solo la recibe al subir). Ambos
+        archivos son de otros modulos, asi que Trazabilidad
+        resuelve su propia descarga sin tocarlos.
+
+      La descarga es "mejor esfuerzo": si falla (sin internet,
+      sesion vencida, backend caido) se ignora el error a
+      proposito y se muestra igual lo que haya en local. El
+      modulo es offline-first, no debe romperse por no tener
+      conexion.
+      */
+      let cancelado = false;
+
+      const refrescarYCargar = async () => {
+        try {
+          await TrazabilidadSyncService.descargarHistorialTrazabilidad();
+        } catch (error) {
+          // Silencioso a proposito: ver nota de arriba.
+        }
+
+        if (cancelado) return;
+
+        try {
+          const locales = await getRegistros();
+          if (!cancelado) setRegistros(locales);
+        } catch (error) {
+          if (cancelado) return;
+          setRegistros([]);
+          mostrarErrorCarga("No se pudo cargar el listado de trazabilidad.", error);
+        }
+      };
+
+      refrescarYCargar();
+
+      return () => {
+        cancelado = true;
+      };
     }, []),
   );
 
   const mapas = useMemo(
-    () => construirMapas({ fincas, colaboradores: colaboradoresCat, estanques }),
-    [fincas, colaboradoresCat, estanques],
+    () => construirMapas({
+      fincas,
+      colaboradores: colaboradoresCat,
+      estanques,
+      usuarios: usuariosCat,
+    }),
+    [fincas, colaboradoresCat, estanques, usuariosCat],
   );
 
   const registrosEnriquecidos = useMemo(
@@ -173,10 +249,12 @@ export function formatRegistroForView(registro) {
   const plFormatted = plNumber.toLocaleString();
   // "tamano" sin ñ: así lo confirmó el equipo de API en la respuesta real.
   const tamanoFormatted = registro.tamano ? `${registro.tamano}g` : "";
+  const fechaFormatted = formatDate(registro.fecha) || registro.fecha;
 
   return {
     ...registro,
     plFormatted,
     tamanoFormatted,
+    fechaFormatted,
   };
 }

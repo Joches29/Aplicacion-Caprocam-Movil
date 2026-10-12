@@ -5,11 +5,12 @@
  *
  * Descripción:
  * Tarjeta para registrar mediciones numéricas (pH, temperatura,
- * oxígeno, salinidad) utilizando barras de rango dinámicas y botones
- * de paso (- / +) con soporte de avance continuo (hold) e incremento de 0.1 por defecto.
+ * oxígeno, salinidad) utilizando barras de rango dinámicas, botones
+ * de paso (- / +) con soporte de avance continuo (hold), diseño en 2 filas
+ * responsivo para móviles y opción de eliminación en todas las lecturas.
  *
  * @dependencies RangeTrack, StepHoldButton, useRangeCard, RangeCardStyles
- * @validations Evaluación contra rangos ideales (óptimo, alerta, peligro) y clamping min/max.
+ * @validations Evaluación contra rangos ideales (óptimo, alerta, peligro), clamping min/max y eliminación de lecturas.
  * @navigation N/A
  *
  * La lógica de estado vive en el hook useRangeCard(); este
@@ -84,8 +85,10 @@ import Button from '../../../shared/components/Button';
 import Text from '../../../shared/components/Text';
 import Title from '../../../shared/components/Title';
 import Icon from '../../../shared/components/Icons';
+import TimeInput from '../../../shared/components/TimeInput';
 import { COLORS } from '../../../theme/colors';
 import { ICONS } from '../../../theme/icons';
+import { getCurrentTime12 } from '../../../shared/utils/dateUtils';
 import useRangeCard from '../hooks/useRangeCard';
 import RangeTrack from './RangeTrack';
 import { cardStyles as s, innerStyles as inner } from '../styles/RangeCardStyles';
@@ -253,6 +256,7 @@ export default function RangeCard({
     lecturas,
     agregarLectura,
     eliminarLectura,
+    actualizaHora,
     tieneMaxIdeal,
     obtenerManejadores,
   } = useRangeCard({ idealMin, idealMax, sliderMin, sliderMax, step, decimals, maxLecturas: effectiveMax, onChange, initialValues });
@@ -291,77 +295,90 @@ export default function RangeCard({
         const { handleArrastre, decrementar, incrementar } = obtenerManejadores(r);
         const esUltima = idx === lecturas.length - 1;
         const puedeMostrarAgregar = esUltima && lecturas.length > 0 && lecturas.length < effectiveMax;
+        const lbl = ETIQUETAS[idx] ?? { type: 'text', value: `${idx + 1}` };
 
         return (
-          <View key={r.id} style={inner.readingRow}>
-            <View style={inner.labelWrap}>
-              {(() => {
-                const lbl = ETIQUETAS[idx] ?? { type: 'text', value: `${idx + 1}` };
-                return (
-                  <>
-                    <View style={inner.labelCircle}>
-                      {lbl.type === 'icon' ? (
-                        <Icon icon={lbl.icon} size={15} color={COLORS.primary} />
-                      ) : (
-                        <Text size={13} color={COLORS.primary}>{lbl.value}</Text>
-                      )}
-                    </View>
-                    {lbl.texto && (
-                      <Text size={10} color={COLORS.textTertiary} style={inner.labelText}>{lbl.texto}</Text>
-                    )}
-                  </>
-                );
-              })()}
+          <View key={r.id} style={inner.readingItem}>
+            {/* Fila 1: Identificación (Día/Noche/Número) + Botones de Acción (+ / Eliminar) */}
+            <View style={inner.readingTopRow}>
+              <View style={inner.labelWrap}>
+                <View style={inner.labelCircle}>
+                  {lbl.type === 'icon' ? (
+                    <Icon icon={lbl.icon} size={15} color={COLORS.primary} />
+                  ) : (
+                    <Text size={13} color={COLORS.primary} weight="700">{lbl.value}</Text>
+                  )}
+                </View>
+                {lbl.texto && (
+                  <Text size={12} color={COLORS.textPrimary} weight="600" style={inner.labelText}>{lbl.texto}</Text>
+                )}
+              </View>
+
+              <View style={inner.readingActions}>
+                {puedeMostrarAgregar && (
+                  <Button onPress={intentarAgregar} style={[inner.stepBtn, inner.stepBtnIdle]}>
+                    <Icon icon={ICONS.add} size={16} color={COLORS.white} />
+                  </Button>
+                )}
+
+                <Button variant='ghost' onPress={() => eliminarLectura(r.id)} style={inner.iconBtn}>
+                  <Icon icon={ICONS.delete} size={18} color={COLORS.error} />
+                </Button>
+              </View>
             </View>
 
-            <StepHoldButton
-              icon={ICONS.minus}
-              onPress={decrementar}
-              disabled={r.value <= sliderMin}
-              style={inner.stepHoldBtn}
-            />
+            {/* Fila 2: Hora 12h + Badge de Valor Prominente */}
+            <View style={inner.readingDataRow}>
+              <TimeInput
+                value={r.horaMedicion}
+                onChangeText={(newTime12) => actualizaHora(r.id, newTime12)}
+                containerStyle={inner.timeInputWrap}
+                inputStyle={inner.timeInput}
+                textStyle={inner.timeText}
+              />
 
-            <RangeTrack
-              value={r.value}
-              min={sliderMin}
-              max={sliderMax}
-              decimals={decimals}
-              zones={zonasInfo.zones}
-              ticks={zonasInfo.ticks}
-              badgeColor={colorValor}
-              badgeText={r.value.toFixed(decimals)}
-              onChange={handleArrastre}
-            />
-
-            <StepHoldButton
-              icon={ICONS.add}
-              onPress={incrementar}
-              disabled={r.value >= sliderMax}
-              style={inner.stepHoldBtn}
-            />
-
-            <View style={inner.rightValueWrap}>
-              <Text size={14} color={colorValor} style={inner.rightValue}>
-                {r.value.toFixed(decimals)} {unit}
-              </Text>
+              <View style={[inner.valueBadge, { borderColor: colorValor }]}>
+                <Text size={14} color={colorValor} weight="700">
+                  {r.value.toFixed(decimals)} {unit}
+                </Text>
+              </View>
             </View>
 
-            {puedeMostrarAgregar && (
-              <Button onPress={intentarAgregar} style={[inner.stepBtn, inner.stepBtnIdle]}>
-                <Icon icon={ICONS.add} size={16} color={COLORS.white} />
-              </Button>
-            )}
+            {/* Fila Inferior del Slider: Botón (-) --- Barra de Rango de Ancho Completo --- Botón (+) */}
+            <View style={inner.sliderRow}>
+              <StepHoldButton
+                icon={ICONS.minus}
+                onPress={decrementar}
+                disabled={r.value <= sliderMin}
+                style={inner.stepHoldBtn}
+              />
 
-            <Button variant='ghost' onPress={() => eliminarLectura(r.id)} style={inner.iconBtn}>
-              <Icon icon={ICONS.delete} size={20} color={COLORS.error} />
-            </Button>
+              <RangeTrack
+                value={r.value}
+                min={sliderMin}
+                max={sliderMax}
+                decimals={decimals}
+                zones={zonasInfo.zones}
+                ticks={zonasInfo.ticks}
+                badgeColor={colorValor}
+                badgeText={r.value.toFixed(decimals)}
+                onChange={handleArrastre}
+              />
+
+              <StepHoldButton
+                icon={ICONS.add}
+                onPress={incrementar}
+                disabled={r.value >= sliderMax}
+                style={inner.stepHoldBtn}
+              />
+            </View>
           </View>
         );
       })}
 
       {lecturas.length === 0 && (
         <Button variant="outline" onPress={intentarAgregar}>
-          + Agregar medición
+          + Agregar Medición
         </Button>
       )}
     </View>

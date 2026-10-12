@@ -9,7 +9,6 @@ const api = axios.create({
     }
 });
 
-// ── Interceptor: adjunta el JWT en cada petición autenticada ──
 api.interceptors.request.use(
     async (config) => {
         try {
@@ -25,11 +24,13 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// ── Interceptor: limpia el token si el backend responde 401 (Inválido/Expirado) ──
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (error.response && error.response.status === 401) {
+        const url = error.config?.url ?? "";
+        const esRutaValidacion = url.includes("/sync/validate-token");
+
+        if (error.response?.status === 401 && !esRutaValidacion) {
             try {
                 await removeToken();
             } catch (e) {

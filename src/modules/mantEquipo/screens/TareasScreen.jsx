@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect } from "react";
-import { View, ScrollView } from "react-native";
+import { View, FlatList, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 
 import { useTareas } from "../hooks/useTareas";
@@ -112,29 +112,29 @@ export default function TareasScreen() {
             </View>
           ) : (
             tareasFinales.map((item, index) => (
-                <CardPress
-                  key={`${item.id}_${index}`}
-                  style={styles.taskCard}
-                  onPress={() => abrirDetalle(item)}
-                >
-                  <View style={styles.taskCardHeader}>
-                    <CustomText style={styles.taskTitle}>
-                      Tarea {item.id}
-                    </CustomText>
-
-                    <BadgeCategoria categoria={item.categoria} />
-                  </View>
-                  <CustomText style={styles.taskCardTitle} numberOfLines={2}>
-                    {item.nombre}
+              <CardPress
+                key={`${item.id}_${index}`}
+                style={styles.taskCard}
+                onPress={() => abrirDetalle(item)}
+              >
+                <View style={styles.taskCardHeader}>
+                  <CustomText style={styles.taskTitle}>
+                    Tarea {item.id}
                   </CustomText>
 
-                  {/* Descripción mostrada solo en detalle */}
-                  <View style={styles.taskCardFooter}>
-                    <CustomText style={styles.taskCardMeta}>
-                      Duración de {item.duracionEstimada} h
-                    </CustomText>
-                  </View>
-                </CardPress>
+                  <BadgeCategoria categoria={item.categoria} />
+                </View>
+                <CustomText style={styles.taskCardTitle} numberOfLines={2}>
+                  {item.nombre}
+                </CustomText>
+
+                {/* Descripción mostrada solo en detalle */}
+                <View style={styles.taskCardFooter}>
+                  <CustomText style={styles.taskCardMeta}>
+                    Duración de {item.duracionEstimada} h
+                  </CustomText>
+                </View>
+              </CardPress>
             ))
           )}
         </View>

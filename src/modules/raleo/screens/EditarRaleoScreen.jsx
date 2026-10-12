@@ -81,7 +81,7 @@ export default function EditarRaleoScreen({ registroId }) {
   if (!registroId) {
     return (
       <>
-        <NavbarRegistro Titulo="Raleo" Subtitulo="Editar registro" Icono="raleo" />
+        <NavbarRegistro Titulo="Raleo" Subtitulo="Editar registro" Icono="raleo" RutaVolver="/registros/Reporteria" />
         <View style={STYLE.container}>
           <Text style={{ textAlign: "center", marginTop: 24 }}>No se encontró el registro a editar.</Text>
         </View>
@@ -108,44 +108,45 @@ export default function EditarRaleoScreen({ registroId }) {
       Icono="raleo"
     />
 
-    <View style={STYLE.container}>
-
-
-    <ScrollView
-      ref={scrollRef}
-      contentContainerStyle={STYLE.contentWrapper}
-      showsVerticalScrollIndicator={false}
-    >
-        <RaleoForm
-          form={form}
-          updateField={updateField}
-          submitted={submitted}
-          errores={errores}
-          porcentajeCalculado={porcentajeRaleo}
-          biomasaCalculada={biomasaRestante}
-        />
-
-        <View style={styles.contenido}>
-          <View style={STYLE.contentWrapper}>
-        {alerta.visible && (
-          <Alert
-            variant={alerta.variant}
-            message={alerta.mensaje}
-            style={styles.alert}
+      <ScrollView
+        ref={scrollRef}
+        style={STYLE.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={STYLE.contentWrapper}>
+          <RaleoForm
+            form={form}
+            updateField={updateField}
+            submitted={submitted}
+            errores={errores}
+            porcentajeCalculado={porcentajeRaleo}
+            biomasaCalculada={biomasaRestante}
           />
-        )}
-      </View>
-      <Button variant="outline" onPress={() => handleGuardar()} style={styles.submitButton}>
-        <View style={styles.buttonContent}>
-          <Icon icon={ICONS.save} size={24} color={COLORS.primary}/>
-          <Text style={styles.buttonText}>
-            Guardar cambios
-          </Text>
+
+          {alerta.visible && (
+            <Alert
+              variant={alerta.variant}
+              message={alerta.mensaje}
+              style={styles.alert}
+            />
+          )}
+
+          <Button
+            variant="outline"
+            onPress={() => handleGuardar()}
+            style={styles.submitButton}
+          >
+            <View style={styles.buttonContent}>
+              <Icon icon={ICONS.save} size={24} color={COLORS.primary} />
+              <Text style={styles.buttonText}>Guardar cambios</Text>
+            </View>
+          </Button>
+
+          <View style={styles.spacer} />
         </View>
-      </Button>
-      </View>
-    </ScrollView>
-  </View>
-  </>
+      </ScrollView>
+    </>
   );
 }

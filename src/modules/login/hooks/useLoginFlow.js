@@ -20,6 +20,8 @@ import { validarPinOffline } from '../../../database/local/offlineAuth.service';
 import { descargarColaboradoresLoginLocal } from '../../../database/local/sync.service';
 import api from '../../../api/api';
 
+const SYNC_TIMEOUT_MS = 30000;
+
 /**
  * useLoginFlow
  *
@@ -77,7 +79,18 @@ export function useLoginFlow({ onLoginSuccess }) {
 
     try {
       // 2. Solo descargamos la lista de colaboradores
-      const resultado = await descargarColaboradoresLoginLocal(api, { cedula: cedula.trim(), pin });
+      let timeoutId;
+      const resultado = await Promise.race([
+        descargarColaboradoresLoginLocal(api, { cedula: cedula.trim(), pin }),
+        new Promise((resolve) => {
+          timeoutId = setTimeout(() => {
+            resolve({
+              success: false,
+              message: 'La sincronización tardó demasiado. Verifica tu conexión e intenta nuevamente.',
+            });
+          }, SYNC_TIMEOUT_MS);
+        }),
+      ]).finally(() => clearTimeout(timeoutId));
 
       if (!resultado || !resultado.success) {
         return {
@@ -91,7 +104,7 @@ export function useLoginFlow({ onLoginSuccess }) {
 
       return {
         success: true,
-        message: 'Colaboradores sincronizados correctamente.',
+        message: 'Colaborador sincronizado correctamente.',
       };
     } catch (err) {
       console.error('Error en handleSyncData:', err);

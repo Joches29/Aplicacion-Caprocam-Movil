@@ -133,9 +133,17 @@ function mapearVentaDesdeLocal(registro) {
             grupoDatos: obtenerValor(registro, ["grupo_datos", "grupoDatos"], null),
 
             finca: obtenerValor(registro, ["finca_id", "fincaId"], null),
+            finca_id: obtenerValor(registro, ["finca_id", "fincaId"], null),
+            fincaId: obtenerValor(registro, ["finca_id", "fincaId"], null),
             estanque: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+            estanque_id: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
+            estanqueId: obtenerValor(registro, ["estanque_id", "estanqueId"], null),
             colaborador: obtenerValor(registro, ["colaborador_id", "colaboradorId"], null),
+            colaborador_id: obtenerValor(registro, ["colaborador_id", "colaboradorId"], null),
+            colaboradorId: obtenerValor(registro, ["colaborador_id", "colaboradorId"], null),
             comprador: obtenerValor(registro, ["comprador_id", "compradorId"], null),
+            comprador_id: obtenerValor(registro, ["comprador_id", "compradorId"], null),
+            compradorId: obtenerValor(registro, ["comprador_id", "compradorId"], null),
 
             pesoPromedio: obtenerValor(registro, ["peso_promedio", "pesoPromedio"], 0),
             tamanoPromedio: obtenerValor(registro, ["tamano_promedio", "tamanoPromedio"], 0),

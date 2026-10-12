@@ -19,7 +19,11 @@ import { TYPOGRAPHY } from "../../../theme/typography";
 export const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: 20,
-    paddingBottom: 100,
+    /*
+    Reserva el espacio del boton flotante inferior, que va por encima
+    del contenido. Sin esto el ultimo campo queda tapado por el boton.
+    */
+    paddingBottom: 120,
   },
 
   infoBanner: {

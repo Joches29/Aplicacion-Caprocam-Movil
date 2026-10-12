@@ -8,7 +8,9 @@
  *
  */
 
+import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
 import {
   getLecturasLocal,
   eliminarLecturaLocal,
@@ -151,9 +153,37 @@ function ordenarRecientesPrimero(registros = []) {
   return Array.isArray(registros) ? [...registros].reverse() : [];
 }
 
-function filtrarPorFincaEstanque(registros, fincaId, estanqueId) {
+function filtrarPorFincaEstanque(registros, fincaId, estanqueId, fincas = [], estanques = []) {
   const fId = Number(fincaId);
   const eId = Number(estanqueId);
+
+  // Buscar finca por id local o servidor_id para soportar ambos formatos
+  const fincaObj = fincas.find(
+    (f) =>
+      Number(f.id) === fId ||
+      Number(f.servidor_id) === fId ||
+      Number(f.servidorId) === fId
+  );
+  const validFincaIds = [
+    fId,
+    fincaObj?.id != null ? Number(fincaObj.id) : null,
+    fincaObj?.servidor_id != null ? Number(fincaObj.servidor_id) : null,
+    fincaObj?.servidorId != null ? Number(fincaObj.servidorId) : null,
+  ].filter((id) => id != null && !Number.isNaN(id));
+
+  // Buscar estanque por id local o servidor_id
+  const estanqueObj = estanques.find(
+    (e) =>
+      Number(e.id) === eId ||
+      Number(e.servidor_id) === eId ||
+      Number(e.servidorId) === eId
+  );
+  const validEstanqueIds = [
+    eId,
+    estanqueObj?.id != null ? Number(estanqueObj.id) : null,
+    estanqueObj?.servidor_id != null ? Number(estanqueObj.servidor_id) : null,
+    estanqueObj?.servidorId != null ? Number(estanqueObj.servidorId) : null,
+  ].filter((id) => id != null && !Number.isNaN(id));
 
   return (registros || []).filter((r) => {
     const regFinca = Number(
@@ -163,7 +193,10 @@ function filtrarPorFincaEstanque(registros, fincaId, estanqueId) {
       obtenerValor(r, ["estanqueId", "estanque_id", "estanque", "idEstanque"], null)
     );
 
-    return regFinca === fId && regEstanque === eId;
+    const coincideFinca = validFincaIds.length > 0 ? validFincaIds.includes(regFinca) : regFinca === fId;
+    const coincideEstanque = validEstanqueIds.length > 0 ? validEstanqueIds.includes(regEstanque) : regEstanque === eId;
+
+    return coincideFinca && coincideEstanque;
   });
 }
 
@@ -191,6 +224,18 @@ OPERACIONES LOCALES
  * Orden: más recientes primero.
  */
 export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId }) {
+  // Cargar catálogos de fincas y estanques para asegurar matching por id y servidor_id
+  let fincas = [];
+  let estanques = [];
+  try {
+    const [fRes, eRes] = await Promise.all([
+      localApi.fincas?.obtenerTodos?.().catch(() => ({ data: [] })),
+      localApi.estanques?.obtenerTodos?.().catch(() => ({ data: [] })),
+    ]);
+    fincas = Array.isArray(obtenerDataRespuesta(fRes)) ? obtenerDataRespuesta(fRes) : [];
+    estanques = Array.isArray(obtenerDataRespuesta(eRes)) ? obtenerDataRespuesta(eRes) : [];
+  } catch (_) {}
+
   // Caso especial: fisico_quimico no vive en localApi[seccion] genérico,
   // porque sus mediciones estan en una tabla de detalle aparte que hay
   // que unir y agrupar por lectura (igual que web usa getLecturas() en
@@ -203,7 +248,7 @@ export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId 
         .filter(Boolean);
 
       return ordenarRecientesPrimero(
-        filtrarPorFincaEstanque(normalizadosFq, fincaId, estanqueId)
+        filtrarPorFincaEstanque(normalizadosFq, fincaId, estanqueId, fincas, estanques)
       );
     } catch (error) {
       console.error(
@@ -223,7 +268,7 @@ export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId 
   try {
     const registros = await obtenerTodosDeSeccion(seccion);
     const normalizados = registros.map(normalizarRegistro).filter(Boolean);
-    const filtrados = filtrarPorFincaEstanque(normalizados, fincaId, estanqueId);
+    const filtrados = filtrarPorFincaEstanque(normalizados, fincaId, estanqueId, fincas, estanques);
     const ordenados = ordenarRecientesPrimero(filtrados);
 
     // Adjuntar muestreos (calculos_crecimiento) cuando el tipo es crecimiento
@@ -329,30 +374,46 @@ export async function obtenerCatalogosLocales() {
     await localApi.inicializar();
   }
 
-  const [fincasRes, estanquesRes, colaboradoresRes, productosRes, usuariosRes] =
+  const [fincasRes, estanquesRes, productosRes, usuariosRes] =
     await Promise.all([
       localApi.fincas.obtenerTodos(),
       localApi.estanques.obtenerTodos(),
-      localApi.colaboradores.obtenerTodos(),
       localApi.productos.obtenerTodos(),
       localApi.usuarios.obtenerTodos(),
     ]);
 
-  const fincas = Array.isArray(obtenerDataRespuesta(fincasRes))
+  let fincas = Array.isArray(obtenerDataRespuesta(fincasRes))
     ? obtenerDataRespuesta(fincasRes)
     : [];
-  const estanques = Array.isArray(obtenerDataRespuesta(estanquesRes))
+  let estanques = Array.isArray(obtenerDataRespuesta(estanquesRes))
     ? obtenerDataRespuesta(estanquesRes)
     : [];
-  const colaboradores = Array.isArray(obtenerDataRespuesta(colaboradoresRes))
-    ? obtenerDataRespuesta(colaboradoresRes)
-    : [];
-  const productos = Array.isArray(obtenerDataRespuesta(productosRes))
+  let productos = Array.isArray(obtenerDataRespuesta(productosRes))
     ? obtenerDataRespuesta(productosRes)
     : [];
-  const usuarios = Array.isArray(obtenerDataRespuesta(usuariosRes))
+  let usuarios = Array.isArray(obtenerDataRespuesta(usuariosRes))
     ? obtenerDataRespuesta(usuariosRes)
     : [];
+
+  let colaboradores = [];
+  try {
+    const db = await obtenerBaseLocal();
+    const colabsDb = await db.getAllAsync(
+      "SELECT * FROM colaboradores WHERE activo = 1 AND deleted_at IS NULL"
+    );
+    if (Array.isArray(colabsDb) && colabsDb.length > 0) {
+      colaboradores = colabsDb;
+    }
+  } catch (_) {}
+
+  if (colaboradores.length === 0) {
+    try {
+      const colaboradoresRes = await localApi.colaboradores.obtenerTodos();
+      colaboradores = Array.isArray(obtenerDataRespuesta(colaboradoresRes))
+        ? obtenerDataRespuesta(colaboradoresRes)
+        : [];
+    } catch (_) {}
+  }
 
   return { fincas, estanques, colaboradores, productos, usuarios };
 }

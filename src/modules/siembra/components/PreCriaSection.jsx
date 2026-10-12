@@ -120,6 +120,7 @@ export default function PreCriaSection({
               onChangeText={(value) => onChange("fechaInicio", value)}
               labelStyle={styles.requiredLabel}
               inputStyle={hasError("fechaInicio") ? styles.inputError : null}
+              allowFutureDates={false}
             />
           )}
 
@@ -203,6 +204,7 @@ export default function PreCriaSection({
                   onChangeText={(value) => onChange("fechaFin", value)}
                   inputStyle={hasError("fechaFin") ? styles.inputError : null}
                   labelStyle={styles.requiredLabel}
+                  allowFutureDates={false}
                 />
               )}
 
@@ -287,6 +289,7 @@ export default function PreCriaSection({
               inputStyle={
                 hasError("fechaSalidaPrecria") ? styles.inputError : null
               }
+              allowFutureDates={false}
             />
           )}
 

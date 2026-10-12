@@ -210,7 +210,7 @@ export const styles = StyleSheet.create({
   // ── DetalleMantenimiento — tareas ────────────────────────────
   tareaItemContainer: { paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.secondary, borderRadius: 6, backgroundColor: COLORS.white },
   tareaItemHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  tareaItemLeft: { flexDirection: "row", alignItems: "center" },
+  tareaItemLeft: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 },
   tareaItemNombre: { fontSize: 13, fontWeight: "700", color: COLORS.textSecondary, marginLeft: 8 },
   tareaItemMeta: { fontSize: 11, color: COLORS.textTertiary, marginLeft: 22, marginTop: 2 },
   tareaItemMetaTop: { fontSize: 11, color: COLORS.textTertiary, marginLeft: 22, marginTop: 4, lineHeight: 16 },

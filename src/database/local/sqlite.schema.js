@@ -130,6 +130,7 @@ export const ESQUEMA_TABLAS = {
         "horas_actuales REAL NOT NULL DEFAULT 0",
         "estado_operativo TEXT NOT NULL",
         "estado TEXT NOT NULL",
+        "fecha_ultimo_encendido TEXT NULL DEFAULT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
         ...COLUMNAS_AUDITORIA_SYNC
@@ -507,6 +508,7 @@ export const ESQUEMA_TABLAS = {
         "lectura_id INTEGER NOT NULL",
         "tipo_medicion TEXT NOT NULL",
         "etiqueta TEXT NOT NULL",
+        "hora_medicion TEXT NULL",
         "valor REAL NOT NULL",
         "creado_por_usuario_id INTEGER NULL",
         "creado_por_colaborador_id INTEGER NULL",
@@ -583,6 +585,7 @@ FUNCIONES SECUNDARIAS
 const obtenerNombreColumna = (definicion) => {
     return definicion.trim().split(/\s+/)[0];
 };
+
 
 /**
  * Crea la sentencia SQL para una tabla local.

@@ -61,14 +61,30 @@ export async function getProveedores() {
 
 export async function getProveedorPorId(id) {
   await asegurarBaseInicializada();
+  if (id === null || id === undefined || id === "") return null;
 
-  const resultado = await localApi.proveedores.obtenerPorId(Number(id));
+  const idStr = String(id);
+  const idNum = Number(id);
 
-  if (!resultado?.success) {
-    throw new Error("No se pudo obtener el proveedor.");
+  const resTodos = await localApi.proveedores.obtenerTodos({ incluirInactivos: false });
+  const lista = (resTodos?.success && Array.isArray(resTodos.data)) ? resTodos.data : [];
+
+  const encontrado =
+    lista.find((p) => String(p.servidor_id) === idStr) ||
+    lista.find((p) => String(p.id) === idStr);
+
+  if (encontrado) {
+    return mapProveedor(encontrado);
   }
 
-  return mapProveedor(resultado.data);
+  if (!isNaN(idNum)) {
+    const resId = await localApi.proveedores.obtenerPorId(idNum);
+    if (resId?.success && resId.data) {
+      return mapProveedor(resId.data);
+    }
+  }
+
+  return null;
 }
 
 // Quita tildes y pasa a minúsculas, para comparar "Alimentación" con

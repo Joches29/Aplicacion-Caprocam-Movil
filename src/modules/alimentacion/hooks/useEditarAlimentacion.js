@@ -37,6 +37,7 @@ import { useState, useEffect, useCallback } from "react";
 import useAlimentacionForm from "./useAlimentacionForm";
 import AlimentacionLocalService from "../services/AlimentacionLocal.service";
 import { localApi } from "../../../database/local/localApi.service";
+import { useSiembraActivaEstanque } from "../../../shared/hooks/useSiembraActivaEstanque.js";
 
 function registroAForm(registro) {
   if (!registro) return {};
@@ -87,6 +88,26 @@ export default function useEditarAlimentacionScreen(registroId, onGuardado) {
 
   const { form, updateField, validarForm } = useAlimentacionForm();
 
+    /*
+   * Se valida también al editar: si el estanque de un registro
+   * viejo ya no tiene siembra activa hoy, se bloquea el guardado
+   * igual que al crear uno nuevo.
+   */
+  const { tieneSiembraActiva, mensajeErrorSiembra } = useSiembraActivaEstanque(
+    form.estanque,
+    "la alimentación"
+  );
+
+  useEffect(() => {
+    if (mensajeErrorSiembra) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje: mensajeErrorSiembra,
+      });
+    }
+  }, [mensajeErrorSiembra]);
+
   useEffect(() => {
     if (!registroId) {
       setCargando(false);
@@ -134,6 +155,17 @@ export default function useEditarAlimentacionScreen(registroId, onGuardado) {
       return;
     }
 
+    if (!tieneSiembraActiva) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje:
+          mensajeErrorSiembra ||
+          "El estanque seleccionado no tiene una siembra real registrada.",
+      });
+      return;
+    }
+
     setGuardando(true);
     setAlerta({ visible: false, variant: "success", mensaje: "" });
 
@@ -150,7 +182,7 @@ export default function useEditarAlimentacionScreen(registroId, onGuardado) {
     } finally {
       setGuardando(false);
     }
-  }, [form, registroId, onGuardado, validarForm]);
+  }, [form, registroId, onGuardado, validarForm, tieneSiembraActiva, mensajeErrorSiembra]);
 
   return { form, updateField, cargando, submitted, errores, alerta, guardando, handleGuardar };
 }

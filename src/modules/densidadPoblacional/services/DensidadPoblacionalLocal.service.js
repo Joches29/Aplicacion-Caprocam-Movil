@@ -399,47 +399,283 @@ DATOS BASE DEL ESTANQUE
 
 async function obtenerDatosBaseEstanque(idEstanque) {
     try {
-        const respuestaEstanque = await ejecutarMetodoEstanques("obtenerPorId", [idEstanque]);
-        const estanque = obtenerDataRespuesta(respuestaEstanque);
+        const respuestaEstanque = await ejecutarMetodoEstanques(
+            "obtenerPorId",
+            [idEstanque]
+        );
+
+        const estanque = obtenerDataRespuesta(
+            respuestaEstanque
+        );
 
         if (!estanque) {
-            throw new Error("No se encontro el estanque seleccionado.");
+            throw new Error(
+                "No se encontro el estanque seleccionado."
+            );
         }
 
-        const largo = convertirNumero(obtenerValor(estanque, ["largo"], 0), 0);
-        const ancho = convertirNumero(obtenerValor(estanque, ["ancho"], 0), 0);
-        const areaM2 = largo * ancho;
-        const areaHectareas = areaM2 > 0 ? areaM2 / 10000 : 0;
+        const largo = convertirNumero(
+            obtenerValor(
+                estanque,
+                ["largo"],
+                0
+            ),
+            0
+        );
 
-        const respuestaSiembras = await ejecutarMetodoSiembras("obtenerTodos");
-        const dataSiembras = obtenerDataRespuesta(respuestaSiembras);
-        const siembras = Array.isArray(dataSiembras) ? dataSiembras : [];
+        const ancho = convertirNumero(
+            obtenerValor(
+                estanque,
+                ["ancho"],
+                0
+            ),
+            0
+        );
+
+        const areaM2 = largo * ancho;
+
+        const areaHectareas =
+            areaM2 > 0
+                ? areaM2 / 10000
+                : 0;
+
+        const idLocalEstanque = convertirNumero(
+            obtenerValor(
+                estanque,
+                ["id"],
+                idEstanque
+            ),
+            0
+        );
+
+        const idServidorEstanque = convertirNumero(
+            obtenerValor(
+                estanque,
+                [
+                    "servidor_id",
+                    "servidorId",
+                    "idServidor",
+                ],
+                0
+            ),
+            0
+        );
+
+        const idsValidosEstanque = [
+            convertirNumero(
+                idEstanque,
+                0
+            ),
+            idLocalEstanque,
+            idServidorEstanque,
+        ].filter(function (
+            id,
+            index,
+            arreglo
+        ) {
+            return (
+                id > 0 &&
+                arreglo.indexOf(id) === index
+            );
+        });
+
+        const respuestaSiembras =
+            await ejecutarMetodoSiembras(
+                "obtenerTodos"
+            );
+
+        const dataSiembras =
+            obtenerDataRespuesta(
+                respuestaSiembras
+            );
+
+        const siembras =
+            Array.isArray(dataSiembras)
+                ? dataSiembras
+                : [];
 
         const siembraActiva = siembras
-            .filter((siembra) => {
-                const estanqueIdSiembra = obtenerValor(siembra, ["estanque_id", "estanqueId"], null);
-                const estado = String(obtenerValor(siembra, ["estado"], "")).toLowerCase();
-                return Number(estanqueIdSiembra) === Number(idEstanque) && estado === "activa";
-            })
-            .sort((a, b) => Number(obtenerValor(b, ["id"], 0)) - Number(obtenerValor(a, ["id"], 0)))[0];
+            .filter(function (siembra) {
+                const estanqueIdSiembra =
+                    convertirNumero(
+                        obtenerValor(
+                            siembra,
+                            [
+                                "estanque_id",
+                                "estanqueId",
+                            ],
+                            0
+                        ),
+                        0
+                    );
 
-        const cantidadSiembra = siembraActiva
-            ? obtenerValor(siembraActiva, ["densidad_poblacional", "densidadPoblacional"], null)
-            : null;
+                const estado = String(
+                    obtenerValor(
+                        siembra,
+                        ["estado"],
+                        ""
+                    )
+                )
+                    .trim()
+                    .toLowerCase();
+
+                const activo =
+                    obtenerValor(
+                        siembra,
+                        ["activo"],
+                        1
+                    );
+
+                const estaActiva =
+                    activo !== 0 &&
+                    activo !== false &&
+                    String(activo) !== "0" &&
+                    estado === "activa";
+
+                return (
+                    idsValidosEstanque.includes(
+                        estanqueIdSiembra
+                    ) &&
+                    estaActiva
+                );
+            })
+            .sort(function (a, b) {
+                const fechaA = String(
+                    obtenerValor(
+                        a,
+                        [
+                            "fecha_siembra",
+                            "fechaSiembra",
+                        ],
+                        ""
+                    )
+                );
+
+                const fechaB = String(
+                    obtenerValor(
+                        b,
+                        [
+                            "fecha_siembra",
+                            "fechaSiembra",
+                        ],
+                        ""
+                    )
+                );
+
+                if (fechaA !== fechaB) {
+                    return fechaB.localeCompare(
+                        fechaA
+                    );
+                }
+
+                return (
+                    convertirNumero(
+                        obtenerValor(
+                            b,
+                            [
+                                "servidor_id",
+                                "id",
+                            ],
+                            0
+                        ),
+                        0
+                    ) -
+                    convertirNumero(
+                        obtenerValor(
+                            a,
+                            [
+                                "servidor_id",
+                                "id",
+                            ],
+                            0
+                        ),
+                        0
+                    )
+                );
+            })[0];
+
+        let cantidadSiembra = null;
+
+        if (siembraActiva) {
+            const densidadPoblacional =
+                convertirNumero(
+                    obtenerValor(
+                        siembraActiva,
+                        [
+                            "densidad_poblacional",
+                            "densidadPoblacional",
+                        ],
+                        null
+                    ),
+                    null
+                );
+
+            const cantidadSembrada =
+                convertirNumero(
+                    obtenerValor(
+                        siembraActiva,
+                        [
+                            "cantidad_sembrada",
+                            "cantidadSembrada",
+                        ],
+                        null
+                    ),
+                    null
+                );
+
+            if (
+                densidadPoblacional !== null &&
+                densidadPoblacional > 0
+            ) {
+                cantidadSiembra =
+                    densidadPoblacional;
+            } else if (
+                cantidadSembrada !== null &&
+                cantidadSembrada > 0 &&
+                areaM2 > 0
+            ) {
+                cantidadSiembra =
+                    cantidadSembrada / areaM2;
+            }
+        }
 
         const tirosRecomendados =
-            areaHectareas > 0 ? Math.min(Math.round(areaHectareas * TIROS_POR_HECTAREA), MAX_TIROS) : null;
+            areaHectareas > 0
+                ? Math.min(
+                    Math.round(
+                        areaHectareas *
+                        TIROS_POR_HECTAREA
+                    ),
+                    MAX_TIROS
+                )
+                : null;
 
         return {
-            areaEstanque: areaHectareas > 0 ? areaHectareas : null,
-            cantidadSiembra: cantidadSiembra !== null && cantidadSiembra !== undefined
-                ? convertirNumero(cantidadSiembra, null)
-                : null,
-            areaAtarrayaSugerida: AREA_ATARRAYA_SUGERIDA_DEFECTO,
+            areaEstanque:
+                areaHectareas > 0
+                    ? areaHectareas
+                    : null,
+
+            cantidadSiembra:
+                cantidadSiembra !== null &&
+                    cantidadSiembra !== undefined
+                    ? convertirNumero(
+                        cantidadSiembra,
+                        null
+                    )
+                    : null,
+
+            areaAtarrayaSugerida:
+                AREA_ATARRAYA_SUGERIDA_DEFECTO,
+
             tirosRecomendados,
         };
     } catch (error) {
-        console.error("Error al obtener datos base del estanque", extraerError(error));
+        console.error(
+            "Error al obtener datos base del estanque",
+            extraerError(error)
+        );
+
         throw error;
     }
 }

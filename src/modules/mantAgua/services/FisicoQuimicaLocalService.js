@@ -135,7 +135,8 @@ function agruparDetallesLocal(filasDetalle = []) {
 
         mediciones[campo].push({
             valor: Number(fila.valor),
-            etiqueta: fila.etiqueta
+            etiqueta: fila.etiqueta,
+            horaMedicion: fila.hora_medicion ?? null
         });
     }
 
@@ -184,10 +185,17 @@ async function insertarDetallesLocal(lecturaIdLocal, datos, autoria) {
         const mediciones = datos[campo] || [];
 
         for (const medicion of mediciones) {
+            // hora_medicion se guarda en 24h (HH:MM / HH:MM:SS), igual
+            // que lo espera el backend. La UI maneja 12h y convierte
+            // antes de llamar aqui. Si no viene, se guarda NULL: solo
+            // oxigeno la exige (ver fisicoQuimica.validaciones.js).
+            const hora = medicion.horaMedicion;
+
             await localApi.fisicoQuimicoDetalle.crear({
                 lectura_id: lecturaIdLocal,
                 tipo_medicion: MAPA_CAMPO_A_TIPO[campo],
                 etiqueta: String(medicion.etiqueta),
+                hora_medicion: hora ? String(hora) : null,
                 valor: Number(medicion.valor),
                 creado_por_usuario_id: null,
                 creado_por_colaborador_id: autoria.colaboradorId

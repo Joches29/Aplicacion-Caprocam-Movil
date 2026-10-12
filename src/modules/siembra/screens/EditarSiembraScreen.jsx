@@ -210,9 +210,11 @@ export default function EditarSiembraScreen() {
     <>
       <NavbarRegistro
         Titulo={
-          formData.tipoRegistro === "precria"
-            ? "Editar Pre-Cría"
-            : "Editar Siembra"
+          esFinalizar
+            ? "Finalizar Pre-Cría"
+            : formData.tipoRegistro === "precria"
+              ? "Editar Pre-Cría"
+              : "Editar Siembra"
         }
         Subtitulo={`${estanqueLabel} – ${fincaLabel}`}
         Icono="shrimp"
@@ -335,12 +337,12 @@ export default function EditarSiembraScreen() {
                   {guardando
                     ? esFinalizar
                       ? "Finalizando..."
-                      : "Actualizando..."
+                      : "Guardando..."
                     : esFinalizar
                       ? "Finalizar Pre-Cría"
                       : formData.tipoRegistro === "precria"
-                        ? "Actualizar Pre-Cría"
-                        : "Actualizar Siembra"}
+                        ? "Editar Pre-Cría"
+                        : "Editar Siembra"}
                 </Text>
               </View>
             </Button>

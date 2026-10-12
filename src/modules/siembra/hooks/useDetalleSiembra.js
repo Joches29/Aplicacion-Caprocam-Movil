@@ -35,7 +35,7 @@ import {
   useFieldValidation,
   validarCamposObligatorios,
 } from "./useFieldValidation";
-import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
+import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo, determinarCampoDelError } from "./siembraValidationRules";
 import {
   calcularDensidadDesdeCantidad,
   calcularProgresoCiclo,
@@ -60,6 +60,62 @@ import {
 
 function mapCatalogo(items) {
   return (items || []).map((item) => ({ label: item.nombre, value: item.id }));
+}
+
+function obtenerIdLocal(registro) {
+  return (
+    registro?.id ??
+    registro?.idLocal ??
+    registro?.id_local ??
+    null
+  );
+}
+
+function obtenerIdServidor(registro) {
+  return (
+    registro?.servidorId ??
+    registro?.servidor_id ??
+    null
+  );
+}
+
+function buscarRelacionPorId(registros, referenciaId) {
+  if (
+    referenciaId === undefined ||
+    referenciaId === null ||
+    referenciaId === ""
+  ) {
+    return null;
+  }
+
+  const referencia =
+    String(referenciaId);
+
+  const porIdLocal =
+    (registros || []).find(
+      (registro) =>
+        String(
+          obtenerIdLocal(registro)
+        ) === referencia
+    );
+
+  if (porIdLocal) {
+    return porIdLocal;
+  }
+
+  const porIdServidor =
+    (registros || []).find(
+      (registro) =>
+        String(
+          obtenerIdServidor(registro)
+        ) === referencia
+    );
+
+  if (porIdServidor) {
+    return porIdServidor;
+  }
+
+  return null;
 }
 
 function adaptarSiembraLocal(s) {
@@ -126,6 +182,7 @@ function mapLoteAFormData(lote) {
     laboratorioLarva: lote.laboratorio || lote.laboratorioLarva || "",
     procedenciaLarva: lote.procedencia || lote.procedenciaLarva || "",
     certificadoLarva: lote.certificado_larva || lote.certificadoLarva || "",
+    estadoLote: lote.estado_lote || lote.estadoLote || "",
   };
 }
 
@@ -148,8 +205,8 @@ function mapSiembraAFormData(siembra, lote, precriaOrigen, areaHectareas = "") {
     densidadPoblacional: siembra.densidad_poblacional
       ? String(siembra.densidad_poblacional)
       : (siembra.cantidad_sembrada && areaHectareas
-          ? calcularDensidadDesdeCantidad(areaHectareas, siembra.cantidad_sembrada)
-          : ""),
+        ? calcularDensidadDesdeCantidad(areaHectareas, siembra.cantidad_sembrada)
+        : ""),
     cantidadSembrada: String(siembra.cantidad_sembrada || ""),
     plSiembra: siembra.pl_siembra != null ? `PL${siembra.pl_siembra}` : "",
     duracionCiclo: String(siembra.duracion_ciclo || 90),
@@ -338,20 +395,48 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         tipoRegistroParam !== "precria" && registro?.precria_id
           ? adaptarPrecriaLocal(await PrecriaLocalService.getById(registro.precria_id))
           : null;
-      
-      const estanqueGuardado = registro?.estanque_id
-        ? await EstanqueLocalService.getEstanqueById(registro.estanque_id)
-        : null;
+
+      const estanqueGuardado =
+        registro?.estanque_id
+          ? buscarRelacionPorId(
+            listaEstanques,
+            registro.estanque_id
+          )
+          : null;
       let areahectareas = estanqueGuardado?.areaHectareas;
       if (areahectareas == null && estanqueGuardado?.largo && estanqueGuardado?.ancho) {
         areahectareas = (Number(estanqueGuardado.largo) * Number(estanqueGuardado.ancho)) / 10000;
       }
       const areaHectareasStr = areahectareas != null && areahectareas !== "" ? String(areahectareas) : "";
 
-      const mapeado =
+      const mapeadoBase =
         tipoRegistroParam === "precria"
-          ? mapPrecriaAFormData(registro, lote, areaHectareasStr)
-          : mapSiembraAFormData(registro, lote, precriaOrigen, areaHectareasStr);
+          ? mapPrecriaAFormData(
+            registro,
+            lote,
+            areaHectareasStr
+          )
+          : mapSiembraAFormData(
+            registro,
+            lote,
+            precriaOrigen,
+            areaHectareasStr
+          );
+
+      const idEstanqueReal =
+        obtenerIdLocal(
+          estanqueGuardado
+        ) ??
+        registro?.estanque_id ??
+        null;
+
+      const mapeado = {
+        ...mapeadoBase,
+        estanque:
+          idEstanqueReal !== null
+            ? String(idEstanqueReal)
+            : "",
+      };
 
       setSiembra(mapeado);
       setFormData(mapeado);
@@ -397,11 +482,11 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         if (submitted) {
           const camposAValidar = Object.keys(errors).length
             ? Array.from(
-                new Set([
-                  ...Object.keys(errors),
-                  ...obtenerCamposObligatoriosPorTipo(updatedData),
-                ]),
-              )
+              new Set([
+                ...Object.keys(errors),
+                ...obtenerCamposObligatoriosPorTipo(updatedData),
+              ]),
+            )
             : obtenerCamposObligatoriosPorTipo(updatedData);
 
           const erroresActualizados = validarCamposObligatorios(
@@ -436,9 +521,11 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
 
   const handleChangeEstanque = useCallback(
     (value) => {
-      const estanqueObj = todosEstanques.find(
-        (e) => String(e.id) === String(value) || String(e.servidorId) === String(value)
-      );
+      const estanqueObj =
+        buscarRelacionPorId(
+          todosEstanques,
+          value
+        );
       let area = estanqueObj?.areaHectareas;
       if (area == null && estanqueObj?.largo && estanqueObj?.ancho) {
         area = (Number(estanqueObj.largo) * Number(estanqueObj.ancho)) / 10000;
@@ -460,15 +547,26 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
 
   const estanques = useMemo(() => {
     const mapEstanque = (e) => ({
+      ...e,
+
       label: e.codigo
-        ? e.codigo.toLowerCase().startsWith("estanque") || e.codigo.toLowerCase().startsWith("tanque")
+        ? e.codigo
+          .toLowerCase()
+          .startsWith("estanque") ||
+          e.codigo
+            .toLowerCase()
+            .startsWith("tanque")
           ? e.codigo
           : `Estanque ${e.codigo}`
         : e.nombre
-        ? e.nombre
-        : `Estanque #${e.id}`,
-      value: String(e.id),
-      ...e,
+          ? e.nombre
+          : `Estanque #${e.id}`,
+
+      value: String(
+        obtenerIdLocal(e) ??
+        obtenerIdServidor(e) ??
+        ""
+      ),
     });
 
     if (!formData?.finca) {
@@ -605,7 +703,33 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
     );
   }, []);
 
+  const verificarCatalogoEnUso = useCallback(async (campoCamel, campoSnake, valorId) => {
+    const [lotes, siembras, precrias] = await Promise.all([
+      LoteLarvaLocalService.getAll(),
+      SiembraLocalService.getAll(),
+      PrecriaLocalService.getAll(),
+    ]);
+
+    return lotes.some((lote) => {
+      const valorLote = lote[campoCamel] || lote[campoSnake];
+      if (String(valorLote) !== String(valorId)) return false;
+
+      const siembraActiva = siembras.some(
+        (s) => String(s.loteLarvaId || s.lote_larva_id) === String(lote.id) && String(s.estado || "Activa").toLowerCase() !== "finalizada"
+      );
+      const precriaActiva = precrias.some(
+        (p) => String(p.loteLarvaId || p.lote_larva_id) === String(lote.id) && String(p.estado || "Activa").toLowerCase() !== "finalizada"
+      );
+
+      return siembraActiva || precriaActiva;
+    });
+  }, []);
+
   const handleEliminarProveedorLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("proveedorLarvaId", "proveedor_larva_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este proveedor porque está asignado a una siembra o pre-cría activa.");
+    }
     await ProveedorLarvaLocalService.deleteById(value);
     setProveedoresLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -615,9 +739,13 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ? { ...previo, proveedorLarva: "" }
         : previo,
     );
-  }, []);
+  }, [verificarCatalogoEnUso]);
 
   const handleEliminarLaboratorioLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("laboratorioId", "laboratorio_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este laboratorio porque está asignado a una siembra o pre-cría activa.");
+    }
     await LaboratorioLocalService.deleteById(value);
     setLaboratoriosLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -627,9 +755,13 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ? { ...previo, laboratorioLarva: "" }
         : previo,
     );
-  }, []);
+  }, [verificarCatalogoEnUso]);
 
   const handleEliminarProcedenciaLarva = useCallback(async (value) => {
+    const enUso = await verificarCatalogoEnUso("procedenciaId", "procedencia_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar esta procedencia porque está asignada a una siembra o pre-cría activa.");
+    }
     await ProcedenciaLocalService.deleteById(value);
     setProcedenciasLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -639,7 +771,7 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ? { ...previo, procedenciaLarva: "" }
         : previo,
     );
-  }, []);
+  }, [verificarCatalogoEnUso]);
 
   const obtenerCamposObligatorios = useCallback(
     (opciones) => obtenerCamposObligatoriosPorTipo(formData, opciones),
@@ -811,11 +943,11 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
         ...actualizado,
         ...(formData.pasoPorPrecria === "si"
           ? {
-              duracionPrecria: formData.duracionPrecria,
-              fechaSalidaPrecria: formData.fechaSalidaPrecria,
-              cantidadSobrevivientePrecria:
-                formData.cantidadSobrevivientePrecria,
-            }
+            duracionPrecria: formData.duracionPrecria,
+            fechaSalidaPrecria: formData.fechaSalidaPrecria,
+            cantidadSobrevivientePrecria:
+              formData.cantidadSobrevivientePrecria,
+          }
           : {}),
         ...mapLoteAFormData({
           codigo_lote: formData.codigoLoteLarva,
@@ -830,15 +962,23 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
       setFormData(conLote);
       setIsEditing(false);
       setSubmitted(false);
-      
+
       const msjExito = formData.tipoRegistro === "precria"
         ? "Pre-Cría editada correctamente."
         : "Siembra editada correctamente.";
       setMensaje(msjExito);
       setMensajeVariant("success");
     } catch (err) {
-      const mensajeError = err.response?.data?.message || err.message;
-      setMensaje(mensajeError || "No fue posible guardar los cambios.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || err.message || "No fue posible guardar los cambios.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors((prev) => ({ ...prev, [campoConError]: mensajeFinal }));
+      }
+
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
     } finally {
       setGuardando(false);
@@ -910,8 +1050,16 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
       setMensajeVariant("success");
       return conLote;
     } catch (err) {
-      const mensajeError = err.response?.data?.message || err.message;
-      setMensaje(mensajeError || "No fue posible finalizar la Pre-Cría.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || err.message || "No fue posible finalizar la Pre-Cría.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors((prev) => ({ ...prev, [campoConError]: mensajeFinal }));
+      }
+
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
       return null;
     } finally {
@@ -976,8 +1124,16 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
       setMensaje("Siembra finalizada correctamente.");
       setMensajeVariant("success");
     } catch (err) {
-      const mensajeError = err.response?.data?.message || err.message;
-      setMensaje(mensajeError || "No fue posible finalizar la siembra.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || err.message || "No fue posible finalizar la siembra.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors((prev) => ({ ...prev, [campoConError]: mensajeFinal }));
+      }
+
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
     } finally {
       setGuardando(false);
@@ -998,22 +1154,28 @@ export default function useDetalleSiembra(id, tipoRegistroParam, esFinalizar = f
     fincaObj?.label || (formData?.finca ? `Finca #${formData.finca}` : "Sin finca");
 
   const estanqueObj =
-    estanques.find(
-      (e) => String(e.value) === String(formData?.estanque) || String(e.id) === String(formData?.estanque)
-    ) ||
-    (todosEstanques || []).find(
-      (e) => String(e.id) === String(formData?.estanque) || String(e.value) === String(formData?.estanque) || String(e.servidorId) === String(formData?.estanque)
+    buscarRelacionPorId(
+      todosEstanques,
+      formData?.estanque
     );
 
   const estanqueLabel =
-    estanqueObj?.label ||
-    (estanqueObj?.codigo
-      ? estanqueObj.codigo.toLowerCase().startsWith("estanque") || estanqueObj.codigo.toLowerCase().startsWith("tanque")
+    estanqueObj?.codigo
+      ? estanqueObj.codigo
+        .toLowerCase()
+        .startsWith("estanque") ||
+        estanqueObj.codigo
+          .toLowerCase()
+          .startsWith("tanque")
         ? estanqueObj.codigo
         : `Estanque ${estanqueObj.codigo}`
-      : null) ||
-    (estanqueObj?.nombre ? estanqueObj.nombre : null) ||
-    (formData?.estanque ? `Estanque #${formData.estanque}` : "Sin estanque");
+      : estanqueObj?.nombre
+        ? estanqueObj.nombre
+        : estanqueObj?.label
+          ? estanqueObj.label
+          : formData?.estanque
+            ? `Estanque #${formData.estanque}`
+            : "Sin estanque";
 
   const scrollRef = useRef(null);
   useEffect(() => {

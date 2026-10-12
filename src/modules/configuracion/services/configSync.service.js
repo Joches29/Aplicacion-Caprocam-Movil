@@ -1,88 +1,1106 @@
 /**
+ * Autor: Greivin Eliecer A.G
  * configSync.service.js
- * Sincronización Nube -> Móvil y Móvil -> Nube
+ * Sincronizacion Nube -> Movil y Movil -> Nube
  */
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Application from "expo-application";
 
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
-import * as Application from 'expo-application';
+import { saveToken, getToken, cargarSesionPersistida } from "../../login/utils/tokenStorage";
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
 
-// ─────────────────────────────────────────────────────────────
-// CONVERSIÓN camelCase -> snake_case + normalización de tipos
-// ─────────────────────────────────────────────────────────────
+/*
+============================================================
+CONSTANTES
+============================================================
+*/
+
+const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
+
+const MAPEO_DESCARGA = {
+  usuarios: "usuarios",
+  fincas: "fincas",
+  estanques: "estanques",
+  proveedores: "proveedores",
+  productos: "productos",
+  compradores: "compradores",
+  inventario: "inventario",
+  equipos: "equipos",
+  tareas: "tareas",
+  laboratorios: "laboratorios",
+  procedencias: "procedencias",
+  proveedoresLarva: "proveedores_larva",
+  lotesLarva: "lotes_larva",
+  precrias: "precrias",
+  siembras: "siembras",
+  enfermedades: "enfermedades",
+  parasitologias: "parasitologias",
+  fisicoQuimica: "fisico_quimico",
+  detalleFisicoQuimica: "fisico_quimico_detalle",
+  crecimientos: "crecimientos",
+  calculosCrecimiento: "calculos_crecimiento",
+  trazabilidad: "trazabilidad",
+  ventas: "ventas",
+  alimentacion: "alimentaciones",
+  densidadPoblacional: "densidad_poblacional",
+  detalleTirosDensidad: "densidad_detalle_tiros",
+  raleos: "raleos",
+};
+
+const MAPEO_SUBIDA = {
+  siembras: "siembras",
+  equipos: "equipos",
+  alimentaciones: "alimentacion",
+  crecimientos: "crecimiento",
+  calculos_crecimiento: "calculosCrecimiento",
+  fisico_quimico: "fisicoQuimica",
+  fisico_quimico_detalle: "detalleFisicoQuimica",
+  densidad_poblacional: "densidadPoblacional",
+  densidad_detalle_tiros: "detalleTirosDensidad",
+  enfermedades: "enfermedades",
+  parasitologias: "parasitologias",
+  raleos: "raleos",
+  ventas: "ventas",
+  trazabilidad: "trazabilidad",
+  movimientos_inventario: "movimientosInventario",
+};
+
+/*
+============================================================
+FUNCIONES GENERALES
+============================================================
+*/
 
 const camelASnake = (str) =>
   str.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
 
+const normalizarFechaMySQL = (valor) => {
+  if (!valor) return valor;
+  if (typeof valor === "string") {
+    const isoMatch = valor.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/);
+    if (isoMatch) {
+      return `${isoMatch[1]} ${isoMatch[2]}`;
+    }
+  }
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    return valor.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  return valor;
+};
+
 const normalizarValor = (valor) => {
-  if (valor instanceof Date) return valor.toISOString();
+  if (valor instanceof Date) return normalizarFechaMySQL(valor);
+  if (typeof valor === "string" && valor.includes("T") && valor.length >= 19) {
+    return normalizarFechaMySQL(valor);
+  }
   if (typeof valor === "boolean") return valor ? 1 : 0;
   if (valor !== null && typeof valor === "object") return JSON.stringify(valor);
+
   return valor;
 };
 
 const convertirRegistroASnake = (registro) => {
   if (!registro || typeof registro !== "object") return registro;
+
   const resultado = {};
+
   for (const [clave, valor] of Object.entries(registro)) {
     resultado[camelASnake(clave)] = normalizarValor(valor);
   }
+
   return resultado;
 };
 
-// ─────────────────────────────────────────────────────────────
-// NORMALIZACIÓN POR TABLA
-// Corrige inconsistencias específicas del backend por tabla.
-// ─────────────────────────────────────────────────────────────
+const guardarGrupoDatosActivo = async (grupoDatos) => {
+  if (
+    grupoDatos === undefined ||
+    grupoDatos === null ||
+    String(grupoDatos).trim() === ""
+  ) {
+    return;
+  }
 
-/**
- * Aplica correcciones específicas por tabla después de la conversión snake_case.
- *
- * Problemas detectados en el backend:
- * - fincas:       "codigoCBO" → "codigo_c_b_o" (acrónimo mal convertido, schema espera "codigo_cbo")
- *                 No devuelve "grupo_datos"
- * - estanques:    "idFinca" → "id_finca" (schema espera "finca_id")
- * - colaboradores: No devuelve "pin_hash" (NOT NULL en schema, se usa placeholder)
- * - productos:    "entryDate"/"expirationDate" en lugar de "fecha_ingreso"/"fecha_caducidad"
- * - inventario, laboratorios, procedencias, proveedores_larva: No devuelven "grupo_datos"
- */
-const normalizarPorTabla = (tabla, registro, grupoDatos) => {
-  const r = { ...registro };
+  await AsyncStorage.setItem(STORAGE_GRUPO_DATOS, String(grupoDatos));
+};
 
-  // ── Inyectar grupo_datos si el backend no lo incluye ──────
-  if (grupoDatos != null && r.grupo_datos == null) {
+const obtenerAndroidId = () => {
+  try {
+    if (typeof Application.getAndroidId === "function") {
+      return Application.getAndroidId() ?? "desconocido";
+    }
+
+    return Application.androidId ?? "desconocido";
+  } catch (error) {
+    return "desconocido";
+  }
+};
+
+/*
+============================================================
+NORMALIZACION POR TABLA
+============================================================
+*/
+
+const obtenerDataLocal = (respuesta) => {
+  if (!respuesta?.success) {
+    return null;
+  }
+
+  return respuesta.data ?? null;
+};
+
+const obtenerIdLocalDesdeServidor = async (
+  servicio,
+  servidorId,
+  nombreRelacion,
+  opcional = false
+) => {
+  if (
+    servidorId === undefined ||
+    servidorId === null ||
+    servidorId === ""
+  ) {
+    return null;
+  }
+
+  // 1. Intentar buscar por servidor_id
+  try {
+    const respuesta = await servicio.obtenerPorServidorId(servidorId);
+    const registro = obtenerDataLocal(respuesta);
+    if (registro?.id != null) {
+      return Number(registro.id);
+    }
+  } catch (_) {}
+
+  // 2. Intentar buscar por id local
+  try {
+    const respuestaId = await servicio.obtenerPorId(servidorId);
+    const registroId = obtenerDataLocal(respuestaId);
+    if (registroId?.id != null) {
+      return Number(registroId.id);
+    }
+  } catch (_) {}
+
+  // 3. Fallback seguro: usar servidorId directamente sin romper el flujo
+  const num = Number(servidorId);
+  if (Number.isFinite(num) && num > 0) {
+    return num;
+  }
+
+  if (opcional) {
+    return null;
+  }
+
+  return servidorId;
+};
+
+const obtenerIdServidorDesdeLocal = async (
+  servicio,
+  idValor,
+  nombreRelacion
+) => {
+  if (
+    idValor === undefined ||
+    idValor === null ||
+    idValor === ""
+  ) {
+    return null;
+  }
+
+  const id = Number(idValor);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return idValor;
+  }
+
+  try {
+    const respuestaLocal = await servicio.obtenerPorId(id);
+    const registroLocal = obtenerDataLocal(respuestaLocal);
+
+    if (registroLocal) {
+      const servidorId = Number(
+        registroLocal.servidor_id ??
+        registroLocal.servidorId ??
+        0
+      );
+
+      if (
+        Number.isFinite(servidorId) &&
+        servidorId > 0
+      ) {
+        return servidorId;
+      }
+      return id;
+    }
+  } catch (_) {}
+
+  try {
+    const respuestaServidor = await servicio.obtenerPorServidorId(id);
+    const registroServidor = obtenerDataLocal(respuestaServidor);
+
+    if (registroServidor) {
+      return id;
+    }
+  } catch (_) {}
+
+  return id;
+};
+
+const normalizarPorTabla = async (
+  tabla,
+  registro,
+  grupoDatos
+) => {
+  const r = {
+    ...registro,
+  };
+
+  if (
+    grupoDatos != null &&
+    r.grupo_datos == null
+  ) {
     r.grupo_datos = grupoDatos;
   }
 
   switch (tabla) {
+    case "usuarios":
+      r.grupo_datos = grupoDatos || 1;
+      if (!r.password_hash) {
+        r.password_hash =
+          "__SYNC_PLACEHOLDER__";
+      }
+      break;
+
     case "fincas":
       if (r.codigo_c_b_o !== undefined) {
-        r.codigo_cbo = r.codigo_c_b_o;
+        r.codigo_cbo =
+          r.codigo_c_b_o;
+
         delete r.codigo_c_b_o;
       }
       break;
 
     case "estanques":
       if (r.id_finca !== undefined) {
-        r.finca_id = r.id_finca;
+        r.finca_id =
+          r.id_finca;
+
         delete r.id_finca;
+      }
+
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca del estanque"
+          );
       }
       break;
 
     case "colaboradores":
+      r.grupo_datos = grupoDatos || 1;
       if (!r.pin_hash) {
-        r.pin_hash = "__SYNC_PLACEHOLDER__";
+        r.pin_hash =
+          "__SYNC_PLACEHOLDER__";
+      }
+      if (!r.nombre) {
+        r.nombre = r.name || "Colaborador";
+      }
+      if (!r.apellidos) {
+        r.apellidos = r.apellido || r.lastName || r.last_name || "";
+      }
+      if (!r.nombre_usuario) {
+        r.nombre_usuario =
+          r.username ||
+          r.usuario ||
+          r.cedula ||
+          r.email ||
+          `colab_${r.id || r.servidor_id || Date.now()}`;
       }
       break;
 
     case "productos":
       if (r.entry_date !== undefined) {
-        r.fecha_ingreso = r.entry_date;
+        r.fecha_ingreso =
+          r.entry_date;
+
         delete r.entry_date;
       }
-      if (r.expiration_date !== undefined) {
-        r.fecha_caducidad = r.expiration_date;
+
+      if (
+        r.expiration_date !==
+        undefined
+      ) {
+        r.fecha_caducidad =
+          r.expiration_date;
+
         delete r.expiration_date;
+      }
+
+      if (r.proveedor_id != null) {
+        r.proveedor_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.proveedores,
+            r.proveedor_id,
+            "proveedor del producto"
+          );
+      }
+      break;
+
+    case "inventario":
+      if (r.producto_id != null) {
+        r.producto_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.productos,
+            r.producto_id,
+            "producto del inventario"
+          );
+      }
+
+      if (r.proveedor_id != null) {
+        r.proveedor_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.proveedores,
+            r.proveedor_id,
+            "proveedor del inventario"
+          );
+      }
+      break;
+
+    case "equipos":
+      if (
+        r.nombre !== undefined &&
+        r.nombre_equipo === undefined
+      ) {
+        r.nombre_equipo =
+          r.nombre;
+      }
+
+      if (
+        r.tipo !== undefined &&
+        r.tipo_equipo === undefined
+      ) {
+        r.tipo_equipo =
+          r.tipo;
+      }
+
+      if (
+        r.funcion !== undefined &&
+        r.funcion_equipo === undefined
+      ) {
+        r.funcion_equipo =
+          r.funcion;
+      }
+
+      if (
+        r.estanque !== undefined &&
+        r.estanque_id === undefined
+      ) {
+        r.estanque_id =
+          r.estanque;
+      }
+
+      if (
+        r.fecha_ultimo_encendido ===
+        undefined &&
+        r.fecha_ultimo_encendido_at !==
+        undefined
+      ) {
+        r.fecha_ultimo_encendido =
+          r.fecha_ultimo_encendido_at;
+      }
+
+      if (r.fecha_ultimo_encendido) {
+        r.fecha_ultimo_encendido =
+          normalizarFechaMySQL(
+            r.fecha_ultimo_encendido
+          );
+      }
+
+      if (r.fecha_instalacion) {
+        r.fecha_instalacion =
+          normalizarFechaMySQL(
+            r.fecha_instalacion
+          );
+      }
+      break;
+
+    case "lotes_larva":
+      if (r.proveedor_larva_id != null) {
+        r.proveedor_larva_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.proveedoresLarva,
+            r.proveedor_larva_id,
+            "proveedor de larva",
+            true
+          );
+      }
+
+      if (r.laboratorio_id != null) {
+        r.laboratorio_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.laboratorios,
+            r.laboratorio_id,
+            "laboratorio",
+            true
+          );
+      }
+
+      if (r.procedencia_id != null) {
+        r.procedencia_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.procedencias,
+            r.procedencia_id,
+            "procedencia",
+            true
+          );
+      }
+      break;
+
+    case "precrias":
+      r.lote_larva_id =
+        await obtenerIdLocalDesdeServidor(
+          localApi.lotesLarva,
+          r.lote_larva_id,
+          "lote de larva de precria"
+        );
+
+      r.finca_id =
+        await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de precria"
+        );
+
+      r.estanque_id =
+        await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de precria"
+        );
+      break;
+
+    case "siembras":
+      r.lote_larva_id =
+        await obtenerIdLocalDesdeServidor(
+          localApi.lotesLarva,
+          r.lote_larva_id,
+          "lote de larva de siembra"
+        );
+
+      if (r.precria_id != null) {
+        r.precria_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.precrias,
+            r.precria_id,
+            "precria de siembra",
+            true
+          );
+      }
+
+      r.finca_id =
+        await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de siembra"
+        );
+
+      r.estanque_id =
+        await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de siembra"
+        );
+      break;
+
+    case "mantenimiento_equipo":
+      if (
+        r.equipo !== undefined &&
+        r.equipo_id === undefined
+      ) {
+        r.equipo_id =
+          r.equipo;
+
+        delete r.equipo;
+      }
+
+      if (
+        r.codigo_ticket ===
+        undefined &&
+        r.codigo !== undefined
+      ) {
+        r.codigo_ticket =
+          r.codigo;
+      }
+
+      if (
+        r.titulo_ticket ===
+        undefined &&
+        r.titulo !== undefined
+      ) {
+        r.titulo_ticket =
+          r.titulo;
+      }
+
+      if (
+        r.descripcion_ticket ===
+        undefined &&
+        r.descripcion !== undefined
+      ) {
+        r.descripcion_ticket =
+          r.descripcion;
+      }
+
+      if (
+        r.estado_ticket ===
+        undefined &&
+        r.estado !== undefined
+      ) {
+        r.estado_ticket =
+          r.estado;
+      }
+
+      if (
+        r.estado_equipo ===
+        undefined &&
+        r.estado_equipo_actual !==
+        undefined
+      ) {
+        r.estado_equipo =
+          r.estado_equipo_actual;
+      }
+
+      if (r.equipo_id != null) {
+        r.equipo_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.equipos,
+            r.equipo_id,
+            "equipo del mantenimiento"
+          );
+      }
+      break;
+
+    case "mantenimiento_equipo_tareas":
+      if (
+        r.mantenimiento_id !==
+        undefined &&
+        r.mantenimiento_equipo_id ===
+        undefined
+      ) {
+        r.mantenimiento_equipo_id =
+          r.mantenimiento_id;
+      }
+
+      if (
+        r.ticket_id !== undefined &&
+        r.mantenimiento_equipo_id ===
+        undefined
+      ) {
+        r.mantenimiento_equipo_id =
+          r.ticket_id;
+      }
+
+      if (
+        r.estado === undefined &&
+        r.estado_tarea !== undefined
+      ) {
+        r.estado =
+          r.estado_tarea;
+      }
+
+      if (
+        r.estado_tarea ===
+        undefined &&
+        r.estado !== undefined
+      ) {
+        r.estado_tarea =
+          r.estado;
+      }
+
+      if (
+        r.mantenimiento_equipo_id != null
+      ) {
+        r.mantenimiento_equipo_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.mantenimientoEquipo,
+            r.mantenimiento_equipo_id,
+            "mantenimiento de la tarea"
+          );
+      }
+
+      if (r.tarea_id != null) {
+        r.tarea_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.tareas,
+            r.tarea_id,
+            "tarea del mantenimiento"
+          );
+      }
+      break;
+
+    case "mantenimiento_equipo_productos":
+      if (
+        r.mantenimiento_id !==
+        undefined &&
+        r.mantenimiento_equipo_id ===
+        undefined
+      ) {
+        r.mantenimiento_equipo_id =
+          r.mantenimiento_id;
+      }
+
+      if (
+        r.ticket_id !== undefined &&
+        r.mantenimiento_equipo_id ===
+        undefined
+      ) {
+        r.mantenimiento_equipo_id =
+          r.ticket_id;
+      }
+
+      if (
+        r.mantenimiento_equipo_id != null
+      ) {
+        r.mantenimiento_equipo_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.mantenimientoEquipo,
+            r.mantenimiento_equipo_id,
+            "mantenimiento del producto"
+          );
+      }
+
+      if (r.producto_id != null) {
+        r.producto_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.productos,
+            r.producto_id,
+            "producto del mantenimiento"
+          );
+      }
+      break;
+
+    case "crecimientos":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca de crecimiento"
+          );
+      }
+
+      if (r.estanque_id != null) {
+        r.estanque_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_id,
+            "estanque de crecimiento"
+          );
+      }
+      break;
+
+    case "calculos_crecimiento":
+      if (r.crecimiento_id != null) {
+        r.crecimiento_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.crecimientos,
+            r.crecimiento_id,
+            "crecimiento del muestreo"
+          );
+      }
+      break;
+
+    case "fisico_quimico":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca de fisico quimico"
+          );
+      }
+
+      if (r.estanque_id != null) {
+        r.estanque_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_id,
+            "estanque de fisico quimico"
+          );
+      }
+      break;
+
+    case "fisico_quimico_detalle":
+      if (r.lectura_id != null) {
+        r.lectura_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fisicoQuimico,
+            r.lectura_id,
+            "lectura fisico quimica"
+          );
+      }
+      break;
+
+    case "trazabilidad":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca de trazabilidad"
+          );
+      }
+
+      if (r.estanque_origen_id != null) {
+        r.estanque_origen_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_origen_id,
+            "estanque origen de trazabilidad",
+            true
+          );
+      }
+
+      if (r.estanque_destino_id != null) {
+        r.estanque_destino_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_destino_id,
+            "estanque destino de trazabilidad",
+            true
+          );
+      }
+
+      if (r.creado_por_usuario_id != null) {
+        const usuarioLocal =
+          await obtenerIdLocalDesdeServidor(
+            localApi.usuarios,
+            r.creado_por_usuario_id,
+            "usuario creador de trazabilidad",
+            true
+          );
+
+        if (usuarioLocal != null) {
+          r.creado_por_usuario_id =
+            usuarioLocal;
+        }
+      }
+
+      if (
+        r.creado_por_colaborador_id != null
+      ) {
+        const colaboradorLocal =
+          await obtenerIdLocalDesdeServidor(
+            localApi.colaboradores,
+            r.creado_por_colaborador_id,
+            "colaborador creador de trazabilidad",
+            true
+          );
+
+        if (colaboradorLocal != null) {
+          r.creado_por_colaborador_id =
+            colaboradorLocal;
+        }
+      }
+      break;
+
+    case "enfermedades":
+    case "parasitologias":
+      if (r.finca_id != null) {
+        r.finca_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.fincas,
+            r.finca_id,
+            "finca del registro"
+          );
+      }
+
+      if (r.estanque_id != null) {
+        r.estanque_id =
+          await obtenerIdLocalDesdeServidor(
+            localApi.estanques,
+            r.estanque_id,
+            "estanque del registro"
+          );
+      }
+      break;
+
+    case "ventas":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.comprador !== undefined && r.comprador_id === undefined) {
+        r.comprador_id = r.comprador;
+        delete r.comprador;
+      }
+      if (r.id_comprador !== undefined && r.comprador_id === undefined) {
+        r.comprador_id = r.id_comprador;
+        delete r.id_comprador;
+      }
+      if (r.comprador_id === undefined && r.compradorId !== undefined) {
+        r.comprador_id = r.compradorId;
+      }
+      if (r.cant_vendida !== undefined && r.cantidad_vendida === undefined) {
+        r.cantidad_vendida = r.cant_vendida;
+        delete r.cant_vendida;
+      }
+      if (r.cantidad !== undefined && r.cantidad_vendida === undefined) {
+        r.cantidad_vendida = r.cantidad;
+      }
+      if (r.cantidad_vendida == null) {
+        r.cantidad_vendida = 0;
+      }
+      if (r.precio_kilo == null && r.precioKilo !== undefined) {
+        r.precio_kilo = r.precioKilo;
+      }
+      if (r.precio_kilo == null) {
+        r.precio_kilo = 0;
+      }
+      if (r.total == null) {
+        r.total = (Number(r.cantidad_vendida) || 0) * (Number(r.precio_kilo) || 0);
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de venta"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de venta"
+        );
+      }
+      if (r.comprador_id != null) {
+        r.comprador_id = await obtenerIdLocalDesdeServidor(
+          localApi.compradores,
+          r.comprador_id,
+          "comprador de venta",
+          true
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
+      }
+      break;
+
+    case "alimentaciones":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.cantidad !== undefined && r.cantidad_kg === undefined) {
+        r.cantidad_kg = r.cantidad;
+      }
+      if (r.cantidadKg !== undefined && r.cantidad_kg === undefined) {
+        r.cantidad_kg = r.cantidadKg;
+      }
+      if (r.cantidad_kg == null) {
+        r.cantidad_kg = 0;
+      }
+      if (r.id_producto !== undefined && r.producto_id === undefined) {
+        r.producto_id = r.id_producto;
+      }
+      if (r.productoId !== undefined && r.producto_id === undefined) {
+        r.producto_id = r.productoId;
+      }
+      if (r.id_proveedor !== undefined && r.proveedor_id === undefined) {
+        r.proveedor_id = r.id_proveedor;
+      }
+      if (r.proveedorId !== undefined && r.proveedor_id === undefined) {
+        r.proveedor_id = r.proveedorId;
+      }
+      if (r.tipo_alimento === undefined && r.tipoAlimento !== undefined) {
+        r.tipo_alimento = r.tipoAlimento;
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de alimentacion"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de alimentacion"
+        );
+      }
+      if (r.proveedor_id != null) {
+        r.proveedor_id = await obtenerIdLocalDesdeServidor(
+          localApi.proveedores,
+          r.proveedor_id,
+          "proveedor de alimentacion",
+          true
+        );
+      }
+      if (r.producto_id != null) {
+        r.producto_id = await obtenerIdLocalDesdeServidor(
+          localApi.productos,
+          r.producto_id,
+          "producto de alimentacion",
+          true
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
+      }
+      break;
+
+    case "densidad_poblacional":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.cantidad_tiros !== undefined && r.tiros_atarraya === undefined) {
+        r.tiros_atarraya = r.cantidad_tiros;
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de densidad"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de densidad"
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
+      }
+      break;
+
+    case "densidad_detalle_tiros":
+      if (r.densidad_id != null) {
+        r.densidad_id = await obtenerIdLocalDesdeServidor(
+          localApi.densidadPoblacional,
+          r.densidad_id,
+          "densidad de tiro"
+        );
+      }
+      break;
+
+    case "raleos":
+      if (r.finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.finca;
+        delete r.finca;
+      }
+      if (r.id_finca !== undefined && r.finca_id === undefined) {
+        r.finca_id = r.id_finca;
+        delete r.id_finca;
+      }
+      if (r.finca_id === undefined && r.fincaId !== undefined) {
+        r.finca_id = r.fincaId;
+      }
+      if (r.estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.estanque;
+        delete r.estanque;
+      }
+      if (r.id_estanque !== undefined && r.estanque_id === undefined) {
+        r.estanque_id = r.id_estanque;
+        delete r.id_estanque;
+      }
+      if (r.estanque_id === undefined && r.estanqueId !== undefined) {
+        r.estanque_id = r.estanqueId;
+      }
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdLocalDesdeServidor(
+          localApi.fincas,
+          r.finca_id,
+          "finca de raleo"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdLocalDesdeServidor(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de raleo"
+        );
+      }
+      if (r.siembra_id != null) {
+        r.siembra_id = await obtenerIdLocalDesdeServidor(
+          localApi.siembras,
+          r.siembra_id,
+          "siembra de raleo",
+          true
+        );
+      }
+      if (r.fecha) {
+        r.fecha = normalizarFechaMySQL(r.fecha);
+      } else {
+        r.fecha = new Date().toISOString().split("T")[0];
       }
       break;
   }
@@ -90,61 +1108,652 @@ const normalizarPorTabla = (tabla, registro, grupoDatos) => {
   return r;
 };
 
-// ─────────────────────────────────────────────────────────────
-// MAPEOS: campo camelCase del backend -> nombre de tabla local
-// ─────────────────────────────────────────────────────────────
+async function guardarCatalogoLocal(
+  tabla,
+  registros,
+  grupoDatos
+) {
+  const listaRegistros =
+    Array.isArray(registros)
+      ? registros
+      : [];
 
-const MAPEO_DESCARGA = {
-  fincas:           "fincas",
-  estanques:        "estanques",
-  proveedores:      "proveedores",
-  productos:        "productos",
-  compradores:      "compradores",
-  inventario:       "inventario",
-  equipos:          "equipos",
-  tareas:           "tareas",
-  colaboradores:    "colaboradores",
-  laboratorios:     "laboratorios",
-  procedencias:     "procedencias",
-  proveedoresLarva: "proveedores_larva",
-  lotesLarva:       "lotes_larva",
-  precrias:         "precrias",
-  siembras:         "siembras",
-};
+  const registrosNorm = [];
 
-// ─────────────────────────────────────────────────────────────
-// FUNCIÓN AUXILIAR
-// ─────────────────────────────────────────────────────────────
+  for (
+    const registro
+    of listaRegistros
+  ) {
+    const snake =
+      convertirRegistroASnake(
+        registro
+      );
 
-async function guardarCatalogoLocal(tabla, registros, grupoDatos) {
-  if (!Array.isArray(registros) || registros.length === 0) {
-    return { tabla, total: 0, guardados: 0, success: true };
+    const normalizado =
+      await normalizarPorTabla(
+        tabla,
+        snake,
+        grupoDatos
+      );
+
+    registrosNorm.push(
+      normalizado
+    );
   }
 
-  const registrosNorm = registros.map((r) => {
-    const snake = convertirRegistroASnake(r);
-    return normalizarPorTabla(tabla, snake, grupoDatos);
-  });
-
-  const resultado = await localApi.sync.guardarDesdeServidor(tabla, registrosNorm);
+  const resultado =
+    await localApi.sync.guardarDesdeServidor(
+      tabla,
+      registrosNorm,
+      {
+        reconciliar: true,
+      }
+    );
 
   if (!resultado.success) {
-    console.warn(`[Sync] Falló guardar tabla "${tabla}":`, resultado.error ?? resultado.message);
-    return { tabla, total: registros.length, guardados: 0, success: false, error: resultado.message };
+    return {
+      tabla,
+      total:
+        listaRegistros.length,
+      guardados: 0,
+      success: false,
+      error:
+        resultado.message,
+    };
   }
 
-  console.log(`[Sync] ✓ Tabla "${tabla}" → ${registros.length} registros guardados`);
-  return { tabla, total: registros.length, guardados: registros.length, success: true, resultado };
+  return {
+    tabla,
+    total:
+      listaRegistros.length,
+    guardados:
+      listaRegistros.length,
+    success: true,
+    resultado,
+  };
 }
 
-// ─────────────────────────────────────────────────────────────
-// SERVICIO PRINCIPAL
-// ─────────────────────────────────────────────────────────────
+/*
+============================================================
+HELPERS DE SUBIDA
+============================================================
+*/
+
+function obtenerAccionSync(item) {
+  return String(item.accion ?? "").toUpperCase();
+}
+
+function tieneServidorId(registro) {
+  const servidorId = registro.servidor_id ?? registro.servidorId;
+
+  return !(
+    servidorId === undefined ||
+    servidorId === null ||
+    servidorId === "" ||
+    servidorId === "null" ||
+    servidorId === "undefined"
+  );
+}
+
+function normalizarAccion(item) {
+  const accion =
+    obtenerAccionSync(item);
+
+  if (
+    accion === "UPDATE" &&
+    !tieneServidorId(item.registro)
+  ) {
+    return "CREATE";
+  }
+
+  return accion;
+}
+
+async function obtenerIdServidorSiExiste(
+  servicio,
+  idValor
+) {
+  if (
+    idValor === undefined ||
+    idValor === null ||
+    idValor === ""
+  ) {
+    return null;
+  }
+
+  const id = Number(idValor);
+
+  if (
+    !Number.isFinite(id) ||
+    id <= 0
+  ) {
+    return idValor;
+  }
+
+  const respuesta =
+    await servicio.obtenerPorId(id);
+
+  const registro =
+    obtenerDataLocal(respuesta);
+
+  if (!registro) {
+    return id;
+  }
+
+  const servidorId =
+    Number(
+      registro.servidor_id ??
+      registro.servidorId ??
+      0
+    );
+
+  if (
+    Number.isFinite(servidorId) &&
+    servidorId > 0
+  ) {
+    return servidorId;
+  }
+
+  return id;
+}
+
+async function normalizarRegistroParaSubida(
+  tabla,
+  registro
+) {
+  const r = {
+    ...registro,
+  };
+
+  try {
+    switch (tabla) {
+      case "siembras":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+
+        if (r.lote_larva_id != null) {
+          r.lote_larva_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.lotesLarva,
+              r.lote_larva_id,
+              "lote de larva"
+            );
+        }
+
+        if (r.precria_id != null) {
+          r.precria_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.precrias,
+              r.precria_id,
+              "pre-cria"
+            );
+        }
+        break;
+
+      case "equipos":
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque del equipo"
+            );
+        }
+        if (r.fecha_ultimo_encendido) {
+          r.fecha_ultimo_encendido = normalizarFechaMySQL(r.fecha_ultimo_encendido);
+        }
+        if (r.fecha_instalacion) {
+          r.fecha_instalacion = normalizarFechaMySQL(r.fecha_instalacion);
+        }
+        break;
+
+
+      case "densidad_poblacional":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+        break;
+
+      case "raleos":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+
+        if (r.siembra_id != null) {
+          r.siembra_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.siembras,
+              r.siembra_id,
+              "siembra"
+            );
+        }
+        break;
+
+      case "enfermedades":
+      case "parasitologias":
+      case "crecimientos":
+      case "fisico_quimico":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+        break;
+
+      case "ventas":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+
+        if (r.comprador_id != null) {
+          r.comprador_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.compradores,
+              r.comprador_id,
+              "comprador"
+            );
+        }
+        break;
+
+      case "trazabilidad":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (
+          r.estanque_origen_id != null
+        ) {
+          r.estanque_origen_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_origen_id,
+              "estanque origen"
+            );
+        }
+
+        if (
+          r.estanque_destino_id != null
+        ) {
+          r.estanque_destino_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_destino_id,
+              "estanque destino"
+            );
+        }
+        break;
+
+      case "alimentaciones":
+        if (r.finca_id != null) {
+          r.finca_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.fincas,
+              r.finca_id,
+              "finca"
+            );
+        }
+
+        if (r.estanque_id != null) {
+          r.estanque_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.estanques,
+              r.estanque_id,
+              "estanque"
+            );
+        }
+
+        if (r.proveedor_id != null) {
+          r.proveedor_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.proveedores,
+              r.proveedor_id,
+              "proveedor"
+            );
+        }
+
+        if (r.producto_id != null) {
+          r.producto_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.productos,
+              r.producto_id,
+              "producto"
+            );
+        }
+        break;
+
+      case "mantenimiento_equipo":
+        if (r.equipo_id != null) {
+          r.equipo_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.equipos,
+              r.equipo_id,
+              "equipo de mantenimiento"
+            );
+        }
+        break;
+
+      case "mantenimiento_equipo_tareas":
+        if (
+          r.mantenimiento_equipo_id != null
+        ) {
+          r.mantenimiento_equipo_id =
+            await obtenerIdServidorSiExiste(
+              localApi.mantenimientoEquipo,
+              r.mantenimiento_equipo_id
+            );
+        }
+
+        if (r.tarea_id != null) {
+          r.tarea_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.tareas,
+              r.tarea_id,
+              "tarea de mantenimiento"
+            );
+        }
+        break;
+
+      case "mantenimiento_equipo_productos":
+        if (
+          r.mantenimiento_equipo_id != null
+        ) {
+          r.mantenimiento_equipo_id =
+            await obtenerIdServidorSiExiste(
+              localApi.mantenimientoEquipo,
+              r.mantenimiento_equipo_id
+            );
+        }
+
+        if (r.producto_id != null) {
+          r.producto_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.productos,
+              r.producto_id,
+              "producto de mantenimiento"
+            );
+        }
+        break;
+
+      case "movimientos_inventario":
+        if (r.inventario_id != null) {
+          r.inventario_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.inventario,
+              r.inventario_id,
+              "inventario del movimiento"
+            );
+        }
+
+        if (r.producto_id != null) {
+          r.producto_id =
+            await obtenerIdServidorDesdeLocal(
+              localApi.productos,
+              r.producto_id,
+              "producto del movimiento"
+            );
+        }
+        break;
+    }
+
+    return r;
+  } catch (error) {
+    throw new Error(
+      `[${tabla}] ${error.message}`
+    );
+  }
+}
+
+async function agregarPendientePorTabla(
+  porTabla,
+  item
+) {
+  if (!MAPEO_SUBIDA[item.tabla]) {
+    return false;
+  }
+
+  if (!porTabla[item.tabla]) {
+    porTabla[item.tabla] = {
+      crear: [],
+      actualizar: [],
+      eliminar: [],
+    };
+  }
+
+  const accion =
+    normalizarAccion(item);
+
+  if (accion === "CREATE") {
+    const registro =
+      await normalizarRegistroParaSubida(
+        item.tabla,
+        item.registro
+      );
+
+    porTabla[item.tabla]
+      .crear
+      .push(registro);
+
+    return true;
+  }
+
+  if (accion === "UPDATE") {
+    const registro =
+      await normalizarRegistroParaSubida(
+        item.tabla,
+        item.registro
+      );
+
+    porTabla[item.tabla]
+      .actualizar
+      .push(registro);
+
+    return true;
+  }
+
+  if (accion === "DELETE") {
+    porTabla[item.tabla]
+      .eliminar
+      .push(
+        item.registro.servidor_id ??
+        item.registro.id
+      );
+
+    return true;
+  }
+
+  return false;
+}
+
+function construirPayloadSubida(porTabla) {
+  const payload = {};
+
+  for (const [tablaLocal, claveBackend] of Object.entries(MAPEO_SUBIDA)) {
+    if (porTabla[tablaLocal]) {
+      payload[claveBackend] = porTabla[tablaLocal];
+    }
+  }
+
+  return payload;
+}
+
+function construirMapeoInverso() {
+  const inverso = {};
+
+  for (const [tablaLocal, claveBackend] of Object.entries(MAPEO_SUBIDA)) {
+    inverso[claveBackend] = tablaLocal;
+  }
+
+  return inverso;
+}
+
+function construirMapaIds(resultadoServidor) {
+  const mapaIds = {};
+  const inverso = construirMapeoInverso();
+
+  for (const [claveModulo, datosModulo] of Object.entries(resultadoServidor)) {
+    const tablaLocal = inverso[claveModulo] ?? claveModulo;
+    const creados = datosModulo?.creados ?? [];
+
+    for (const creado of creados) {
+      if (creado.idLocal != null && creado.idServidor != null) {
+        mapaIds[`${tablaLocal}_${creado.idLocal}`] = creado.idServidor;
+      }
+    }
+  }
+
+  return mapaIds;
+}
+
+async function marcarPendientesEnviadosComoSincronizados(
+  pendientesEnviados,
+  mapaIds
+) {
+  for (const item of pendientesEnviados) {
+    const clave = `${item.tabla}_${item.registro.id}`;
+    const servidorId = mapaIds[clave] ?? item.registro.servidor_id ?? null;
+
+    await localApi.sync.marcarSincronizado(
+      item.tabla,
+      item.registro.id,
+      servidorId
+    );
+  }
+}
+
+function obtenerMensajeErrorSubida(err) {
+  const backendError = err?.response?.data?.error;
+  const backendMessage = err?.response?.data?.message;
+
+  if (backendError && backendMessage) {
+    return `${backendMessage} \n\nDETALLE TECNICO: ${backendError}`;
+  }
+
+  if (backendMessage) {
+    return backendMessage;
+  }
+
+  if (backendError) {
+    return backendError;
+  }
+
+  if (err?.message) {
+    return err.message;
+  }
+
+  return "Error al subir cambios.";
+}
+
+/*
+============================================================
+SERVICIO PRINCIPAL
+============================================================
+*/
 
 export const configSyncService = {
+  validarTokenAntesDeSincronizar: async () => {
+    try {
+      await cargarSesionPersistida();
+
+      const resp = await api.get('/sync/validate-token');
+      if (resp.data?.data?.token) {
+        const nuevoToken = resp.data.data.token;
+        const currentToken = getToken();
+        if (nuevoToken !== currentToken) {
+          await saveToken(nuevoToken);
+        }
+      }
+      return true;
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return false;
+      }
+      throw err;
+    }
+  },
 
   sincronizarCatalogos: async () => {
     try {
+      const tokenValido = await configSyncService.validarTokenAntesDeSincronizar();
+      if (!tokenValido) {
+        const e = new Error("Sesion no autorizada o expirada. Por favor inicie sesion de nuevo.");
+        e.status = 401;
+        throw e;
+      }
+
       await localApi.inicializar();
 
       const respuesta = await api.get("/sync/sincronizar");
@@ -157,18 +1766,106 @@ export const configSyncService = {
       const meta = data._meta ?? {};
       const grupoDatos = meta.grupoDatos ?? null;
 
+      await guardarGrupoDatosActivo(grupoDatos);
+
+      // Limpiar cualquier colaborador con pin placeholder que pudiera haberse guardado erróneamente
+      try {
+        const db = await obtenerBaseLocal();
+        await db.runAsync("DELETE FROM colaboradores WHERE pin_hash = '__SYNC_PLACEHOLDER__'");
+      } catch (_) {}
+
+      if (
+        (!Array.isArray(data.alimentacion) || data.alimentacion.length === 0) &&
+        (!Array.isArray(data.alimentaciones) || data.alimentaciones.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/alimentaciones");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.alimentacion = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar alimentaciones REST:", e?.message);
+        }
+      }
+
+      if (
+        (!Array.isArray(data.densidadPoblacional) || data.densidadPoblacional.length === 0) &&
+        (!Array.isArray(data.densidad_poblacional) || data.densidad_poblacional.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/densidad-poblacional");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.densidadPoblacional = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar densidad REST:", e?.message);
+        }
+      }
+
+      if (
+        (!Array.isArray(data.raleos) || data.raleos.length === 0) &&
+        (!Array.isArray(data.raleo) || data.raleo.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/raleo");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.raleos = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar raleos REST:", e?.message);
+        }
+      }
+
+      if (
+        (!Array.isArray(data.ventas) || data.ventas.length === 0) &&
+        (!Array.isArray(data.venta) || data.venta.length === 0)
+      ) {
+        try {
+          const resp = await api.get("/ventas");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.ventas = lista;
+          }
+        } catch (e) {
+          console.warn("Fallo al descargar ventas REST:", e?.message);
+        }
+      }
+
+      if (!Array.isArray(data.usuarios) || data.usuarios.length === 0) {
+        try {
+          const resp = await api.get("/usuarios");
+          const lista = resp?.data?.data ?? resp?.data;
+          if (Array.isArray(lista) && lista.length > 0) {
+            data.usuarios = lista;
+          }
+        } catch (_) {}
+      }
+
       const resultados = [];
       let totalGuardados = 0;
       const errores = [];
 
       for (const [campoCamel, tablaLocal] of Object.entries(MAPEO_DESCARGA)) {
-        const registros = data[campoCamel] ?? [];
-        const res = await guardarCatalogoLocal(tablaLocal, registros, grupoDatos);
-        resultados.push(res);
-        if (res.success) {
-          totalGuardados += res.guardados ?? 0;
+        const registros = data[campoCamel] ?? data[tablaLocal] ?? [];
+
+        const resultado = await guardarCatalogoLocal(
+          tablaLocal,
+          registros,
+          grupoDatos
+        );
+
+        resultados.push(resultado);
+
+        if (resultado.success) {
+          totalGuardados += resultado.guardados ?? 0;
         } else {
-          errores.push({ tabla: tablaLocal, error: res.error });
+          errores.push({
+            tabla: tablaLocal,
+            error: resultado.error,
+          });
         }
       }
 
@@ -179,170 +1876,193 @@ export const configSyncService = {
         errores,
         fechaSync: meta.fechaSincronizacion ?? new Date().toISOString(),
         totales: meta.totales ?? {},
-        fincasCount:           data.fincas?.length           ?? 0,
-        estanquesCount:        data.estanques?.length         ?? 0,
-        proveedoresCount:      data.proveedores?.length       ?? 0,
-        productosCount:        data.productos?.length         ?? 0,
-        compradoresCount:      data.compradores?.length       ?? 0,
-        inventarioCount:       data.inventario?.length        ?? 0,
-        equiposCount:          data.equipos?.length           ?? 0,
-        tareasCount:           data.tareas?.length            ?? 0,
-        colaboradoresCount:    data.colaboradores?.length     ?? 0,
-        laboratoriosCount:     data.laboratorios?.length      ?? 0,
-        procedenciasCount:     data.procedencias?.length      ?? 0,
-        proveedoresLarvaCount: data.proveedoresLarva?.length  ?? 0,
-        lotesLarvaCount:       data.lotesLarva?.length        ?? 0,
-        precriasCount:         data.precrias?.length          ?? 0,
-        siembrasCount:         data.siembras?.length          ?? 0,
+        fincasCount: data.fincas?.length ?? 0,
+        estanquesCount: data.estanques?.length ?? 0,
+        proveedoresCount: data.proveedores?.length ?? 0,
+        productosCount: data.productos?.length ?? 0,
+        compradoresCount: data.compradores?.length ?? 0,
+        inventarioCount: data.inventario?.length ?? 0,
+        equiposCount: data.equipos?.length ?? 0,
+        tareasCount: data.tareas?.length ?? 0,
+        usuariosCount: data.usuarios?.length ?? 0,
+        colaboradoresCount: (data.colaboradores ?? data.colaborador)?.length ?? 0,
+        laboratoriosCount: data.laboratorios?.length ?? 0,
+        procedenciasCount: data.procedencias?.length ?? 0,
+        proveedoresLarvaCount: data.proveedoresLarva?.length ?? 0,
+        lotesLarvaCount: data.lotesLarva?.length ?? 0,
+        precriasCount: data.precrias?.length ?? 0,
+        siembrasCount: data.siembras?.length ?? 0,
+        trazabilidadCount: data.trazabilidad?.length ?? 0,
+        enfermedadesCount: data.enfermedades?.length ?? 0,
+        parasitologiasCount: data.parasitologias?.length ?? 0,
+        fisicoQuimicaCount: data.fisicoQuimica?.length ?? 0,
+        detalleFisicoQuimicaCount:
+          data.detalleFisicoQuimica?.length ?? 0,
+        ventasCount: data.ventas?.length ?? 0,
+        alimentacionesCount: (data.alimentacion ?? data.alimentaciones)?.length ?? 0,
+        densidadPoblacionalCount: (data.densidadPoblacional ?? data.densidad_poblacional)?.length ?? 0,
+        raleosCount: (data.raleos ?? data.raleo)?.length ?? 0,
+        mantenimientosCount: 0,
       };
     } catch (err) {
       if (err?.response?.status === 401 || err?.status === 401) {
-        const e = new Error("Sesión no autorizada o expirada. Por favor inicie sesión de nuevo.");
+        const e = new Error(
+          "Sesion no autorizada o expirada. Por favor inicie sesion de nuevo."
+        );
+
         e.status = 401;
         throw e;
       }
-      const mensaje = err?.response?.data?.message || err?.message || "Error general durante la sincronización.";
+
+      const mensaje =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Error general durante la sincronizacion.";
+
       throw new Error(mensaje);
     }
   },
 
   subirCambiosPendientes: async () => {
     try {
-      await localApi.inicializar();
+      const tokenValido =
+        await configSyncService.validarTokenAntesDeSincronizar();
 
-      const respuestaPendientes = await localApi.sync.obtenerPendientes();
+      if (!tokenValido) {
+        const e = new Error(
+          "Sesion no autorizada o expirada. Por favor inicie sesion de nuevo."
+        );
 
-      if (!respuestaPendientes.success) {
-        throw new Error(respuestaPendientes.message ?? "Error al obtener pendientes locales.");
-      }
-
-      const pendientes = respuestaPendientes.data ?? [];
-
-      if (pendientes.length === 0) {
-        return { success: true, message: "No hay registros pendientes de sincronizar.", subidos: 0 };
-      }
-
-      const porTabla = {};
-      for (const item of pendientes) {
-        if (!porTabla[item.tabla]) porTabla[item.tabla] = { crear: [], actualizar: [], eliminar: [] };
-        let accion = (item.accion ?? "").toUpperCase();
-        
-        const servId = item.registro.servidor_id ?? item.registro.servidorId;
-        if (accion === "UPDATE" && (!servId || servId === "null" || 
-          servId === "undefined" || servId === "")) {
-            accion = "CREATE";
-        }
-
-        if (accion === "CREATE") porTabla[item.tabla].crear.push(item.registro);
-        else if (accion === "UPDATE") porTabla[item.tabla].actualizar.push(item.registro);
-        else if (accion === "DELETE") porTabla[item.tabla].eliminar.push(item.registro.servidor_id ?? item.registro.id);
-      }
-
-      const MAPEO_SUBIDA = {
-        alimentaciones:                 "alimentacion",
-        crecimientos:                   "crecimiento",
-        calculos_crecimiento:           "calculosCrecimiento",
-        fisico_quimico:                 "fisicoQuimica",
-        fisico_quimico_detalle:         "detalleFisicoQuimica",
-        densidad_poblacional:           "densidadPoblacional",
-        densidad_detalle_tiros:         "detalleTirosDensidad",
-        enfermedades:                   "enfermedades",
-        parasitologias:                 "parasitologias",
-        raleos:                         "raleos",
-        ventas:                         "ventas",
-        trazabilidad:                   "trazabilidad",
-        movimientos_inventario:         "movimientosInventario",
-        mantenimiento_equipo:           "mantenimientos",
-        mantenimiento_equipo_tareas:    "tareasMantenimiento",
-        mantenimiento_equipo_productos: "productosMantenimiento",
-      };
-
-      const payload = {};
-      for (const [tablaLocal, claveBE] of Object.entries(MAPEO_SUBIDA)) {
-        if (porTabla[tablaLocal]) {
-          payload[claveBE] = porTabla[tablaLocal];
-        }
-      }
-
-      if (Object.keys(payload).length === 0) {
-        return { success: true, message: "No hay módulos operativos pendientes.", subidos: 0 };
-      }
-
-      const androidId = Application.getAndroidId() ?? 'desconocido';
-
-      const respuestaServidor = await api.post("/sync/sincronizar", {
-        ...payload,
-        androidId,
-      }, {
-        headers: {
-          'x-android-id': androidId
-        }
-      });
-      const dataServidor = respuestaServidor?.data?.data;
-      const resultadoServidor = dataServidor?.resultado ?? {};
-
-      const mapaIds = {};
-      const MAPEO_INVERSO = {};
-      for (const [tablaLocal, claveBE] of Object.entries(MAPEO_SUBIDA)) {
-        MAPEO_INVERSO[claveBE] = tablaLocal;
-      }
-      for (const [claveModulo, datosModulo] of Object.entries(resultadoServidor)) {
-        const tablaLocal = MAPEO_INVERSO[claveModulo] ?? claveModulo;
-        const creados = datosModulo?.creados ?? [];
-        for (const c of creados) {
-          if (c.idLocal != null && c.idServidor != null) {
-            mapaIds[`${tablaLocal}_${c.idLocal}`] = c.idServidor;
-          }
-        }
-      }
-
-      for (const item of pendientes) {
-        try {
-          const clave = `${item.tabla}_${item.registro.id}`;
-          const servidorId = mapaIds[clave] ?? item.registro.servidor_id ?? null;
-          await localApi.sync.marcarSincronizado(item.tabla, item.registro.id, servidorId);
-        } catch (_) {}
-      }
-
-      return {
-        success: true,
-        subidos: pendientes.length,
-        resultado: dataServidor?.resultado ?? {},
-        fechaSubida: new Date().toISOString(),
-      };
-    } catch (err) {
-      if (err?.response?.status === 401 || err?.status === 401) {
-        const e = new Error("Sesión no autorizada o expirada.");
         e.status = 401;
         throw e;
       }
-      
-      // LOGICA NUEVA PARA EXTRAER EL ERROR REAL DE MYSQL
-      const backendError = err?.response?.data?.error;
-      const backendMessage = err?.response?.data?.message;
-      
-      console.error("[Sync Subida] Error completo del servidor:", err?.response?.data);
 
-      let mensaje = "Error al subir cambios.";
-      
-      if (backendError && backendMessage) {
-         mensaje = `${backendMessage} \n\nDETALLE TÉCNICO: ${backendError}`;
-      } else if (backendMessage) {
-         mensaje = backendMessage;
-      } else if (backendError) {
-         mensaje = backendError;
-      } else if (err?.message) {
-         mensaje = err.message;
+      await localApi.inicializar();
+
+      const respuestaPendientes =
+        await localApi.sync.obtenerPendientes();
+
+      if (!respuestaPendientes.success) {
+        throw new Error(
+          respuestaPendientes.message ??
+          "Error al obtener pendientes locales."
+        );
       }
 
-      throw new Error(mensaje);
+      const pendientes =
+        respuestaPendientes.data ?? [];
+
+      if (pendientes.length === 0) {
+        return {
+          success: true,
+          message:
+            "No hay registros pendientes de sincronizar.",
+          subidos: 0,
+        };
+      }
+
+      const porTabla = {};
+      const pendientesEnviados = [];
+
+      for (const item of pendientes) {
+        const agregado =
+          await agregarPendientePorTabla(
+            porTabla,
+            item
+          );
+
+        if (agregado) {
+          pendientesEnviados.push(item);
+        }
+      }
+
+      const payload =
+        construirPayloadSubida(
+          porTabla
+        );
+
+      if (
+        Object.keys(payload).length === 0
+      ) {
+        return {
+          success: true,
+          message:
+            "No hay modulos operativos pendientes.",
+          subidos: 0,
+        };
+      }
+
+      const androidId =
+        obtenerAndroidId();
+
+      const respuestaServidor =
+        await api.post(
+          "/sync/sincronizar",
+          {
+            ...payload,
+            androidId,
+          },
+          {
+            headers: {
+              "x-android-id":
+                androidId,
+            },
+          }
+        );
+
+      const dataServidor =
+        respuestaServidor?.data?.data;
+
+      const resultadoServidor =
+        dataServidor?.resultado ??
+        {};
+
+      const mapaIds =
+        construirMapaIds(
+          resultadoServidor
+        );
+
+      await marcarPendientesEnviadosComoSincronizados(
+        pendientesEnviados,
+        mapaIds
+      );
+
+      return {
+        success: true,
+        subidos:
+          pendientesEnviados.length,
+        resultado:
+          resultadoServidor,
+        fechaSubida:
+          new Date().toISOString(),
+      };
+    } catch (err) {
+      if (
+        err?.response?.status === 401 ||
+        err?.status === 401
+      ) {
+        const e = new Error(
+          "Sesion no autorizada o expirada."
+        );
+
+        e.status = 401;
+        throw e;
+      }
+
+      throw new Error(
+        obtenerMensajeErrorSubida(err)
+      );
     }
   },
 
   sincronizarCompleto: async () => {
     const subida = await configSyncService.subirCambiosPendientes();
     const descarga = await configSyncService.sincronizarCatalogos();
-    return { subida, descarga };
+
+    return {
+      subida,
+      descarga,
+    };
   },
 };
 

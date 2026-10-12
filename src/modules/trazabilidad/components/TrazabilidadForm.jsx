@@ -17,7 +17,6 @@ import Text from "../../../shared/components/Text";
 import Card from "../../../shared/components/Card";
 import NumberInput from "../../../shared/components/NumberInput";
 import Select from "../../../shared/components/Select";
-import Input from "../../../shared/components/Input";
 import DateInput from "../../../shared/components/DateInput";
 import Icon from "../../../shared/components/Icons";
 import { COLORS } from "../../../theme/colors";
@@ -32,7 +31,6 @@ import {
 export default function TrazabilidadForm({
   formData,
   fincas,
-  colaboradorSesion,
   estanquesOrigen,
   estanquesDestino,
   onChange,
@@ -117,14 +115,6 @@ export default function TrazabilidadForm({
           labelStyle={styles.label}
           placeholder="dd/mm/aaaa"
         />
-
-        <Input
-          label={colaboradorSesion?.labelCampo || "Responsable"}
-          value={colaboradorSesion?.nombre || colaboradorSesion?.label || ""}
-          editable={false}
-          containerStyle={styles.field}
-          labelStyle={styles.label}
-        />
       </Card>
 
       <Card>
@@ -139,6 +129,7 @@ export default function TrazabilidadForm({
           min={0}
           max={100}
           step={1}
+          placeholder="Ej. 15"
           containerStyle={styles.field}
           labelStyle={styles.label}
           style={mostrarErrorTamano ? styles.errorInput : undefined}
@@ -148,7 +139,7 @@ export default function TrazabilidadForm({
           label="Días de siembra *"
           value={formData.dias}
           onChangeText={(value) => onChange("dias", value)}
-          editable={!plAutocompletado}
+          editable={false}
           min={0}
           max={365}
           step={1}
@@ -161,7 +152,7 @@ export default function TrazabilidadForm({
           label="PL *"
           value={formData.pl}
           onChangeText={(value) => onChange("pl", value)}
-          editable={!plAutocompletado}
+          editable={false}
           min={0}
           max={999999}
           step={1000}

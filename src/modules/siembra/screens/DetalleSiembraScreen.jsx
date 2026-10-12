@@ -336,7 +336,8 @@ export default function DetalleSiembraScreen() {
               que pasar por la pantalla de edición.
             */}
             {formData.tipoRegistro === "precria" &&
-              formData.estado === "Finalizada" && (
+              formData.estado === "Finalizada" &&
+              formData.estadoLote !== "Sembrado" && (
                 <Button
                   style={styles.button}
                   onPress={handleCrearSiembraDesdePrecria}
@@ -409,7 +410,7 @@ export default function DetalleSiembraScreen() {
                   <View style={styles.buttonContent}>
                     <Icon icon={ICONS.check} color={COLORS.primary} />
                     <Text style={styles.textoBoton}>
-                      {guardando ? "Finalizando..." : "Finalizar Siembra"}
+                      {guardando ? "Finalizando..." : "Finalizar Ciclo"}
                     </Text>
                   </View>
                 </Button>
@@ -426,7 +427,7 @@ export default function DetalleSiembraScreen() {
         buttonTextStyle={styles.modalCancelButtonText}
       >
         <Title level={3} style={styles.modalTitle}>
-          ¿Finalizar Siembra?
+          ¿Finalizar Ciclo?
         </Title>
         <Text style={styles.modalMessage}>
           Esta acción no se puede deshacer.

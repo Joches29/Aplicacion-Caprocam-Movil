@@ -41,6 +41,7 @@ import { useEffect, useState } from "react";
 
 import useAlimentacionForm from "./useAlimentacionForm";
 import AlimentacionLocalService from "../services/AlimentacionLocal.service";
+import { useSiembraActivaEstanque } from "../../../shared/hooks/useSiembraActivaEstanque.js";
 
 export default function useAlimentacionScreen(navigation) {
   const {
@@ -53,11 +54,32 @@ export default function useAlimentacionScreen(navigation) {
   const [submitted, setSubmitted] = useState(false);
   const [errores, setErrores] = useState({});
 
-  const [alerta, setAlerta] = useState({
+ const [alerta, setAlerta] = useState({
     visible: false,
     variant: "success",
     mensaje: "",
   });
+
+  /*
+   * Mismo criterio que usa Densidad Poblacional: un estanque sin
+   * siembra activa no puede recibir un registro de alimentación.
+   * Se avisa apenas se elige el estanque, y se vuelve a validar en
+   * handleGuardar para bloquear el guardado.
+   */
+  const { tieneSiembraActiva, mensajeErrorSiembra } = useSiembraActivaEstanque(
+    form.estanque,
+    "la alimentación"
+  );
+
+  useEffect(() => {
+    if (mensajeErrorSiembra) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje: mensajeErrorSiembra,
+      });
+    }
+  }, [mensajeErrorSiembra]);
 
   useEffect(() => {
     if (!alerta.visible) {
@@ -144,6 +166,18 @@ export default function useAlimentacionScreen(navigation) {
 
       return;
     }
+
+    if (!tieneSiembraActiva) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje:
+          mensajeErrorSiembra ||
+          "El estanque seleccionado no tiene una siembra real registrada.",
+      });
+
+      return;
+    }    
 
     try {
       const registro = {

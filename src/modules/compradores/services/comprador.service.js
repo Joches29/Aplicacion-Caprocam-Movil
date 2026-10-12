@@ -1,163 +1,91 @@
-/*
-//////////////////////////////////////////////////////////
-CABEZA DE ARCHIVO
-//////////////////////////////////////////////////////////
-Archivo: comprador.service.js
-Modulo: Compradores
-Descripcion:
-Version SQLite (offline-first) del service de Compradores.
-Reemplaza temporalmente las llamadas HTTP directas por lectura/
-escritura en la base local, para poder trabajar y probar sin
-depender del backend ni de un JWT real.
-//////////////////////////////////////////////////////////
-*/
+import api from "../../../api/api";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { localApi } from "../../../database/local/localApi.service";
-
-/*
-//////////////////////////////////////////////////////////
-HELPERS LOCALES DE SESIÓN
-//////////////////////////////////////////////////////////
-*/
-
-async function obtenerContextoLocal() {
-  try {
-    const colaboradorJson = await AsyncStorage.getItem("colaborador_actual");
-    const grupoStorage = await AsyncStorage.getItem("grupo_datos_actual");
-    const colaborador = colaboradorJson ? JSON.parse(colaboradorJson) : null;
-
-    const grupoDatos = colaborador?.grupoDatos || colaborador?.grupo_datos || grupoStorage || 1;
-    const colaboradorId = colaborador?.id || colaborador?.colaboradorId || colaborador?.colaborador_id || null;
-
-    return {
-      grupoDatos: Number(grupoDatos) || 1,
-      colaboradorId: colaboradorId ? Number(colaboradorId) : null,
-    };
-  } catch (error) {
-    return { grupoDatos: 1, colaboradorId: null };
-  }
+/**
+ * ============================================================
+ * MANEJO DE ERRORES DE ESTE SERVICE
+ * ============================================================
+ * Patrón acordado en equipo (ver Explicación ModalError): si el
+ * back devuelve un status "controlado" (con un mensaje real y útil,
+ * ej. 404 "Comprador no encontrado"), dejamos pasar el error tal
+ * cual (throw error) para que el mensaje real del back llegue hasta
+ * mostrarError(). Para cualquier otro status (500 inesperado, sin
+ * respuesta del servidor, etc.) armamos un mensaje genérico propio
+ * de la acción que falló, en vez de mostrarle al usuario un error
+ * técnico crudo.
+ * ============================================================
+ */
+function esErrorControlado(error, statusEsperados) {
+  return statusEsperados.includes(error.response?.status);
 }
-
-/*
-//////////////////////////////////////////////////////////
-FUNCIONES SECUNDARIAS
-//////////////////////////////////////////////////////////
-*/
-
-// Evita llamar inicializar() en cada operacion; solo la primera
-// vez que se usa el service en la sesion de la app.
-let baseInicializada = false;
-
-async function asegurarBaseInicializada() {
-  if (baseInicializada) return;
-  await localApi.inicializar();
-  baseInicializada = true;
-}
-
-/*
-//////////////////////////////////////////////////////////
-FUNCIONES PRINCIPALES
-//////////////////////////////////////////////////////////
-*/
 
 export const compradorService = {
 
   getCompradores: async () => {
-    await asegurarBaseInicializada();
-    const { grupoDatos } = await obtenerContextoLocal();
-
-    const resultado = await localApi.compradores.obtenerTodos({
-      grupo_datos: grupoDatos,
-      estado: "ACTIVO",
-    });
-
-    if (!resultado?.success) {
+    try {
+      const response = await api.get("/compradores");
+      return response.data.data;
+    } catch (error) {
+      if (esErrorControlado(error, [500])) throw error;
       throw new Error("No se pudieron obtener los compradores.");
     }
-
-    return resultado.data;
   },
 
   getCompradorPorId: async (id) => {
-    await asegurarBaseInicializada();
-    const resultado = await localApi.compradores.obtenerPorId(Number(id));
-
-    if (!resultado?.success) {
+    try {
+      const response = await api.get(`/compradores/${id}`);
+      return response.data.data;
+    } catch (error) {
+      if (esErrorControlado(error, [404, 500])) throw error;
       throw new Error("No se pudo obtener el comprador.");
     }
-
-    if (!resultado.data) {
-      const noEncontrado = new Error("Comprador no encontrado.");
-      noEncontrado.response = { status: 404 };
-      throw noEncontrado;
-    }
-
-    return resultado.data;
   },
 
+
   crearComprador: async (datos) => {
-    await asegurarBaseInicializada();
-    const { grupoDatos, colaboradorId } = await obtenerContextoLocal();
-
-    if (!datos.nombre || (!datos.cedula && !datos.telefono)) {
-      const err = new Error("Faltan campos requeridos: nombre y cedula o telefono.");
-      err.response = { status: 400 };
-      throw err;
-    }
-
-    const resultado = await localApi.compradores.crear({
-      grupo_datos: grupoDatos,
-      nombre: datos.nombre,
-      cedula: datos.cedula || null,
-      telefono: datos.telefono || null,
-      correo: datos.correo || null,
-      direccion: datos.direccion || null,
-      notas: datos.notas || null,
-      estado: "ACTIVO",
-      creado_por_colaborador_id: colaboradorId,
-    });
-
-    if (!resultado?.success) {
+    try {
+      const response = await api.post("/compradores", {
+        nombre: datos.nombre,
+        cedula: datos.cedula,
+        telefono: datos.telefono,
+        correo: datos.correo,
+        direccion: datos.direccion,
+        notas: datos.notas,
+      });
+      return response.data.data;
+    } catch (error) {
+      if (esErrorControlado(error, [400, 500])) throw error;
       throw new Error("No se pudo crear el comprador.");
     }
-
-    return resultado.data;
   },
 
   actualizarComprador: async (id, datos) => {
-    await asegurarBaseInicializada();
-    const resultado = await localApi.compradores.actualizar(Number(id), {
-      nombre: datos.nombre,
-      cedula: datos.cedula,
-      telefono: datos.telefono,
-      correo: datos.correo || null,
-      direccion: datos.direccion || null,
-      notas: datos.notas || null,
-    });
-
-    if (!resultado?.success) {
-      const noEncontrado = new Error("Comprador no encontrado.");
-      noEncontrado.response = { status: 404 };
-      throw noEncontrado;
+    try {
+      const response = await api.put(`/compradores/${id}`, {
+        nombre: datos.nombre,
+        cedula: datos.cedula,
+        telefono: datos.telefono,
+        correo: datos.correo,
+        direccion: datos.direccion,
+        notas: datos.notas,
+      });
+      return response.data.data;
+    } catch (error) {
+      if (esErrorControlado(error, [400, 404, 500])) throw error;
+      throw new Error("No se pudo actualizar el comprador.");
     }
-
-    return resultado.data;
   },
 
+  // CORREGIDO: Se cambia de api.put('/compradores/:id/activo') a api.delete('/compradores/:id')
   desactivarComprador: async (id) => {
-    await asegurarBaseInicializada();
-    const resultado = await localApi.compradores.eliminar(Number(id));
-
-    if (!resultado?.success) {
-      const noEncontrado = new Error("Comprador no encontrado.");
-      noEncontrado.response = { status: 404 };
-      throw noEncontrado;
+    try {
+      const response = await api.delete(`/compradores/${id}`);
+      return response.data.data;
+    } catch (error) {
+      if (esErrorControlado(error, [404, 500])) throw error;
+      throw new Error("No se pudo eliminar el comprador.");
     }
-
-    return resultado.data;
   },
-};
+}
 
 export function mapComprador(apiComprador) {
   if (!apiComprador) return null;
@@ -171,6 +99,17 @@ export function mapComprador(apiComprador) {
     notas: apiComprador.notas ?? "",
     iniciales: obtenerIniciales(apiComprador.nombre),
   };
+}
+
+
+export function formatearTelefono(telefono) {
+  if (!telefono) return "";
+  const soloDigitos = String(telefono).replace(/\D/g, "");
+  const local = soloDigitos.startsWith("506") && soloDigitos.length === 11
+    ? soloDigitos.slice(3)
+    : soloDigitos.slice(-8);
+  if (local.length !== 8) return telefono || "";
+  return `${local.slice(0, 4)}-${local.slice(4)}`;
 }
 
 function obtenerIniciales(nombre = "") {

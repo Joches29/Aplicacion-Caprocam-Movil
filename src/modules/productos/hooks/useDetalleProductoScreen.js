@@ -49,14 +49,12 @@ export function useDetalleProducto() {
       if (productoMapeado?.proveedorId) {
         try {
           const proveedor = await getProveedorPorId(productoMapeado.proveedorId);
-          productoMapeado.proveedor = proveedor?.nombre ?? "Sin proveedor asignado";
+          productoMapeado.proveedor = proveedor?.nombre ?? (productoMapeado.proveedor || "Sin proveedor asignado");
         } catch {
-          // Si /proveedores no está disponible, no bloqueamos el
-          // detalle del producto por eso -- solo se muestra vacío.
-          productoMapeado.proveedor = "";
+          productoMapeado.proveedor = productoMapeado.proveedor || "Sin proveedor asignado";
         }
       } else if (productoMapeado) {
-        productoMapeado.proveedor = "Sin proveedor asignado";
+        productoMapeado.proveedor = productoMapeado.proveedor || "Sin proveedor asignado";
       }
 
       setProducto(productoMapeado);

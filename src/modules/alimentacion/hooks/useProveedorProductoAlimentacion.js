@@ -30,7 +30,7 @@ HELPERS
 */
 const obtenerDataRespuesta = (respuesta) =>
     respuesta &&
-    Object.prototype.hasOwnProperty.call(respuesta, "data")
+        Object.prototype.hasOwnProperty.call(respuesta, "data")
         ? respuesta.data
         : respuesta;
 function obtenerValor(
@@ -135,7 +135,7 @@ export function useProveedorProductoAlimentacion(
                         ? productosLocales
                         : []
                 );
-            } catch(error) {
+            } catch (error) {
                 console.error(
                     "Error cargando proveedores y productos:",
                     error
@@ -176,23 +176,24 @@ export function useProveedorProductoAlimentacion(
                 .map((proveedor) => {
                     const id =
                         obtenerValor(
-                        proveedor,
-                        [
-                            "id",
-                            "proveedorId",
-                            "proveedor_id"
-                        ],"");
+                            proveedor,
+                            [
+                                "id",
+                                "proveedorId",
+                                "proveedor_id"
+                            ], "");
                     const nombre =
                         obtenerValor(
-                        proveedor,
-                        [
-                            "nombre_empresa",
-                            "nombre",
-                            "nombreProveedor",
-                            "nombre_proveedor"
-                        ],"Proveedor"
+                            proveedor,
+                            [
+                                "nombre_empresa",
+                                "nombre",
+                                "nombreProveedor",
+                                "nombre_proveedor"
+                            ], "Proveedor"
                         );
-                    return {label: nombre,value: String(id)
+                    return {
+                        label: nombre, value: String(id)
                     };
                 })
                 .filter(
@@ -207,50 +208,57 @@ export function useProveedorProductoAlimentacion(
     ============================================================
     */
     const productosOptions = useMemo(() => {
-
         if (!idProveedorSeleccionado) {
             return [];
         }
 
+        const proveedorLocalId = String(
+            idProveedorSeleccionado
+        );
+
         return productos
             .filter((producto) => {
-                const proveedorId =
+                const productoProveedorId = String(
                     obtenerValor(
                         producto,
                         [
-                            "proveedorId",
                             "proveedor_id",
+                            "proveedorId",
                             "idProveedor"
                         ],
-                        0
-                    );
-                return (Number(proveedorId)=== Number(idProveedorSeleccionado));
+                        ""
+                    )
+                );
+
+                return (
+                    productoProveedorId ===
+                    proveedorLocalId
+                );
             })
             .map((producto) => {
-                const id =
-                    obtenerValor(
-                        producto,
-                        [
-                            "id",
-                            "productoId",
-                            "producto_id"
-                        ],
-                        ""
-                    );
+                const id = obtenerValor(
+                    producto,
+                    [
+                        "id",
+                        "productoId",
+                        "producto_id"
+                    ],
+                    ""
+                );
 
+                const nombre = obtenerValor(
+                    producto,
+                    [
+                        "nombre",
+                        "descripcion"
+                    ],
+                    "Producto"
+                );
 
-
-                const nombre =
-                    obtenerValor(
-                        producto,
-                        [
-                            "nombre",
-                            "descripcion"
-                        ],
-                        "Producto"
-                    );
                 return {
-                    label: nombre, value: String(id)};
+                    label: nombre,
+                    value: String(id),
+                };
             })
             .filter(
                 (item) =>

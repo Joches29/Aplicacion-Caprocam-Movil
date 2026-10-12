@@ -29,6 +29,7 @@ import { useEffect, useState } from "react";
 import useRaleo from "./useRaleo";
 import raleoLocalService from "../services/RaleoLocal.service.js";
 import { useError } from "../../../shared/context/ErrorContext.js";
+import { useSiembraActivaEstanque } from "../../../shared/hooks/useSiembraActivaEstanque.js";
 
 /*
  * ============================================================
@@ -138,13 +139,37 @@ export default function useRaleoScreen() {
    * CALCULOS DEL RALEO
    * ========================================================
    */
+  const valorBiomasa = form.biomasaEstimada || form.biomasaAntes || "";
   const {
     porcentaje: porcentajeRaleo,
     biomasaRestante,
   } = calcularRaleo(
-    form.biomasaEstimada,
+    valorBiomasa,
     form.kgRetirados
   );
+  /*
+   * ========================================================
+   * VALIDAR SIEMBRA ACTIVA DEL ESTANQUE
+   * ========================================================
+   * Mismo criterio que usa Densidad Poblacional: un estanque sin
+   * siembra activa no puede recibir un raleo (no hay biomasa de
+   * referencia real). Se avisa apenas se elige el estanque, y se
+   * vuelve a validar en handleGuardar para bloquear el guardado.
+   */
+  const {
+    tieneSiembraActiva,
+    mensajeErrorSiembra,
+  } = useSiembraActivaEstanque(form.estanque, "el raleo");
+
+  useEffect(() => {
+    if (mensajeErrorSiembra) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje: mensajeErrorSiembra,
+      });
+    }
+  }, [mensajeErrorSiembra]);
   /*
    * ========================================================
    * MANEJO DE ALERTA
@@ -206,6 +231,21 @@ export default function useRaleoScreen() {
     }
     /*
      * ----------------------------------------------------
+     * VALIDAR SIEMBRA ACTIVA
+     * ----------------------------------------------------
+     */
+    if (!tieneSiembraActiva) {
+      setAlerta({
+        visible: true,
+        variant: "danger",
+        mensaje:
+          mensajeErrorSiembra ||
+          "El estanque seleccionado no tiene una siembra real registrada.",
+      });
+      return;
+    }
+    /*
+     * ----------------------------------------------------
      * GUARDAR
      * ----------------------------------------------------
      */
@@ -221,7 +261,7 @@ export default function useRaleoScreen() {
         idEstanque: form.estanque,
         fecha: convertirFecha(form.fecha),
         biomasaEstimada:
-          Number(form.biomasaEstimada),
+          Number(form.biomasaEstimada || form.biomasaAntes),
         kgRetirados:
           Number(form.kgRetirados),
         porcentaje:

@@ -5,50 +5,9 @@ CABEZA DE ARCHIVO
 Archivo: TrazabilidadLocal.service.js
 Modulo: Trazabilidad (Movil)
 Descripcion:
-Version SQLite (offline-first) del service de Trazabilidad.
-Reemplaza las llamadas HTTP directas por lectura/escritura en
-la base local, siguiendo el mismo patron ya usado por Raleo
-(RaleoLocal.service.js) y Fisico-Quimica.
-
-Decisiones de diseno especificas de este modulo (documentadas
-para el PR, pendientes de opinion del equipo):
-
-1. Trazabilidad NO usa "eliminarRegistroLocalDespuesSync" tras
-   subir un registro. La politica general del proyecto borra el
-   residuo local apenas se sincroniza, para no llenar el
-   telefono de datos viejos -- pero en Trazabilidad se necesita
-   mantener el historial local para: (a) la pantalla de listado
-   (debe mostrar lo descargado, con o sin conexion), y (b) la
-   validacion de "estanque destino ocupado", que consulta el
-   historial local en vez de un catalogo aparte. Como solo hay
-   un colaborador por finca haciendo estos registros (respuesta
-   del profesor, 05/08/2026), el historial local nunca crece sin
-   control -- es acotado a esa finca.
-
-2. Trazabilidad es CREATE-only contra el backend real (no hay
-   PUT ni DELETE en /registrosTrazabilidad). Por eso
-   actualizarRegistroLocal/eliminarRegistroLocal de este archivo
-   estan bloqueados a proposito, no solo ausentes.
-
-3. Cambio de schema (Gerald, 05/08/2026): la columna
-   colaborador_id se elimino de trazabilidad (y de
-   movimientos_inventario, crecimientos, ventas,
-   alimentaciones, densidad_poblacional, raleos). El
-   "responsable" del registro ya no es un campo de negocio
-   aparte -- pasa a resolverse 100% con las columnas de
-   auditoria normales (creado_por_usuario_id /
-   creado_por_colaborador_id), igual que el resto del backend.
-   Por eso crearRegistroLocal ya NO guarda colaborador_id.
-
-4. Este service depende de infraestructura de sesion que, al
-   momento de escribir esto (05/08/2026), existe pero todavia
-   no se llena en ningun lado del login (ver sessionUtils.js:
-   nadie llama AsyncStorage.setItem para 'caprocam_colaborador
-   _actual' / 'caprocam_grupo_datos' / 'caprocam_finca_id' hoy).
-   Mientras eso no se conecte, grupo_datos cae al default (1) y
-   creado_por_colaborador_id queda null. No es un bug de este
-   modulo, es una dependencia del modulo Login que hay que
-   avisar en el PR.
+Version SQLite offline-first del service de Trazabilidad.
+Permite consultar el historial local y crear registros nuevos
+pendientes de sincronizacion.
 //////////////////////////////////////////////////////////
 */
 
@@ -72,11 +31,6 @@ FUNCIONES SECUNDARIAS
 //////////////////////////////////////////////////////////
 */
 
-/**
- * Extrae el arreglo de datos de una respuesta local estandar.
- * @param {object} respuesta - Respuesta de localApi/localCrud.
- * @returns {Array} Arreglo de registros, o vacio si fallo.
- */
 const obtenerDatosRespuesta = (respuesta) => {
     if (!respuesta || respuesta.success !== true) {
         return [];
@@ -85,13 +39,32 @@ const obtenerDatosRespuesta = (respuesta) => {
     return Array.isArray(respuesta.data) ? respuesta.data : [];
 };
 
-/**
- * Convierte un registro de trazabilidad de SQLite (columnas en
- * snake_case) a la forma que ya consumen los hooks/pantallas
- * del modulo (camelCase), para no tener que tocar la UI.
- * @param {object} registro - Fila cruda de SQLite.
- * @returns {object} Registro en formato de vista.
- */
+const tieneValor = (valor) => {
+    return valor !== undefined && valor !== null && String(valor).trim() !== "";
+};
+
+const convertirNumero = (valor) => {
+    if (!tieneValor(valor)) {
+        return null;
+    }
+
+    const numero = Number(valor);
+
+    return Number.isNaN(numero) ? null : numero;
+};
+
+const normalizarCampoAuditoria = (valor) => {
+    const numero = convertirNumero(valor);
+
+    return numero === null ? null : numero;
+};
+
+const normalizarGrupoDatos = (valor) => {
+    const numero = convertirNumero(valor);
+
+    return numero === null ? 1 : numero;
+};
+
 const mapearRegistroAVista = (registro) => {
     if (!registro) {
         return registro;
@@ -100,22 +73,44 @@ const mapearRegistroAVista = (registro) => {
     return {
         id: registro.id,
         servidorId: registro.servidor_id,
+        servidor_id: registro.servidor_id,
         fincaId: registro.finca_id,
+        finca_id: registro.finca_id,
         estanqueOrigenId: registro.estanque_origen_id,
+        estanque_origen_id: registro.estanque_origen_id,
         estanqueDestinoId: registro.estanque_destino_id,
+        estanque_destino_id: registro.estanque_destino_id,
         fecha: registro.fecha,
         tamano: registro.tamano,
         dias: registro.dias,
         pl: registro.pl,
         tipoMovimiento: registro.tipo_movimiento,
+        tipo_movimiento: registro.tipo_movimiento,
         creadoPorUsuarioId: registro.creado_por_usuario_id,
+        creado_por_usuario_id: registro.creado_por_usuario_id,
         creadoPorColaboradorId: registro.creado_por_colaborador_id,
+        creado_por_colaborador_id: registro.creado_por_colaborador_id,
         pendienteSync: registro.pendiente_sync === 1,
         sincronizado: registro.sincronizado === 1,
-        // Se conservan las columnas crudas por si algun consumidor
-        // futuro las necesita (por ejemplo, validaciones de ocupacion
-        // que trabajan directo contra el formato SQLite).
         _crudo: registro
+    };
+};
+
+const prepararDatosParaGuardar = async (datos) => {
+    const camposAuditoria = await obtenerCamposAuditoria();
+
+    return {
+        finca_id: convertirNumero(datos.fincaId),
+        estanque_origen_id: convertirNumero(datos.estanqueOrigenId),
+        estanque_destino_id: convertirNumero(datos.estanqueDestinoId),
+        fecha: datos.fecha,
+        tamano: convertirNumero(datos.tamano),
+        dias: convertirNumero(datos.dias),
+        pl: convertirNumero(datos.pl),
+        tipo_movimiento: TIPO_MOVIMIENTO_UNICO,
+        grupo_datos: normalizarGrupoDatos(camposAuditoria.grupo_datos),
+        creado_por_usuario_id: normalizarCampoAuditoria(camposAuditoria.creado_por_usuario_id),
+        creado_por_colaborador_id: normalizarCampoAuditoria(camposAuditoria.creado_por_colaborador_id)
     };
 };
 
@@ -125,36 +120,18 @@ FUNCIONES PRINCIPALES
 //////////////////////////////////////////////////////////
 */
 
-/**
- * Obtiene el historial local de trazabilidad tal como esta
- * en SQLite (formato crudo, snake_case). Usado internamente
- * para validar ocupacion de estanques.
- * @returns {Promise<Array<object>>} Historial local crudo.
- */
 export async function obtenerHistorialLocalCrudo() {
     const respuesta = await localApi.trazabilidad.obtenerTodos();
 
     return obtenerDatosRespuesta(respuesta);
 }
 
-/**
- * Obtiene el historial local de trazabilidad, mapeado a
- * formato de vista (camelCase), ordenado del mas reciente
- * al mas antiguo (igual que hacia el listado via API).
- * @returns {Promise<Array<object>>} Historial en formato de vista.
- */
 export async function obtenerRegistrosLocal() {
     const crudos = await obtenerHistorialLocalCrudo();
 
     return crudos.map(mapearRegistroAVista);
 }
 
-/**
- * Obtiene un registro local por su id (id local de SQLite,
- * no servidor_id -- funciona igual haya o no sincronizado).
- * @param {number} id - Id local del registro.
- * @returns {Promise<object|null>} Registro en formato de vista.
- */
 export async function obtenerRegistroLocalPorId(id) {
     const respuesta = await localApi.trazabilidad.obtenerPorId(Number(id));
 
@@ -165,16 +142,6 @@ export async function obtenerRegistroLocalPorId(id) {
     return mapearRegistroAVista(respuesta.data);
 }
 
-/**
- * Crea un registro de trazabilidad local, pendiente de
- * sincronizar. Revalida campos y la regla de "estanque
- * destino ocupado" contra el historial local antes de
- * insertar (ver cabecera de archivo, punto 1).
- * @param {object} datos - {fincaId, estanqueOrigenId,
- * estanqueDestinoId, colaboradorId, fecha, tamano, dias, pl}
- * (fecha ya en formato YYYY-MM-DD).
- * @returns {Promise<object>} {exito, errores, registro}.
- */
 export async function crearRegistroLocal(datos = {}) {
     const historial = await obtenerHistorialLocalCrudo();
     const errores = validarRegistroTrazabilidad(datos, historial);
@@ -187,22 +154,7 @@ export async function crearRegistroLocal(datos = {}) {
         };
     }
 
-    const camposAuditoria = await obtenerCamposAuditoria();
-
-    const datosParaGuardar = {
-        finca_id: Number(datos.fincaId),
-        estanque_origen_id: Number(datos.estanqueOrigenId),
-        estanque_destino_id: Number(datos.estanqueDestinoId),
-        fecha: datos.fecha,
-        tamano: Number(datos.tamano),
-        dias: Number(datos.dias),
-        pl: Number(datos.pl),
-        tipo_movimiento: TIPO_MOVIMIENTO_UNICO,
-        grupo_datos: camposAuditoria.grupo_datos,
-        creado_por_usuario_id: camposAuditoria.creado_por_usuario_id,
-        creado_por_colaborador_id: camposAuditoria.creado_por_colaborador_id
-    };
-
+    const datosParaGuardar = await prepararDatosParaGuardar(datos);
     const respuesta = await localApi.trazabilidad.crear(datosParaGuardar);
 
     if (!respuesta || respuesta.success !== true) {
@@ -220,44 +172,18 @@ export async function crearRegistroLocal(datos = {}) {
     };
 }
 
-/**
- * Bloqueado a proposito: Trazabilidad es historico, el
- * backend real no tiene PUT para /registrosTrazabilidad. No
- * se debe permitir editar un registro ya creado, ni siquiera
- * localmente, para no generar un accion_sync=UPDATE que el
- * backend rechazaria al sincronizar.
- * @throws {Error} Siempre. Esta operacion no esta permitida.
- */
 export async function actualizarRegistroLocal() {
     throw new Error(
-        "Trazabilidad no permite editar registros: es un modulo " +
-        "historico y el backend real no tiene PUT para " +
-        "/registrosTrazabilidad."
+        "Trazabilidad no permite editar registros porque es un modulo historico."
     );
 }
 
-/**
- * Bloqueado a proposito: mismo motivo que
- * actualizarRegistroLocal, el backend real no tiene DELETE
- * para /registrosTrazabilidad.
- * @throws {Error} Siempre. Esta operacion no esta permitida.
- */
 export async function eliminarRegistroLocal() {
     throw new Error(
-        "Trazabilidad no permite eliminar registros: es un " +
-        "modulo historico y el backend real no tiene DELETE " +
-        "para /registrosTrazabilidad."
+        "Trazabilidad no permite eliminar registros porque es un modulo historico."
     );
 }
 
-/**
- * Devuelve el estado de ocupacion ("ocupado"/"libre") de un
- * estanque, consultando el historial local. Expuesto por si
- * la UI quiere mostrarlo antes del envio del formulario (por
- * ejemplo, deshabilitar un estanque destino en el selector).
- * @param {number} estanqueId - Id del estanque a revisar.
- * @returns {Promise<"ocupado"|"libre">} Estado del estanque.
- */
 export async function obtenerEstadoEstanqueLocal(estanqueId) {
     const historial = await obtenerHistorialLocalCrudo();
 

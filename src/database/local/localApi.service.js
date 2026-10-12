@@ -70,12 +70,20 @@ const crearServicioTabla = (tabla) => {
             return eliminarLocal(tabla, id);
         },
 
-        guardarDesdeServidor: (registros = []) => {
-            return guardarDesdeServidorLocal(tabla, registros);
+        guardarDesdeServidor: (registros = [], opciones = {}) => {
+            return guardarDesdeServidorLocal(
+                tabla,
+                registros,
+                opciones
+            );
         },
 
         marcarSincronizado: (id, servidorId = null) => {
-            return marcarSincronizadoLocal(tabla, id, servidorId);
+            return marcarSincronizadoLocal(
+                tabla,
+                id,
+                servidorId
+            );
         },
 
         contar: () => {
@@ -100,12 +108,28 @@ export const localApi = {
             return obtenerPendientesSyncLocal();
         },
 
-        marcarSincronizado: (tabla, id, servidorId = null) => {
-            return marcarSincronizadoLocal(tabla, id, servidorId);
+        marcarSincronizado: (
+            tabla,
+            id,
+            servidorId = null
+        ) => {
+            return marcarSincronizadoLocal(
+                tabla,
+                id,
+                servidorId
+            );
         },
 
-        guardarDesdeServidor: (tabla, registros = []) => {
-            return guardarDesdeServidorLocal(tabla, registros);
+        guardarDesdeServidor: (
+            tabla,
+            registros = [],
+            opciones = {}
+        ) => {
+            return guardarDesdeServidorLocal(
+                tabla,
+                registros,
+                opciones
+            );
         }
     },
 
@@ -119,24 +143,34 @@ export const localApi = {
     equipos: crearServicioTabla("equipos"),
     tareas: crearServicioTabla("tareas"),
     mantenimientoEquipo: crearServicioTabla("mantenimiento_equipo"),
-    mantenimientoEquipoTareas: crearServicioTabla("mantenimiento_equipo_tareas"),
-    mantenimientoEquipoProductos: crearServicioTabla("mantenimiento_equipo_productos"),
+    mantenimientoEquipoTareas: crearServicioTabla(
+        "mantenimiento_equipo_tareas"
+    ),
+    mantenimientoEquipoProductos: crearServicioTabla(
+        "mantenimiento_equipo_productos"
+    ),
 
     proveedores: crearServicioTabla("proveedores"),
     productos: crearServicioTabla("productos"),
     inventario: crearServicioTabla("inventario"),
-    movimientosInventario: crearServicioTabla("movimientos_inventario"),
+    movimientosInventario: crearServicioTabla(
+        "movimientos_inventario"
+    ),
 
     laboratorios: crearServicioTabla("laboratorios"),
     procedencias: crearServicioTabla("procedencias"),
-    proveedoresLarva: crearServicioTabla("proveedores_larva"),
+    proveedoresLarva: crearServicioTabla(
+        "proveedores_larva"
+    ),
     lotesLarva: crearServicioTabla("lotes_larva"),
 
     precrias: crearServicioTabla("precrias"),
     siembras: crearServicioTabla("siembras"),
 
     crecimientos: crearServicioTabla("crecimientos"),
-    calculosCrecimiento: crearServicioTabla("calculos_crecimiento"),
+    calculosCrecimiento: crearServicioTabla(
+        "calculos_crecimiento"
+    ),
 
     compradores: crearServicioTabla("compradores"),
     ventas: crearServicioTabla("ventas"),
@@ -145,16 +179,24 @@ export const localApi = {
     enfermedades: crearServicioTabla("enfermedades"),
     alimentaciones: crearServicioTabla("alimentaciones"),
 
-    densidadPoblacional: crearServicioTabla("densidad_poblacional"),
-    densidadDetalleTiros: crearServicioTabla("densidad_detalle_tiros"),
+    densidadPoblacional: crearServicioTabla(
+        "densidad_poblacional"
+    ),
+    densidadDetalleTiros: crearServicioTabla(
+        "densidad_detalle_tiros"
+    ),
 
     raleos: crearServicioTabla("raleos"),
 
     fisicoQuimico: crearServicioTabla("fisico_quimico"),
-    fisicoQuimicoDetalle: crearServicioTabla("fisico_quimico_detalle"),
+    fisicoQuimicoDetalle: crearServicioTabla(
+        "fisico_quimico_detalle"
+    ),
 
     trazabilidad: crearServicioTabla("trazabilidad"),
 
-    configuracionLocal: crearServicioTabla("configuracion_local"),
+    configuracionLocal: crearServicioTabla(
+        "configuracion_local"
+    ),
     alertasLocales: crearServicioTabla("alertas_locales")
 };

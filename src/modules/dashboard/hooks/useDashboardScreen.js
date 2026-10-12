@@ -369,6 +369,22 @@ export default function useDashboardScreen() {
       return;
     }
 
+    if (alerta.modulo === "fisicoQuimica") {
+      if (alerta.registroId) {
+        router.push({
+          pathname: "/registros/EditarFisicoQuimica",
+          params: {
+            id: alerta.registroId,
+          },
+        });
+
+        return;
+      }
+
+      router.push("/registros/FisicoQuimica");
+      return;
+    }
+
     if (alerta.modulo === "inventario") {
       router.push("/inventarios");
       return;

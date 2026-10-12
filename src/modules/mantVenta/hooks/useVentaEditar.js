@@ -47,7 +47,7 @@ export function useVentaEditar({ id, onGuardado }) {
 
   const [fincaSeleccionada, setFincaSeleccionada] = useState("");
   const [estanqueSeleccionado, setEstanqueSeleccionado] = useState("");
-  const [pesoPromedio, setPesoPromedio] = useState("0.1");
+  const [pesoPromedio, setPesoPromedio] = useState("0"); // ← ahora inicia en 0
   const [kilosVendidos, setKilosVendidos] = useState("0");
   const [precioKilo, setPrecioKilo] = useState("0");
   const [fechaVenta, setFechaVenta] = useState("");
@@ -79,7 +79,7 @@ export function useVentaEditar({ id, onGuardado }) {
     }
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
     let activo = true;
 
     async function inicializar() {
@@ -101,7 +101,7 @@ export function useVentaEditar({ id, onGuardado }) {
           setVentaOriginal(data);
           setFincaSeleccionada(String(data.finca ?? data.fincaId ?? ""));
           setEstanqueSeleccionado(String(data.estanque ?? data.estanqueId ?? ""));
-          setPesoPromedio(String(data.pesoPromedio ?? "0.1"));
+          setPesoPromedio(String(data.pesoPromedio ?? "0")); // ← fallback a 0
           setKilosVendidos(String(data.cantVendida ?? data.kilosVendidos ?? "0"));
           setPrecioKilo(String(data.precioKilo ?? "0"));
           setFechaVenta(formatearFechaParaInput(data.fecha));
@@ -215,26 +215,52 @@ export function useVentaEditar({ id, onGuardado }) {
     [limpiarError]
   );
 
-  const handleFechaChange = useCallback((value) => {
-    setFechaVenta(value);
-  }, []);
+  const handleFechaChange = useCallback(
+    (value) => {
+      setFechaVenta(value);
+      limpiarError("fecha");
+    },
+    [limpiarError]
+  );
 
-    const guardarCambios = useCallback(async () => {
+  const guardarCambios = useCallback(async () => {
     setMensaje("");
     setTipoMensaje("");
 
     const nuevosErrores = {};
     if (!fincaSeleccionada) nuevosErrores.finca = true;
     if (!estanqueSeleccionado) nuevosErrores.estanque = true;
-    if (!pesoPromedio || Number(pesoPromedio) <= 0) nuevosErrores.pesoPromedio = true;
+    if (!pesoPromedio || Number(pesoPromedio) <= 0 || Number(pesoPromedio) > 50) {
+      nuevosErrores.pesoPromedio = true;
+    }
     if (!kilosVendidos || Number(kilosVendidos) <= 0) nuevosErrores.kilosVendidos = true;
     if (precioKiloNumero <= 0) nuevosErrores.precioKilo = true;
     if (!compradorSeleccionado) nuevosErrores.comprador = true;
 
+    // Validar que la fecha no sea futura
+    if (fechaVenta) {
+      const [dia, mes, anio] = fechaVenta.split("/");
+      if (dia && mes && anio) {
+        const fechaSeleccionada = new Date(Number(anio), Number(mes) - 1, Number(dia));
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        if (fechaSeleccionada > hoy) {
+          nuevosErrores.fecha = true;
+        }
+      }
+    }
+
     setErrores(nuevosErrores);
 
     if (Object.keys(nuevosErrores).length > 0) {
-      setMensaje("Rellenar campos obligatorios.");
+      if (nuevosErrores.fecha) {
+        setMensaje("La fecha no puede ser futura.");
+      } else if (Number(pesoPromedio) > 50) {
+        setMensaje("El peso promedio no puede superar los 50 g.");
+      } else {
+        setMensaje("Rellenar campos obligatorios.");
+      }
       setTipoMensaje("error");
       return;
     }

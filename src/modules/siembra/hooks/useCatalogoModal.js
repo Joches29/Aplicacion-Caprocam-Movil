@@ -181,7 +181,7 @@ export function useCatalogoModal({
       setVistaModal("lista");
       mostrarMensaje(mensajeExito, "success");
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
+      const mensajeBackend = err.response?.data?.message || err.message;
       mostrarMensaje(mensajeBackend || "No fue posible guardar el registro.", "danger");
     } finally {
       setGuardando(false);
@@ -207,7 +207,7 @@ export function useCatalogoModal({
       volverALista();
       mostrarMensaje(mensajeExito, "success");
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
+      const mensajeBackend = err.response?.data?.message || err.message;
       mostrarMensaje(mensajeBackend || "No fue posible eliminar el registro.", "danger");
       setVistaModal("lista");
     } finally {

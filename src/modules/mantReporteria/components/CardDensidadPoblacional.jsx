@@ -138,47 +138,6 @@ export default function CardDensidadPoblacional({ fincaId, estanqueId, onEditar,
                         </View>
                     </View>
 
-                    <View style={styles.muestreosContainer}>
-                        <Text style={styles.muestreosTitle}>
-                            Tiros
-                        </Text>
-
-                        <View style={styles.muestreoHeader}>
-                            <Text
-                                style={[
-                                    styles.muestreoHeaderText,
-                                    styles.tiroNumero,
-                                ]}
-                            >
-                                #
-                            </Text>
-
-                            <Text
-                                style={[
-                                    styles.muestreoHeaderText,
-                                    styles.tiroCantidad,
-                                ]}
-                            >
-                                Cantidad de Camarones
-                            </Text>
-                        </View>
-
-                        {registro.tiros.map((tiro, index) => (
-                            <View
-                                key={tiro.numeroTiro}
-                                style={styles.muestreoRow}
-                            >
-                                <Text style={styles.tiroNumero}>
-                                    {index + 1}
-                                </Text>
-
-                                <Text style={styles.tiroCantidad}>
-                                    {tiro.cantidadCamarones}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-
                     <View style={styles.pesoContainer}>
                         <Text style={styles.label}>Sobrevivencia</Text>
                         <Text style={styles.Sobrevivencia}>{registro.sobrevivencia} %</Text>

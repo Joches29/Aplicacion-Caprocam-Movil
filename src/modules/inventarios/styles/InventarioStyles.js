@@ -26,13 +26,13 @@ import { STYLE } from "../../../theme/style";
 
 export const styles = StyleSheet.create({
   zonaFiltros: {
-    marginTop: 12,
     gap: 10,
   },
 
   barraBusqueda: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 12,
     gap: 8,
   },
 

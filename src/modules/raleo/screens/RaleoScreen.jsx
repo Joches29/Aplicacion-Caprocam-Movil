@@ -80,14 +80,17 @@ export default function RaleoScreen() {
         Titulo="Raleo"
         Subtitulo="Cosecha parcial y densidad"
         Icono="raleo"
+        RutaVolver="/registros"
       />
 
-      <View style={STYLE.container}>
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={STYLE.contentWrapper}
-          showsVerticalScrollIndicator={false}
-        >
+      <ScrollView
+        ref={scrollRef}
+        style={STYLE.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={STYLE.contentWrapper}>
           <RaleoForm
             form={form}
             updateField={updateField}
@@ -97,29 +100,28 @@ export default function RaleoScreen() {
             biomasaCalculada={biomasaRestante}
           />
 
-          <View style={styles.contenido}>
-            <View style={STYLE.contentWrapper}>
-              {alerta.visible && (
-                <Alert
-                  variant={alerta.variant}
-                  message={alerta.mensaje}
-                  style={styles.alert}
-                />
-              )}
+          {alerta.visible && (
+            <Alert
+              variant={alerta.variant}
+              message={alerta.mensaje}
+              style={styles.alert}
+            />
+          )}
+
+          <Button
+            variant="outline"
+            onPress={() => handleGuardar()}
+            style={styles.submitButton}
+          >
+            <View style={styles.buttonContent}>
+              <Icon icon={ICONS.save} size={24} color={COLORS.primary} />
+              <Text style={styles.buttonText}>Registrar Raleo</Text>
             </View>
-            <Button
-              variant="outline"
-              onPress={() => handleGuardar()}
-              style={styles.submitButton}
-            >
-              <View style={styles.buttonContent}>
-                <Icon icon={ICONS.save} size={24} color={COLORS.primary} />
-                <Text style={styles.buttonText}>Registrar Raleo</Text>
-              </View>
-            </Button>
-          </View>
-        </ScrollView>
-      </View>
+          </Button>
+
+          <View style={styles.spacer} />
+        </View>
+      </ScrollView>
     </>
   );
 }

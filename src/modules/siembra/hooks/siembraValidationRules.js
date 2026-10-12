@@ -84,3 +84,18 @@ export function obtenerCamposObligatorios(formData, { finalizando = false } = {}
 
   return campos;
 }
+
+export function determinarCampoDelError(mensaje) {
+  if (!mensaje) return null;
+  const reglas = [
+    { patron: /cantidad_sembrada/i, campo: "cantidadSembrada" },
+    { patron: /codigo_lote|ese codigo/i, campo: "codigoLoteLarva" },
+    { patron: /certificado_larva/i, campo: "certificadoLarva" },
+    { patron: /la pre-cria/i, campo: "precriaId" },
+    { patron: /lote de larva/i, campo: "codigoLoteLarva" },
+    { patron: /estanque/i, campo: "estanque" },
+    { patron: /finca/i, campo: "finca" },
+  ];
+  const regla = reglas.find((r) => r.patron.test(mensaje));
+  return regla ? regla.campo : null;
+}

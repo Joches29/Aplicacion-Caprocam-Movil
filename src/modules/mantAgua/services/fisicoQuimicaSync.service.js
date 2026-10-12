@@ -23,10 +23,14 @@ Reglas replicadas de localCrud.service.js (Gerald):
   nunca se entero de que existio: no se le avisa, se descarta
   local nada mas.
 
-Politica post-sync (confirmada por Gerald para Fisicoquimicos,
-04/08/2026): tras sincronizar con exito, se borra el registro
-local con eliminarRegistroLocalDespuesSync (no se conserva con
-sincronizado=1).
+Politica post-sync (EXCEPCION confirmada por Gerald, 24/08/2026):
+Fisico-Quimica NO borra el registro local tras sincronizar; solo
+lo marca con sincronizado=1. Es distinto al resto de los modulos
+y es intencional: al existir seleccion de fecha, el formulario
+necesita poder precargar lecturas pasadas desde SQLite. Si se
+borraran, el formulario apareceria vacio para una fecha ya
+sincronizada y al guardar el backend reemplazaria por completo
+los detalles existentes (perdida silenciosa de datos).
 //////////////////////////////////////////////////////////
 */
 
@@ -38,7 +42,6 @@ IMPORTS
 
 import api from '../../../api/api';
 import { localApi } from '../../../database/local/localApi.service';
-import { eliminarRegistroLocalDespuesSync } from '../../../database/local/localCrud.service';
 
 /*
 //////////////////////////////////////////////////////////
@@ -86,10 +89,16 @@ async function obtenerMedicionesParaPayload(lecturaIdLocal) {
             continue;
         }
 
-        mediciones[campo].push({
+        const medicion = {
             valor: Number(fila.valor),
             etiqueta: fila.etiqueta
-        });
+        };
+
+        if (fila.hora_medicion) {
+            medicion.horaMedicion = fila.hora_medicion;
+        }
+
+        mediciones[campo].push(medicion);
     }
 
     return mediciones;
@@ -108,14 +117,17 @@ async function sincronizarUnaLectura(registro) {
     // Caso 1: se creo y se borro localmente sin llegar nunca al
     // backend. No hay nada que avisarle al servidor.
     if (fueBorradaLocal && !yaEstabaEnServidor) {
-        await eliminarRegistroLocalDespuesSync(TABLA_LECTURA, registro.id);
+        await localApi.fisicoQuimico.marcarSincronizado(registro.id, null);
         return { id: registro.id, resultado: 'descartada_local' };
     }
 
     // Caso 2: baja de una lectura que ya existia en el servidor.
     if (fueBorradaLocal && yaEstabaEnServidor) {
         await api.delete(`/lecturasFisicoQuimicas/${registro.servidor_id}`);
-        await eliminarRegistroLocalDespuesSync(TABLA_LECTURA, registro.id);
+        await localApi.fisicoQuimico.marcarSincronizado(
+            registro.id,
+            registro.servidor_id
+        );
         return { id: registro.id, resultado: 'eliminada_servidor' };
     }
 
@@ -138,7 +150,6 @@ async function sincronizarUnaLectura(registro) {
     }
 
     await localApi.fisicoQuimico.marcarSincronizado(registro.id, servidorId);
-    await eliminarRegistroLocalDespuesSync(TABLA_LECTURA, registro.id);
 
     return { id: registro.id, resultado: 'sincronizada', servidorId };
 }

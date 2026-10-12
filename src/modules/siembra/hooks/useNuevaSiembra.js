@@ -38,7 +38,7 @@ import {
   useFieldValidation,
   validarCamposObligatorios,
 } from "./useFieldValidation";
-import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo } from "./siembraValidationRules";
+import { obtenerCamposObligatorios as obtenerCamposObligatoriosPorTipo, determinarCampoDelError } from "./siembraValidationRules";
 import { calcularDensidadDesdeCantidad } from "./siembraCalculos";
 import { obtenerFechaHoy, formatearFechaDesdeISO } from "./dateUtils";
 import EstanqueLocalService from "../../../modules/estanques/services/EstanqueLocal.service";
@@ -333,10 +333,25 @@ export default function useNuevaSiembra() {
         ? await LoteLarvaLocalService.getById(precria.loteLarvaId)
         : null;
 
+      let areaStr = "";
+      if (precria.estanqueId != null) {
+        try {
+          const estanqueGuardado = await EstanqueLocalService.getEstanqueById(precria.estanqueId);
+          let area = estanqueGuardado?.areaHectareas;
+          if (area == null && estanqueGuardado?.largo && estanqueGuardado?.ancho) {
+            area = (Number(estanqueGuardado.largo) * Number(estanqueGuardado.ancho)) / 10000;
+          }
+          if (area != null && area !== "") {
+            areaStr = String(area);
+          }
+        } catch (e) {
+          // Si falla, areaStr queda vacío
+        }
+      }
+
       setFormData((previo) => {
-        const densidad = previo.densidadPoblacional || "8";
-        const area = previo.areaHectareas || "";
-        const densidadPoblacional = calcularDensidadDesdeCantidad(area, precria.cantidadFinal);
+        const finalArea = areaStr || previo.areaHectareas || "";
+        const densidadPoblacional = calcularDensidadDesdeCantidad(finalArea, precria.cantidadFinal);
         const actualizado = {
           ...previo,
           finca: precria.fincaId != null ? String(precria.fincaId) : previo.finca,
@@ -347,7 +362,7 @@ export default function useNuevaSiembra() {
           pasoPorPrecria: "si",
           precriaId: String(precriaId),
           densidadPoblacional,
-          areaHectareas: area,
+          areaHectareas: finalArea,
           cantidadSembrada: "",
           loteId: precria.loteLarvaId,
           codigoLoteLarva: lote?.codigoLote || "",
@@ -432,7 +447,33 @@ export default function useNuevaSiembra() {
     );
   }
 
+  async function verificarCatalogoEnUso(campoCamel, campoSnake, valorId) {
+    const [lotes, siembras, precrias] = await Promise.all([
+      LoteLarvaLocalService.getAll(),
+      SiembraLocalService.getAll(),
+      PrecriaLocalService.getAll(),
+    ]);
+
+    return lotes.some((lote) => {
+      const valorLote = lote[campoCamel] || lote[campoSnake];
+      if (String(valorLote) !== String(valorId)) return false;
+
+      const siembraActiva = siembras.some(
+        (s) => String(s.loteLarvaId || s.lote_larva_id) === String(lote.id) && String(s.estado || "Activa").toLowerCase() !== "finalizada"
+      );
+      const precriaActiva = precrias.some(
+        (p) => String(p.loteLarvaId || p.lote_larva_id) === String(lote.id) && String(p.estado || "Activa").toLowerCase() !== "finalizada"
+      );
+
+      return siembraActiva || precriaActiva;
+    });
+  }
+
   async function handleEliminarProveedorLarva(value) {
+    const enUso = await verificarCatalogoEnUso("proveedorLarvaId", "proveedor_larva_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este proveedor porque está asignado a una siembra o pre-cría activa.");
+    }
     await ProveedorLarvaLocalService.deleteById(value);
     setProveedoresLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -445,6 +486,10 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEliminarLaboratorioLarva(value) {
+    const enUso = await verificarCatalogoEnUso("laboratorioId", "laboratorio_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar este laboratorio porque está asignado a una siembra o pre-cría activa.");
+    }
     await LaboratorioLocalService.deleteById(value);
     setLaboratoriosLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -457,6 +502,10 @@ export default function useNuevaSiembra() {
   }
 
   async function handleEliminarProcedenciaLarva(value) {
+    const enUso = await verificarCatalogoEnUso("procedenciaId", "procedencia_id", value);
+    if (enUso) {
+      throw new Error("No se puede eliminar esta procedencia porque está asignada a una siembra o pre-cría activa.");
+    }
     await ProcedenciaLocalService.deleteById(value);
     setProcedenciasLarva((previo) =>
       previo.filter((item) => item.value !== value),
@@ -570,8 +619,16 @@ export default function useNuevaSiembra() {
         },
       });
     } catch (err) {
-      const mensajeBackend = err.response?.data?.message;
-      setMensaje(mensajeBackend || "No fue posible registrar el ciclo.");
+      const data = err.response?.data;
+      const detalle = Array.isArray(data?.error) ? data.error[0] : "";
+      const mensajeFinal = detalle || data?.message || "No fue posible registrar el ciclo.";
+
+      const campoConError = determinarCampoDelError(mensajeFinal);
+      if (campoConError) {
+        setErrors({ [campoConError]: mensajeFinal });
+      }
+      
+      setMensaje(mensajeFinal);
       setMensajeVariant("danger");
       setGuardando(false);
     }

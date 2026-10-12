@@ -140,7 +140,7 @@ function TarjetaProducto({ producto, onVerDetalle }) {
         />
         <FilaDetalle
           etiqueta="Proveedor"
-          valor={producto.proveedor || producto.proveedorId || "No registrado"}
+          valor={producto.proveedor || "Sin proveedor asignado"}
         />
         <FilaDetalle etiqueta="Precio/unidad" valor={precioFormateado} />
         <FilaDetalle etiqueta="Fecha de caducidad" valor={fechaCaducidadFormateada} />

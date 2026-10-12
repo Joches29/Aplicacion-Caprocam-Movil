@@ -42,29 +42,41 @@ async function asegurarBaseInicializada() {
   baseInicializada = true;
 }
 
-async function obtenerInventarioDeProducto(productoIdLocal) {
-  const resultado = await localApi.inventario.obtenerTodos({
-    producto_id: productoIdLocal,
+async function obtenerInventarioDeProducto(productoRow) {
+  if (!productoRow) return null;
+  const res = await localApi.inventario.obtenerTodos({ incluirInactivos: false });
+  if (!res?.success || !Array.isArray(res.data)) return null;
+
+  const pLocalId = typeof productoRow === "object" ? String(productoRow.id ?? "") : String(productoRow);
+  const pServId = typeof productoRow === "object" && productoRow.servidor_id ? String(productoRow.servidor_id) : null;
+  const pCodigo = typeof productoRow === "object" && productoRow.codigo ? String(productoRow.codigo) : null;
+
+  const match = res.data.find((i) => {
+    const invProdId = String(i.producto_id ?? "");
+    if (pServId && invProdId === pServId) return true;
+    if (pLocalId && invProdId === pLocalId) return true;
+    if (pCodigo && i.codigo && String(i.codigo) === pCodigo) return true;
+    return false;
   });
 
-  if (!resultado?.success) return null;
-
-  return (resultado.data || [])[0] || null;
+  return match || null;
 }
 
 function combinarProductoInventario(productoRow, inventarioRow) {
   return {
     id: productoRow.id,
-    codigo: productoRow.codigo,
-    nombre: productoRow.nombre,
-    categoria: productoRow.categoria,
-    proveedorId: productoRow.proveedor_id ?? null,
-    cantidad: inventarioRow?.cantidad ?? 0,
+    servidorId: productoRow.servidor_id ?? null,
+    codigo: productoRow.codigo ?? "",
+    nombre: productoRow.nombre ?? "",
+    categoria: productoRow.categoria ?? "",
+    proveedor: productoRow.proveedor ?? "",
+    proveedorId: inventarioRow?.proveedor_id ?? productoRow.proveedor_id ?? productoRow.proveedorId ?? null,
+    cantidad: Number(inventarioRow?.cantidad ?? productoRow.cantidad ?? 0),
     unidad: productoRow.unidad ?? "",
-    stockMinimo: inventarioRow?.stock_minimo ?? 0,
-    precioUnidad: productoRow.precio_unidad ?? 0,
-    entryDate: productoRow.fecha_ingreso ?? "",
-    expirationDate: productoRow.fecha_caducidad ?? "",
+    stockMinimo: Number(inventarioRow?.stock_minimo ?? productoRow.stock_minimo ?? productoRow.stockMinimo ?? 0),
+    precioUnidad: Number(productoRow.precio_unidad ?? productoRow.precioUnidad ?? 0),
+    entryDate: productoRow.fecha_ingreso ?? productoRow.entryDate ?? "",
+    expirationDate: productoRow.fecha_caducidad ?? productoRow.expirationDate ?? "",
   };
 }
 
@@ -74,43 +86,101 @@ export const productoService = {
     await asegurarBaseInicializada();
     const grupoDatos = await obtenerGrupoDatosSesion();
 
-    const resultado = await localApi.productos.obtenerTodos({
-      grupo_datos: grupoDatos,
-      estado: "ACTIVO",
+    const [resProds, resInv] = await Promise.all([
+      localApi.productos.obtenerTodos({
+        grupo_datos: grupoDatos,
+        estado: "ACTIVO",
+      }),
+      localApi.inventario.obtenerTodos({ incluirInactivos: false }),
+    ]);
+
+    const productos = (resProds?.success && Array.isArray(resProds.data)) ? resProds.data : [];
+    const inventarios = (resInv?.success && Array.isArray(resInv.data)) ? resInv.data : [];
+
+    const combinados = productos.map((productoRow) => {
+      const pLocalId = String(productoRow.id);
+      const pServId = productoRow.servidor_id ? String(productoRow.servidor_id) : null;
+
+      const inventarioRow = inventarios.find((i) => {
+        const invProdId = String(i.producto_id ?? "");
+        if (pServId && invProdId === pServId) return true;
+        if (invProdId === pLocalId) return true;
+        return false;
+      });
+
+      return combinarProductoInventario(productoRow, inventarioRow);
     });
-
-    if (!resultado?.success) {
-      throw new Error("No se pudieron obtener los productos.");
-    }
-
-    const productos = resultado.data || [];
-
-    const combinados = await Promise.all(
-      productos.map(async (productoRow) => {
-        const inventarioRow = await obtenerInventarioDeProducto(productoRow.id);
-        return combinarProductoInventario(productoRow, inventarioRow);
-      })
-    );
 
     return combinados;
   },
 
   getProductoPorId: async (id) => {
     await asegurarBaseInicializada();
-    const resultado = await localApi.productos.obtenerPorId(Number(id));
+    const idStr = String(id ?? "");
+    const idNum = Number(id);
 
-    if (!resultado?.success) {
-      throw new Error("No se pudo obtener el producto.");
+    let productoRow = null;
+
+    // 1. Buscar por ID directo en tabla productos
+    if (!Number.isNaN(idNum)) {
+      const resDirecto = await localApi.productos.obtenerPorId(idNum);
+      if (resDirecto?.success && resDirecto.data) {
+        productoRow = resDirecto.data;
+      }
     }
 
-    if (!resultado.data) {
+    // 2. Buscar por servidor_id en tabla productos
+    if (!productoRow && !Number.isNaN(idNum)) {
+      const resServidor = await localApi.productos.obtenerPorServidorId(idNum);
+      if (resServidor?.success && resServidor.data) {
+        productoRow = resServidor.data;
+      }
+    }
+
+    // 3. Buscar en toda la lista de productos por id, servidor_id o codigo
+    if (!productoRow) {
+      const resTodos = await localApi.productos.obtenerTodos({ incluirInactivos: false });
+      if (resTodos?.success && Array.isArray(resTodos.data)) {
+        productoRow = resTodos.data.find((p) =>
+          String(p.id) === idStr ||
+          String(p.servidor_id) === idStr ||
+          String(p.codigo) === idStr
+        ) || null;
+      }
+    }
+
+    // 4. Si aún no se encontró, buscar en tabla inventario para resolver producto_id
+    if (!productoRow) {
+      const resInv = await localApi.inventario.obtenerTodos({ incluirInactivos: false });
+      if (resInv?.success && Array.isArray(resInv.data)) {
+        const invMatch = resInv.data.find((i) =>
+          String(i.id) === idStr ||
+          String(i.producto_id) === idStr ||
+          String(i.servidor_id) === idStr
+        );
+        if (invMatch) {
+          const targetPId = invMatch.producto_id || invMatch.id;
+          const resP = await localApi.productos.obtenerPorId(Number(targetPId));
+          if (resP?.success && resP.data) {
+            productoRow = resP.data;
+          } else {
+            const resPServ = await localApi.productos.obtenerPorServidorId(Number(targetPId));
+            if (resPServ?.success && resPServ.data) {
+              productoRow = resPServ.data;
+            }
+          }
+        }
+      }
+    }
+
+    if (!productoRow) {
       const noEncontrado = new Error("Producto no encontrado.");
       noEncontrado.response = { status: 404 };
       throw noEncontrado;
     }
 
-    const inventarioRow = await obtenerInventarioDeProducto(resultado.data.id);
-    return combinarProductoInventario(resultado.data, inventarioRow);
+    const inventarioRow = await obtenerInventarioDeProducto(productoRow);
+    return combinarProductoInventario(productoRow, inventarioRow);
   },
 
   crearProducto: async (datos) => {

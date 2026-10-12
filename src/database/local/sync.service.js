@@ -19,11 +19,13 @@ IMPORTS
 //////////////////////////////////////////////////////////
 */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import bcrypt from "bcryptjs";
 import * as Crypto from "expo-crypto";
 import { localApi } from "./localApi.service";
 import { exitoLocal, errorLocal } from "./respuestaLocal";
 import { saveToken } from "../../modules/login/utils/tokenStorage";
+import { obtenerBaseLocal } from "./sqlite.database";
 
 /*
 //////////////////////////////////////////////////////////
@@ -42,8 +44,9 @@ CONSTANTES
 //////////////////////////////////////////////////////////
 */
 
+const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
+
 const ENDPOINTS_SYNC = {
-  grupos_datos: "/grupos-datos",
   usuarios: "/usuarios",
 
   fincas: "/fincas",
@@ -60,9 +63,6 @@ const ENDPOINTS_SYNC = {
 
   equipos: "/equipos",
   tareas: "/tareas",
-  mantenimiento_equipo: "/mantenimiento-equipo",
-  mantenimiento_equipo_tareas: "/mantenimiento-equipo-tareas",
-  mantenimiento_equipo_productos: "/mantenimiento-equipo-productos",
 
   laboratorios: "/laboratorios",
   procedencias: "/procedencias",
@@ -85,14 +85,13 @@ const ENDPOINTS_SYNC = {
 };
 
 const TABLAS_DESCARGA_INICIAL = [
-  "grupos_datos",
-  "usuarios",
   "fincas",
   "estanques",
   "proveedores",
   "productos",
   "inventario",
   "compradores",
+  "ventas",
   "equipos",
   "tareas",
   "laboratorios",
@@ -153,6 +152,50 @@ const obtenerDataBackend = (respuestaHttp) => {
 };
 
 /**
+ * Normaliza respuestas que pueden venir en diferentes formatos.
+ * @param {Array|object|null} data - Data recibida.
+ * @returns {Array} Registros normalizados.
+ */
+const obtenerRegistrosDescarga = (data) => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && Array.isArray(data.datos)) {
+    return data.datos;
+  }
+
+  if (data && Array.isArray(data.registros)) {
+    return data.registros;
+  }
+
+  if (data && Array.isArray(data.items)) {
+    return data.items;
+  }
+
+  return [];
+};
+
+/**
+ * Convierte cualquier fecha en formato ISO a formato MySQL (YYYY-MM-DD HH:mm:ss).
+ * @param {*} valor - Valor a verificar.
+ * @returns {*} Valor formateado.
+ */
+const formatearFechaParaMySQL = (valor) => {
+  if (!valor) return valor;
+  if (typeof valor === 'string') {
+    const isoMatch = valor.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/);
+    if (isoMatch) {
+      return `${isoMatch[1]} ${isoMatch[2]}`;
+    }
+  }
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    return valor.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  return valor;
+};
+
+/**
  * Prepara un registro local antes de enviarlo al backend.
  * @param {object} registro - Registro local.
  * @returns {object} Registro limpio.
@@ -165,6 +208,15 @@ const prepararRegistroParaServidor = (registro) => {
   CAMPOS_SOLO_LOCALES.forEach((campo) => {
     delete datos[campo];
   });
+
+  // Convertir cualquier fecha ISO a formato MySQL
+  for (const [campo, valor] of Object.entries(datos)) {
+    if (typeof valor === 'string' && valor.includes('T') && valor.length >= 19) {
+      datos[campo] = formatearFechaParaMySQL(valor);
+    } else if (valor instanceof Date) {
+      datos[campo] = formatearFechaParaMySQL(valor);
+    }
+  }
 
   return datos;
 };
@@ -184,6 +236,19 @@ const obtenerIdentificadorServidor = (registro) => {
   }
 
   return null;
+};
+
+/**
+ * Guarda el grupo de datos activo para los filtros locales.
+ * @param {number|string|null} grupoDatos - Grupo de datos.
+ * @returns {Promise<void>}
+ */
+const guardarGrupoDatosActivo = async (grupoDatos) => {
+  if (grupoDatos === undefined || grupoDatos === null || String(grupoDatos).trim() === "") {
+    return;
+  }
+
+  await AsyncStorage.setItem(STORAGE_GRUPO_DATOS, String(grupoDatos));
 };
 
 /**
@@ -256,17 +321,17 @@ export const descargarTablaLocal = async (apiClient, tabla, credenciales = {}) =
     }
 
     const config = credenciales?.cedula
-      ? { headers: { "X-User-Cedula": credenciales.cedula, "X-User-Pin": credenciales.pin } }
+      ? {
+          headers: {
+            "X-User-Cedula": credenciales.cedula,
+            "X-User-Pin": credenciales.pin,
+          },
+        }
       : {};
 
     const respuestaHttp = await apiClient.get(endpoint, config);
     const data = obtenerDataBackend(respuestaHttp);
-
-    let registros = data;
-
-    if (!Array.isArray(registros)) {
-      registros = [];
-    }
+    const registros = obtenerRegistrosDescarga(data);
 
     const respuestaGuardado =
       await localApi.sync.guardarDesdeServidor(tabla, registros);
@@ -295,7 +360,14 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
       return errorLocal("Se requieren cedula y PIN para sincronizar el login.", null);
     }
 
-    await localApi.inicializar();
+    const resultadoInicializacion = await localApi.inicializar();
+
+    if (!resultadoInicializacion?.success) {
+      return errorLocal(
+        resultadoInicializacion?.message || "No se pudo inicializar SQLite local.",
+        resultadoInicializacion?.error || null
+      );
+    }
 
     const respuestaHttp = await apiClient.post("/sync/colab", {
       cedula: String(cedula).trim(),
@@ -314,28 +386,86 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
 
     const colabServidor = respuestaData.colaborador;
 
-    const salt = bcrypt.genSaltSync(10);
-    const pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
+    const grupoDatosFinal = Number(colabServidor.grupoDatos) || 1;
+    await guardarGrupoDatosActivo(grupoDatosFinal);
 
-    const colaboradoresParaGuardar = [
-      {
-        servidor_id: colabServidor.id,
-        uuid: colabServidor.uuid,
-        nombre: colabServidor.nombre,
-        apellidos: colabServidor.apellidos,
-        cedula: colabServidor.cedula,
-        grupo_datos: colabServidor.grupoDatos,
-        finca_id: colabServidor.fincaId ?? null,
-        nombre_usuario: colabServidor.nombreUsuario,
-        tipo_colaborador: colabServidor.tipoColaborador ?? "external_collab",
-        pin_hash: pinHashLocal,
-        creado_por_usuario_id: colabServidor.creadoPorUsuarioId ?? null,
-      },
-    ];
+    let pinHashLocal;
+    try {
+      pinHashLocal = bcrypt.hashSync(String(pin).trim(), 10);
+    } catch (_) {
+      const salt = bcrypt.genSaltSync(10);
+      pinHashLocal = bcrypt.hashSync(String(pin).trim(), salt);
+    }
 
-    const resultadoGuardado = await localApi.colaboradores.guardarDesdeServidor(colaboradoresParaGuardar);
+    const db = await obtenerBaseLocal();
+    const fechaActual = new Date().toISOString();
+    const cedulaLimpia = String(colabServidor.cedula || cedula).trim();
+    const colabUuid = colabServidor.uuid || Crypto.randomUUID();
 
-    return exitoLocal("Colaborador sincronizado correctamente.", resultadoGuardado);
+    const existente = await db.getFirstAsync(
+      "SELECT id FROM colaboradores WHERE servidor_id = ? OR cedula = ? OR uuid = ?",
+      [colabServidor.id, cedulaLimpia, colabUuid]
+    );
+
+    if (existente?.id) {
+      await db.runAsync(
+        `UPDATE colaboradores SET 
+          servidor_id = ?,
+          nombre = ?,
+          apellidos = ?,
+          cedula = ?,
+          grupo_datos = ?,
+          finca_id = ?,
+          nombre_usuario = ?,
+          tipo_colaborador = ?,
+          pin_hash = ?,
+          activo = 1,
+          deleted_at = NULL,
+          pendiente_sync = 0,
+          sincronizado = 1,
+          fecha_actualizacion = ?
+        WHERE id = ?`,
+        [
+          colabServidor.id,
+          colabServidor.nombre,
+          colabServidor.apellidos,
+          cedulaLimpia,
+          grupoDatosFinal,
+          colabServidor.fincaId ?? null,
+          colabServidor.nombreUsuario || cedulaLimpia,
+          colabServidor.tipoColaborador ?? "external_collab",
+          pinHashLocal,
+          fechaActual,
+          existente.id,
+        ]
+      );
+    } else {
+      await db.runAsync(
+        `INSERT INTO colaboradores (
+          servidor_id, uuid, nombre, apellidos, cedula, grupo_datos,
+          finca_id, nombre_usuario, tipo_colaborador, pin_hash,
+          creado_por_usuario_id, activo, pendiente_sync, sincronizado,
+          fecha_creacion, fecha_actualizacion
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1, ?, ?)`,
+        [
+          colabServidor.id,
+          colabUuid,
+          colabServidor.nombre,
+          colabServidor.apellidos,
+          cedulaLimpia,
+          grupoDatosFinal,
+          colabServidor.fincaId ?? null,
+          colabServidor.nombreUsuario || cedulaLimpia,
+          colabServidor.tipoColaborador ?? "external_collab",
+          pinHashLocal,
+          colabServidor.creadoPorUsuarioId ?? null,
+          fechaActual,
+          fechaActual,
+        ]
+      );
+    }
+
+    return exitoLocal("Colaborador sincronizado correctamente.", colabServidor);
   } catch (err) {
     const mensajeError =
       err?.response?.data?.message ||
@@ -347,7 +477,7 @@ export const descargarColaboradoresLoginLocal = async (apiClient, credenciales =
 };
 
 /**
- * Descarga los catalogos y datos base necesarios para trabajar offline (Modulo de Sincronizacion General).
+ * Descarga los catalogos y datos base necesarios para trabajar offline.
  * @param {object} apiClient - Instancia axios del proyecto.
  * @param {object} [credenciales] - Cedula y PIN.
  * @returns {Promise<object>} Respuesta local.

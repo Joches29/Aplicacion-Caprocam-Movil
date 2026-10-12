@@ -73,9 +73,7 @@ export default function TirosAtarraya({
 }) {
   const tirosVacios = errores.tirosVacios || [];
   const puedeEliminar = tiros.length > 1;
-  const ultimoTiro = tiros[tiros.length - 1];
-  const ultimoTiroVacio = String(ultimoTiro ?? "").trim() === "";
-  const puedeAgregar = tiros.length < maxTiros && !ultimoTiroVacio;
+  const puedeAgregar = tiros.length < maxTiros;
 
   return (
     <View>
@@ -163,10 +161,6 @@ export default function TirosAtarraya({
       {tiros.length >= maxTiros ? (
         <Text size={13} color={COLORS.textTertiary} style={styles.tirosAyuda}>
           Máximo {maxTiros} tiros por registro.
-        </Text>
-      ) : ultimoTiroVacio && tiros.length > 0 ? (
-        <Text size={13} color={COLORS.textTertiary} style={styles.tirosAyuda}>
-          Complete el tiro {tiros.length} para poder agregar otro.
         </Text>
       ) : null}
     </View>

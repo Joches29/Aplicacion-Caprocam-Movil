@@ -12,6 +12,7 @@
  */
 import { useRef, useEffect } from "react";
 import { View, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Text from "../../../shared/components/Text";
 import { styles } from "../styles/AgregarTrazabilidadStyle";
 import { STYLE } from "../../../theme/style";
@@ -25,12 +26,14 @@ import TrazabilidadForm from "../components/TrazabilidadForm";
 import { useTrazabilidad } from "../hooks/useTrazabilidad";
 
 export default function AgregarTrazabilidadScreen() {
+  // Espacio que ocupa la barra de gestos del sistema abajo.
+  const insets = useSafeAreaInsets();
+
   const scrollViewRef = useRef(null);
 
   const {
     formData,
     fincas,
-    colaboradorSesion,
     estanquesOrigen,
     estanquesDestino,
     mensajeError,
@@ -57,6 +60,7 @@ export default function AgregarTrazabilidadScreen() {
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={STYLE.contentWrapper}>
           <Alert
@@ -87,7 +91,6 @@ export default function AgregarTrazabilidadScreen() {
           <TrazabilidadForm
             formData={formData}
             fincas={fincas}
-            colaboradorSesion={colaboradorSesion}
             estanquesOrigen={estanquesOrigen}
             estanquesDestino={estanquesDestino}
             onChange={manejarCambio}
@@ -109,7 +112,14 @@ export default function AgregarTrazabilidadScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.floatingButtonContainer}>
+      <View
+        style={[
+          styles.floatingButtonContainer,
+          // Se suma el inset real del dispositivo para que el boton no
+          // quede debajo de la barra de gestos del sistema.
+          { paddingBottom: styles.floatingButtonContainer.paddingBottom + insets.bottom },
+        ]}
+      >
         <Button
           variant="outline"
           onPress={manejarEnvio}

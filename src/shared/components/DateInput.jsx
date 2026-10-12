@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
 
   requiredMark: {
-    color: COLORS.error,
+    color: COLORS.black,
   },
 
   input: {
