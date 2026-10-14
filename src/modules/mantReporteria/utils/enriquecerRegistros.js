@@ -8,6 +8,8 @@
  */
 
 import { obtenerCatalogosLocales } from "../services/ReporteriaLocal.service";
+import { getUsuarioById } from "../../login/services/usuarioService";
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
 
 export function nombreCompletoPersona(persona) {
   if (!persona || typeof persona !== "object") return null;
@@ -121,6 +123,75 @@ export async function cargarYEnriquecerRegistros(registros = []) {
     if (u.servidorId != null) usuariosMap[Number(u.servidorId)] = nombre;
   });
 
+  // Identificar IDs de usuario o creador que no estén resueltos localmente
+  const idsDesconocidos = [
+    ...new Set(
+      data
+        .flatMap((r) => [
+          pickId(r, [
+            "creadoPorUsuarioId",
+            "creado_por_usuario_id",
+            "creadoPorUsuario",
+            "usuario_id",
+            "usuarioId",
+            "usuario",
+            "idUsuario",
+          ]),
+          pickId(r, [
+            "creadoPorColaboradorId",
+            "creado_por_colaborador_id",
+            "creadoPorColaborador",
+          ]),
+          pickId(r, [
+            "colaborador",
+            "colaborador_id",
+            "colaboradorId",
+            "idColaborador",
+          ]),
+        ])
+        .filter(
+          (id) =>
+            id != null &&
+            !usuariosMap[id] &&
+            !colaboradoresMap[id]
+        )
+    ),
+  ];
+
+  if (idsDesconocidos.length > 0) {
+    await Promise.all(
+      idsDesconocidos.map(async (id) => {
+        try {
+          const u = await getUsuarioById(id);
+          const nombre = nombreCompletoPersona(u);
+          if (nombre) {
+            usuariosMap[Number(id)] = nombre;
+            // Guardar en SQLite local para disponibilidad offline futura
+            try {
+              const db = await obtenerBaseLocal();
+              await db.runAsync(
+                `INSERT OR REPLACE INTO usuarios (
+                  servidor_id, uuid, grupo_datos, nombre, apellidos,
+                  nombre_usuario, email, activo, pendiente_sync, sincronizado,
+                  fecha_creacion, fecha_actualizacion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 1, datetime('now'), datetime('now'))`,
+                [
+                  u.id,
+                  u.uuid || `usr-offline-${u.id}`,
+                  u.grupoDatos || u.grupo_datos || 1,
+                  u.nombre || "",
+                  u.apellidos || "",
+                  u.nombreUsuario || u.nombre_usuario || "",
+                  u.email || "",
+                ]
+              );
+            } catch (_) {}
+          }
+        } catch (_) {}
+      })
+    );
+  }
+
   return data.map((registro) => {
     const idFinca = pickId(registro, [
       "finca",
@@ -183,9 +254,15 @@ export async function cargarYEnriquecerRegistros(registros = []) {
     } else if (registro.creador && String(registro.creador).trim() !== "") {
       nombreCreadoPor = String(registro.creador).trim();
     } else if (idCreadoPorColab) {
-      nombreCreadoPor = colaboradoresMap[idCreadoPorColab] || `Colaborador #${idCreadoPorColab}`;
+      nombreCreadoPor =
+        colaboradoresMap[idCreadoPorColab] ||
+        usuariosMap[idCreadoPorColab] ||
+        `Colaborador #${idCreadoPorColab}`;
     } else if (idCreadoPorUsuario) {
-      nombreCreadoPor = usuariosMap[idCreadoPorUsuario] || `Usuario #${idCreadoPorUsuario}`;
+      nombreCreadoPor =
+        usuariosMap[idCreadoPorUsuario] ||
+        colaboradoresMap[idCreadoPorUsuario] ||
+        `Usuario #${idCreadoPorUsuario}`;
     } else {
       nombreCreadoPor = "—";
     }

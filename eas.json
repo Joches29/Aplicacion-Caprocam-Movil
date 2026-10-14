@@ -14,13 +14,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://aplicacion-caprocam-backend-production.up.railway.app/api/v0"
+        "EXPO_PUBLIC_API_URL": "https://main-production-eeec.up.railway.app/api/v0"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://aplicacion-caprocam-backend-production.up.railway.app/api/v0"
+        "EXPO_PUBLIC_API_URL": "https://main-production-eeec.up.railway.app/api/v0"
       }
     }
   },
