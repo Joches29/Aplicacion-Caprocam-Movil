@@ -2,7 +2,7 @@ import axios from "axios";
 import { getToken, removeToken } from "../modules/login/utils/tokenStorage";
 
 const api = axios.create({
-    baseURL: process.env.EXPO_PUBLIC_API_URL,
+    baseURL: process.env.EXPO_PUBLIC_API_URL || "https://main-production-eeec.up.railway.app/api/v0",
     timeout: 10000,
     headers: {
         "Content-Type": "application/json"
