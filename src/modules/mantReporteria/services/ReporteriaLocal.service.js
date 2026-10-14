@@ -262,6 +262,7 @@ export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId 
   const seccion = SECCION_POR_TIPO[tipoRegistro];
 
   if (!seccion) {
+    console.warn(`[REPORTERIA] Tipo de registro desconocido: "${tipoRegistro}"`);
     return [];
   }
 
@@ -270,6 +271,16 @@ export async function obtenerDetalleReporte({ tipoRegistro, fincaId, estanqueId 
     const normalizados = registros.map(normalizarRegistro).filter(Boolean);
     const filtrados = filtrarPorFincaEstanque(normalizados, fincaId, estanqueId, fincas, estanques);
     const ordenados = ordenarRecientesPrimero(filtrados);
+
+    console.log(
+      `[REPORTERIA] Tipo: "${tipoRegistro}" | Total en SQLite (${seccion}): ${registros.length} | Tras filtrar (Finca: ${fincaId}, Estanque: ${estanqueId}): ${filtrados.length}`
+    );
+    if (registros.length > 0 && filtrados.length === 0) {
+      console.log(
+        `[REPORTERIA] ⚠️ Hay ${registros.length} registros en SQLite pero ninguno coincidió con Finca: ${fincaId} y Estanque: ${estanqueId}. Ejemplo de finca_id/estanque_id del primer registro:`,
+        { finca_id: normalizados[0]?.finca_id, estanque_id: normalizados[0]?.estanque_id }
+      );
+    }
 
     // Adjuntar muestreos (calculos_crecimiento) cuando el tipo es crecimiento
     if (tipoRegistro === "crecimiento") {
@@ -391,9 +402,22 @@ export async function obtenerCatalogosLocales() {
   let productos = Array.isArray(obtenerDataRespuesta(productosRes))
     ? obtenerDataRespuesta(productosRes)
     : [];
-  let usuarios = Array.isArray(obtenerDataRespuesta(usuariosRes))
-    ? obtenerDataRespuesta(usuariosRes)
-    : [];
+  let usuarios = [];
+  try {
+    const db = await obtenerBaseLocal();
+    const usuariosDb = await db.getAllAsync(
+      "SELECT * FROM usuarios WHERE activo = 1 AND deleted_at IS NULL"
+    );
+    if (Array.isArray(usuariosDb) && usuariosDb.length > 0) {
+      usuarios = usuariosDb;
+    }
+  } catch (_) {}
+
+  if (usuarios.length === 0) {
+    usuarios = Array.isArray(obtenerDataRespuesta(usuariosRes))
+      ? obtenerDataRespuesta(usuariosRes)
+      : [];
+  }
 
   let colaboradores = [];
   try {

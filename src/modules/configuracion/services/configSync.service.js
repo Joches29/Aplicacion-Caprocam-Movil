@@ -1774,74 +1774,12 @@ export const configSyncService = {
         await db.runAsync("DELETE FROM colaboradores WHERE pin_hash = '__SYNC_PLACEHOLDER__'");
       } catch (_) {}
 
-      if (
-        (!Array.isArray(data.alimentacion) || data.alimentacion.length === 0) &&
-        (!Array.isArray(data.alimentaciones) || data.alimentaciones.length === 0)
-      ) {
-        try {
-          const resp = await api.get("/alimentaciones");
-          const lista = resp?.data?.data ?? resp?.data;
-          if (Array.isArray(lista) && lista.length > 0) {
-            data.alimentacion = lista;
-          }
-        } catch (e) {
-          console.warn("Fallo al descargar alimentaciones REST:", e?.message);
-        }
-      }
 
-      if (
-        (!Array.isArray(data.densidadPoblacional) || data.densidadPoblacional.length === 0) &&
-        (!Array.isArray(data.densidad_poblacional) || data.densidad_poblacional.length === 0)
-      ) {
-        try {
-          const resp = await api.get("/densidad-poblacional");
-          const lista = resp?.data?.data ?? resp?.data;
-          if (Array.isArray(lista) && lista.length > 0) {
-            data.densidadPoblacional = lista;
-          }
-        } catch (e) {
-          console.warn("Fallo al descargar densidad REST:", e?.message);
-        }
-      }
 
-      if (
-        (!Array.isArray(data.raleos) || data.raleos.length === 0) &&
-        (!Array.isArray(data.raleo) || data.raleo.length === 0)
-      ) {
-        try {
-          const resp = await api.get("/raleo");
-          const lista = resp?.data?.data ?? resp?.data;
-          if (Array.isArray(lista) && lista.length > 0) {
-            data.raleos = lista;
-          }
-        } catch (e) {
-          console.warn("Fallo al descargar raleos REST:", e?.message);
-        }
-      }
-
-      if (
-        (!Array.isArray(data.ventas) || data.ventas.length === 0) &&
-        (!Array.isArray(data.venta) || data.venta.length === 0)
-      ) {
-        try {
-          const resp = await api.get("/ventas");
-          const lista = resp?.data?.data ?? resp?.data;
-          if (Array.isArray(lista) && lista.length > 0) {
-            data.ventas = lista;
-          }
-        } catch (e) {
-          console.warn("Fallo al descargar ventas REST:", e?.message);
-        }
-      }
-
-      if (!Array.isArray(data.usuarios) || data.usuarios.length === 0) {
-        try {
-          const resp = await api.get("/usuarios");
-          const lista = resp?.data?.data ?? resp?.data;
-          if (Array.isArray(lista) && lista.length > 0) {
-            data.usuarios = lista;
-          }
-        } catch (_) {}
+      console.log(`[SYNC] === INICIANDO DESCARGA DE CATÁLOGOS ===`);
+      console.log(`[SYNC] Grupo de datos activo: ${grupoDatos}`);
+      if (meta.totales) {
+        console.log(`[SYNC] Totales informados por servidor:`, JSON.stringify(meta.totales));
       }
 
       const resultados = [];
@@ -1861,13 +1799,22 @@ export const configSyncService = {
 
         if (resultado.success) {
           totalGuardados += resultado.guardados ?? 0;
+          if (resultado.total > 0) {
+            console.log(`[SYNC] ✅ ${tablaLocal} (${campoCamel}): ${resultado.guardados}/${resultado.total} guardados localmente.`);
+          } else {
+            console.log(`[SYNC] ℹ️ ${tablaLocal} (${campoCamel}): 0 registros del servidor.`);
+          }
         } else {
+          const errMsg = resultado.error || "Error desconocido";
           errores.push({
             tabla: tablaLocal,
-            error: resultado.error,
+            error: errMsg,
           });
+          console.error(`[SYNC] ❌ ${tablaLocal}: Error al guardar: ${errMsg}`);
         }
       }
+
+      console.log(`[SYNC] === FIN DESCARGA: ${totalGuardados} registros guardados en SQLite en total ===`);
 
       return {
         success: true,
