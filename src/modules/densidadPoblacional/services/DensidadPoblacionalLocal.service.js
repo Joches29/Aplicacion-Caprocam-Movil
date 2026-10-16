@@ -40,7 +40,7 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
+import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
 import { localApi } from "../../../database/local/localApi.service";
 
 /*
@@ -52,7 +52,7 @@ CONSTANTES
 const STORAGE_COLABORADOR_ACTUAL = "caprocam_colaborador_actual";
 const STORAGE_GRUPO_DATOS = "caprocam_grupo_datos";
 
-const MAX_TIROS = 30;
+const MAX_TIROS = 100;
 
 // Igual que el ejemplo del documento de requerimientos ("la
 // atarraya cubre aproximadamente 2,5 m2 por tiro"): valor sugerido
@@ -384,10 +384,21 @@ async function guardarTirosDeDensidad(densidadId, tiros, contexto) {
 }
 
 async function eliminarTirosDeDensidad(densidadId) {
-    const tirosActuales = await obtenerTirosDeDensidad(densidadId);
-
-    for (let i = 0; i < tirosActuales.length; i += 1) {
-        await ejecutarMetodoTiros("eliminar", [tirosActuales[i].id]);
+    const db = await obtenerBaseLocal();
+    const respuesta = await ejecutarMetodoTiros("obtenerTodos", [{ incluirInactivos: true }]);
+    const data = obtenerDataRespuesta(respuesta);
+    const registros = Array.isArray(data) ? data : [];
+    const tirosDelRegistro = registros.filter(
+        (tiro) => Number(obtenerValor(tiro, ["densidad_id", "densidadId"], null)) === Number(densidadId)
+    );
+    for (let i = 0; i < tirosDelRegistro.length; i += 1) {
+        const tiro = tirosDelRegistro[i];
+        const servidorId = obtenerValor(tiro, ["servidor_id", "servidorId"], null);
+        if (!servidorId) {
+            await db.runAsync("DELETE FROM densidad_detalle_tiros WHERE id = ?", [tiro.id]);
+        } else {
+            await ejecutarMetodoTiros("eliminar", [tiro.id]);
+        }
     }
 }
 
@@ -686,6 +697,59 @@ OPERACIONES LOCALES
 ============================================================
 */
 
+/*
+============================================================
+VALIDACION DE DUPLICADOS LOCAL (ESTANQUE + FECHA)
+============================================================
+*/
+
+async function validarDuplicadoLocal(estanqueId, fecha, idIgnorado = null) {
+    if (!estanqueId || !fecha) return;
+
+    const fechaNormalizada = String(fecha).trim().slice(0, 10);
+
+    const idsEstanque = new Set([Number(estanqueId)]);
+    try {
+        const respEst = await ejecutarMetodoEstanques("obtenerPorId", [estanqueId]);
+        const est = obtenerDataRespuesta(respEst);
+        if (est) {
+            if (est.id) idsEstanque.add(Number(est.id));
+            if (est.servidor_id ?? est.servidorId) {
+                idsEstanque.add(Number(est.servidor_id ?? est.servidorId));
+            }
+        }
+    } catch (_) {}
+
+    const respuesta = await ejecutarMetodoDensidad("obtenerTodos");
+    const data = obtenerDataRespuesta(respuesta);
+    const registros = Array.isArray(data) ? data : [];
+
+    const duplicado = registros.find((reg) => {
+        const idActual = obtenerValor(reg, ["id"], null);
+        if (idIgnorado !== null && Number(idActual) === Number(idIgnorado)) {
+            return false;
+        }
+
+        const activo = obtenerValor(reg, ["activo"], 1);
+        if (activo === 0 || activo === false || String(activo) === "0") {
+            return false;
+        }
+
+        const regEstanqueId = Number(obtenerValor(reg, ["estanque_id", "estanqueId"], 0));
+        const regFecha = String(obtenerValor(reg, ["fecha"], "")).trim().slice(0, 10);
+
+        return idsEstanque.has(regEstanqueId) && regFecha === fechaNormalizada;
+    });
+
+    if (duplicado) {
+        throw new Error(
+            idIgnorado !== null
+                ? "Ya existe otro registro de densidad poblacional para ese estanque en esa fecha."
+                : "Ya existe un registro de densidad poblacional para ese estanque en esa fecha."
+        );
+    }
+}
+
 async function getAll(filtros = {}) {
     try {
         const respuesta = await ejecutarMetodoDensidad("obtenerTodos");
@@ -730,6 +794,8 @@ async function create(densidadDTO) {
         const derivados = calcularDerivados(densidadDTO);
         const datosLocales = await mapearDensidadParaLocal(densidadDTO, derivados, contexto);
 
+        await validarDuplicadoLocal(datosLocales.estanque_id, datosLocales.fecha);
+
         const respuesta = await ejecutarMetodoDensidad("crear", [datosLocales]);
         const creado = obtenerDataRespuesta(respuesta);
         const nuevoId = obtenerValor(creado, ["id"], null);
@@ -753,6 +819,8 @@ async function update(id, densidadDTO) {
         const derivados = calcularDerivados(densidadDTO);
         const datosLocales = await mapearDensidadParaLocal(densidadDTO, derivados, contexto);
 
+        await validarDuplicadoLocal(datosLocales.estanque_id, datosLocales.fecha);
+
         await ejecutarMetodoDensidad("actualizar", [id, datosLocales]);
 
         // Se reemplazan todos los tiros: es una edicion completa del
@@ -769,10 +837,15 @@ async function update(id, densidadDTO) {
     }
 }
 
-async function deleteById(id) {
+async function deleteById(id) {s
     try {
+        const actual = await getById(id);
         await eliminarTirosDeDensidad(id);
-
+        if (actual && !actual.servidorId) {
+            const db = await obtenerBaseLocal();
+            await db.runAsync("DELETE FROM densidad_poblacional WHERE id = ?", [id]);
+            return actual;
+        }
         const respuesta = await ejecutarMetodoDensidad("eliminar", [id]);
         return mapearDensidadDesdeLocal(obtenerDataRespuesta(respuesta));
     } catch (error) {

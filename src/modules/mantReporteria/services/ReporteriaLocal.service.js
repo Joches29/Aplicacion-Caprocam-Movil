@@ -11,6 +11,7 @@
 import api from "../../../api/api";
 import { localApi } from "../../../database/local/localApi.service";
 import { obtenerBaseLocal } from "../../../database/local/sqlite.database";
+import DensidadPoblacionalLocalService from "../../densidadPoblacional/services/DensidadPoblacionalLocal.service";
 import {
   getLecturasLocal,
   eliminarLecturaLocal,
@@ -339,6 +340,10 @@ export async function eliminarRegistroLocal(tipoRegistro, id) {
   // eliminarLecturaLocal ya hace ese borrado completo.
   if (tipoRegistro === "fisico_quimico") {
     return eliminarLecturaLocal(id);
+  }
+
+  if (tipoRegistro === "densidad_poblacional") {
+    return await DensidadPoblacionalLocalService.deleteById(id);
   }
 
   const seccion = SECCION_POR_TIPO[tipoRegistro];
