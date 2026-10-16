@@ -1046,11 +1046,10 @@ const normalizarPorTabla = async (
       if (r.densidad_id != null) {
         r.densidad_id = await obtenerIdLocalDesdeServidor(
           localApi.densidadPoblacional,
-          r.densidad_id,
-          "densidad de tiro"
-        );
-      }
-      break;
+              r.densidad_id
+            );
+        }
+        break;
 
     case "raleos":
       if (r.finca !== undefined && r.finca_id === undefined) {
@@ -1585,12 +1584,12 @@ async function agregarPendientePorTabla(
     return false;
   }
 
-  if (!porTabla[item.tabla]) {
-    porTabla[item.tabla] = {
-      crear: [],
-      actualizar: [],
-      eliminar: [],
-    };
+  if (
+    Number(item.registro?.activo) === 0 &&
+    !tieneServidorId(item.registro)
+  ) {
+    await localApi.sync.marcarSincronizado(item.tabla, item.registro.id, null);
+    return false;
   }
 
   const accion =
