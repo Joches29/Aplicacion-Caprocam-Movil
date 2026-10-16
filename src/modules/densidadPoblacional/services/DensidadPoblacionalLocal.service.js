@@ -819,14 +819,10 @@ async function update(id, densidadDTO) {
         const derivados = calcularDerivados(densidadDTO);
         const datosLocales = await mapearDensidadParaLocal(densidadDTO, derivados, contexto);
 
-        await validarDuplicadoLocal(datosLocales.estanque_id, datosLocales.fecha);
+        await validarDuplicadoLocal(datosLocales.estanque_id, datosLocales.fecha, id);
 
         await ejecutarMetodoDensidad("actualizar", [id, datosLocales]);
 
-        // Se reemplazan todos los tiros: es una edicion completa del
-        // muestreo, no un ajuste parcial (mismo criterio que el DTO
-        // que arma useEditarDensidad.js, que siempre manda la lista
-        // completa de tiros vigente en el formulario).
         await eliminarTirosDeDensidad(id);
         await guardarTirosDeDensidad(id, densidadDTO.tiros, contexto);
 
@@ -837,7 +833,7 @@ async function update(id, densidadDTO) {
     }
 }
 
-async function deleteById(id) {s
+async function deleteById(id) {
     try {
         const actual = await getById(id);
         await eliminarTirosDeDensidad(id);

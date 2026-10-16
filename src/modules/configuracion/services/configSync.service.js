@@ -1028,6 +1028,7 @@ const normalizarPorTabla = async (
           "finca de densidad"
         );
       }
+      
       if (r.estanque_id != null) {
         r.estanque_id = await obtenerIdLocalDesdeServidor(
           localApi.estanques,
@@ -1035,6 +1036,7 @@ const normalizarPorTabla = async (
           "estanque de densidad"
         );
       }
+
       if (r.fecha) {
         r.fecha = normalizarFechaMySQL(r.fecha);
       } else {
@@ -1046,10 +1048,11 @@ const normalizarPorTabla = async (
       if (r.densidad_id != null) {
         r.densidad_id = await obtenerIdLocalDesdeServidor(
           localApi.densidadPoblacional,
-              r.densidad_id
-            );
-        }
-        break;
+          r.densidad_id,
+          "densidad_poblacional para tiro"
+        );
+      }
+      break;
 
     case "raleos":
       if (r.finca !== undefined && r.finca_id === undefined) {
@@ -1323,24 +1326,29 @@ async function normalizarRegistroParaSubida(
 
 
       case "densidad_poblacional":
-        if (r.finca_id != null) {
-          r.finca_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.fincas,
-              r.finca_id,
-              "finca"
-            );
-        }
-
-        if (r.estanque_id != null) {
-          r.estanque_id =
-            await obtenerIdServidorDesdeLocal(
-              localApi.estanques,
-              r.estanque_id,
-              "estanque"
-            );
-        }
-        break;
+      if (r.finca_id != null) {
+        r.finca_id = await obtenerIdServidorDesdeLocal(
+          localApi.fincas,
+          r.finca_id,
+          "finca de densidad"
+        );
+      }
+      if (r.estanque_id != null) {
+        r.estanque_id = await obtenerIdServidorDesdeLocal(
+          localApi.estanques,
+          r.estanque_id,
+          "estanque de densidad"
+        );
+      }
+      break;
+    case "densidad_detalle_tiros":
+      if (r.densidad_id != null) {
+        r.densidad_id = await obtenerIdServidorSiExiste(
+          localApi.densidadPoblacional,
+          r.densidad_id
+        );
+      }
+      break;
 
       case "raleos":
         if (r.finca_id != null) {
@@ -1592,6 +1600,14 @@ async function agregarPendientePorTabla(
     return false;
   }
 
+  if (!porTabla[item.tabla]) {
+    porTabla[item.tabla] = {
+      crear: [],
+      actualizar: [],
+      eliminar: [],
+    };
+  }
+  
   const accion =
     normalizarAccion(item);
 
